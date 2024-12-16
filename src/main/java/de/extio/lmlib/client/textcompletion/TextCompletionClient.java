@@ -1,5 +1,6 @@
 package de.extio.lmlib.client.textcompletion;
 
+import java.text.DecimalFormat;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
@@ -295,6 +296,10 @@ public class TextCompletionClient implements Client, DisposableBean {
 			builder.append(this.inTokens);
 			builder.append(", outTokens=");
 			builder.append(this.outTokens);
+			builder.append(", averageTps=");
+			builder.append(new DecimalFormat("#.##").format(((double) (this.outTokens + this.inTokens) / (double) this.requests) / ((double) this.duration.toMillis() / 1000.0 / (double) this.requests)));
+			builder.append(", averageOutTps=");
+			builder.append(new DecimalFormat("#.##").format((double) this.outTokens / ((double) this.duration.toMillis() / 1000.0)));
 			builder.append("]");
 			return builder.toString();
 		}

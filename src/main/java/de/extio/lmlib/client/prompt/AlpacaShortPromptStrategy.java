@@ -1,24 +1,19 @@
 package de.extio.lmlib.client.prompt;
 
-import org.springframework.stereotype.Component;
-
-@Component
-public class MixtralPromptStrategy implements PromptStrategy {
+public class AlpacaShortPromptStrategy implements PromptStrategy {
 	
 	@Override
 	public StringBuilder start(final String instruction, final String question, final String text) {
 		final StringBuilder prompt = new StringBuilder();
-		prompt.append("<s>[INST] ");
+		prompt.append("### Instruction:\n");
 		prompt.append(instruction);
-		if (!instruction.isEmpty() && !question.isEmpty()) {
-			prompt.append("\n");
-		}
+		prompt.append("\n\n### Input:\n");
 		prompt.append(question);
-		if ((!instruction.isEmpty() || !question.isEmpty()) && !text.isEmpty()) {
+		if (!question.isEmpty() && !text.isEmpty()) {
 			prompt.append("\n");
 		}
 		prompt.append(text);
-		prompt.append(" [/INST]");
+		prompt.append("\n\n### Response:\n");
 		return prompt;
 	}
 	
@@ -29,11 +24,10 @@ public class MixtralPromptStrategy implements PromptStrategy {
 	
 	@Override
 	public void next(final StringBuilder prompt, final String assistant, final String user) {
-		prompt.append("\n\"");
 		prompt.append(assistant);
-		prompt.append("\"</s> [INST] ");
+		prompt.append("\n\n### Input:\n");
 		prompt.append(user);
-		prompt.append(" [/INST]");
+		prompt.append("\n\n### Response:\n");
 	}
 	
 	@Override
@@ -43,7 +37,7 @@ public class MixtralPromptStrategy implements PromptStrategy {
 	
 	@Override
 	public String getPromptName() {
-		return "mixtral";
+		return "alpaca";
 	}
 	
 }
