@@ -1,4 +1,4 @@
-package de.extio.lmlib.client.prompt;
+package de.extio.lmlib.prompt;
 
 public interface PromptStrategy {
 	

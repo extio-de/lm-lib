@@ -1,4 +1,4 @@
-package de.extio.lmlib.client.token;
+package de.extio.lmlib.token;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;

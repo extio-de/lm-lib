@@ -1,7 +1,7 @@
 package de.extio.lmlib.client;
 
-import de.extio.lmlib.client.profile.ModelCategory;
-import de.extio.lmlib.client.profile.ModelProfile.ModelProvider;
+import de.extio.lmlib.profile.ModelCategory;
+import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 
 public interface Client {
 	

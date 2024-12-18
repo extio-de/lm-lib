@@ -1,21 +1,19 @@
-package de.extio.lmlib.client.prompt;
+package de.extio.lmlib.prompt;
 
-import org.springframework.stereotype.Component;
-
-@Component
-public class VicunaPromptStrategy implements PromptStrategy {
+public class AlpacaShortPromptStrategy implements PromptStrategy {
 	
 	@Override
-	public StringBuilder start(final String system, final String question, final String text) {
+	public StringBuilder start(final String instruction, final String question, final String text) {
 		final StringBuilder prompt = new StringBuilder();
-		prompt.append(system);
-		prompt.append(" USER: ");
+		prompt.append("### Instruction:\n");
+		prompt.append(instruction);
+		prompt.append("\n\n### Input:\n");
 		prompt.append(question);
 		if (!question.isEmpty() && !text.isEmpty()) {
 			prompt.append("\n");
 		}
 		prompt.append(text);
-		prompt.append(" ASSISTANT:");
+		prompt.append("\n\n### Response:\n");
 		return prompt;
 	}
 	
@@ -26,11 +24,10 @@ public class VicunaPromptStrategy implements PromptStrategy {
 	
 	@Override
 	public void next(final StringBuilder prompt, final String assistant, final String user) {
-		prompt.append(" ");
 		prompt.append(assistant);
-		prompt.append("</s>USER: ");
+		prompt.append("\n\n### Input:\n");
 		prompt.append(user);
-		prompt.append(" ASSISTANT:");
+		prompt.append("\n\n### Response:\n");
 	}
 	
 	@Override
@@ -40,7 +37,7 @@ public class VicunaPromptStrategy implements PromptStrategy {
 	
 	@Override
 	public String getPromptName() {
-		return "vicuna";
+		return "alpaca";
 	}
 	
 }

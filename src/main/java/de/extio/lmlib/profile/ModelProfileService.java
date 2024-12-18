@@ -1,4 +1,4 @@
-package de.extio.lmlib.client.profile;
+package de.extio.lmlib.profile;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -16,7 +16,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.io.support.ResourcePropertySource;
 import org.springframework.stereotype.Service;
 
-import de.extio.lmlib.client.profile.ModelProfile.ModelProvider;
+import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 
 @Service
 public class ModelProfileService {

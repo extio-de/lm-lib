@@ -12,8 +12,10 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import de.extio.lmlib.client.profile.ModelCategory;
-import de.extio.lmlib.client.profile.ModelProfileService;
+import de.extio.lmlib.profile.ModelCategory;
+import de.extio.lmlib.profile.ModelProfileService;
+import de.extio.lmlib.token.JTokkitTokenizer;
+import de.extio.lmlib.token.LlamaServerTokenizer;
 
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration

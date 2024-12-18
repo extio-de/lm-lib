@@ -23,16 +23,16 @@ import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
-import de.extio.lmlib.client.profile.ModelCategory;
-import de.extio.lmlib.client.profile.ModelProfile;
-import de.extio.lmlib.client.profile.ModelProfile.ModelProvider;
-import de.extio.lmlib.client.profile.ModelProfileService;
-import de.extio.lmlib.client.prompt.PromptStrategy;
-import de.extio.lmlib.client.prompt.PromptStrategyFactory;
 import de.extio.lmlib.client.textcompletion.dto.Choice;
 import de.extio.lmlib.client.textcompletion.dto.CompletionRequest;
 import de.extio.lmlib.client.textcompletion.dto.CompletionResponse;
-import de.extio.lmlib.client.token.Tokenizer;
+import de.extio.lmlib.profile.ModelCategory;
+import de.extio.lmlib.profile.ModelProfile;
+import de.extio.lmlib.profile.ModelProfileService;
+import de.extio.lmlib.profile.ModelProfile.ModelProvider;
+import de.extio.lmlib.prompt.PromptStrategy;
+import de.extio.lmlib.prompt.PromptStrategyFactory;
+import de.extio.lmlib.token.Tokenizer;
 
 import reactor.util.retry.Retry;
 

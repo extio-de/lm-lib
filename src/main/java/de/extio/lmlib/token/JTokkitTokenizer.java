@@ -1,4 +1,4 @@
-package de.extio.lmlib.client.token;
+package de.extio.lmlib.token;
 
 import java.util.List;
 
@@ -10,7 +10,7 @@ import com.knuddels.jtokkit.api.EncodingRegistry;
 import com.knuddels.jtokkit.api.EncodingType;
 import com.knuddels.jtokkit.api.IntArrayList;
 
-import de.extio.lmlib.client.profile.ModelProfile;
+import de.extio.lmlib.profile.ModelProfile;
 
 final class JTokkitTokenizer implements Tokenizer {
 	

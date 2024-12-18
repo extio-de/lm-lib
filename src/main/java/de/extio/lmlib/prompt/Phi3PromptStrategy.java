@@ -1,16 +1,16 @@
-package de.extio.lmlib.client.prompt;
+package de.extio.lmlib.prompt;
 
 import org.springframework.stereotype.Component;
 
 @Component
-public class Gemma2PromptStrategy implements PromptStrategy {
+public class Phi3PromptStrategy implements PromptStrategy {
 	
 	@Override
 	public StringBuilder start(final String system, final String question, final String text) {
 		final StringBuilder prompt = new StringBuilder();
-		prompt.append("<start_of_turn>user\n");
+		prompt.append("<|user|>\n");
+		prompt.append(system);
 		if (!system.isEmpty()) {
-			prompt.append(system);
 			prompt.append("\n");
 		}
 		prompt.append(question);
@@ -18,7 +18,7 @@ public class Gemma2PromptStrategy implements PromptStrategy {
 			prompt.append("\n");
 		}
 		prompt.append(text);
-		prompt.append("<end_of_turn>\n<start_of_turn>model\n");
+		prompt.append(" <|end|>\n<|assistant|>");
 		return prompt;
 	}
 	
@@ -29,20 +29,20 @@ public class Gemma2PromptStrategy implements PromptStrategy {
 	
 	@Override
 	public void next(final StringBuilder prompt, final String assistant, final String user) {
+		prompt.append("\n");
 		prompt.append(assistant);
-		prompt.append("<end_of_turn>\n<start_of_turn>user\n");
+		prompt.append("<|user|>\n");
 		prompt.append(user);
-		prompt.append("<end_of_turn>\n<start_of_turn>model\n");
+		prompt.append("<|end|>\n<|assistant|>");
 	}
 	
 	@Override
 	public String removeEOT(final String prompt) {
-		return prompt.strip().replace("<end_of_turn>", "");
+		return prompt.strip().replace("<|end|>", "");
 	}
 	
 	@Override
 	public String getPromptName() {
-		return "gemma2";
+		return "phi3";
 	}
-	
 }

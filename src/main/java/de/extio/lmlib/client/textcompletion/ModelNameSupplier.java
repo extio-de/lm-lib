@@ -11,8 +11,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import de.extio.lmlib.client.profile.ModelProfile.ModelProvider;
-import de.extio.lmlib.client.profile.ModelProfileService;
+import de.extio.lmlib.profile.ModelProfileService;
+import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 
 @Component
 class ModelNameSupplier implements InitializingBean {

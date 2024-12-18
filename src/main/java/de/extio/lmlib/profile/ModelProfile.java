@@ -1,4 +1,4 @@
-package de.extio.lmlib.client.profile;
+package de.extio.lmlib.profile;
 
 public record ModelProfile(
 		String prompt,

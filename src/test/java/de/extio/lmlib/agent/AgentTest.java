@@ -20,7 +20,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.PropertySource;
 
 import de.extio.lmlib.client.ClientService;
-import de.extio.lmlib.client.profile.ModelCategory;
+import de.extio.lmlib.profile.ModelCategory;
 
 import io.netty.util.internal.ThreadLocalRandom;
 

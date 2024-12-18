@@ -21,7 +21,7 @@ import org.springframework.context.annotation.PropertySource;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
-import de.extio.lmlib.client.profile.ModelCategory;
+import de.extio.lmlib.profile.ModelCategory;
 
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration

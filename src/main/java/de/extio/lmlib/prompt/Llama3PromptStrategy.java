@@ -1,26 +1,30 @@
-package de.extio.lmlib.client.prompt;
+package de.extio.lmlib.prompt;
 
 import org.springframework.stereotype.Component;
 
+/**
+ * @see https://llama.meta.com/docs/model-cards-and-prompt-formats/meta-llama-3
+ */
 @Component
-public class ChatMLPromptStrategy implements PromptStrategy {
+public class Llama3PromptStrategy implements PromptStrategy {
 	
 	@Override
 	public StringBuilder start(final String system, final String question, final String text) {
 		final StringBuilder prompt = new StringBuilder();
-		prompt.append("<|im_start|>");
+		prompt.append("<|begin_of_text|>");
 		if (!system.isEmpty()) {
-			prompt.append("system\n");
+			prompt.append("<|start_header_id|>system<|end_header_id|>\n\n");
 			prompt.append(system);
-			prompt.append("<|im_end|>\n");
+			prompt.append("<|eot_id|>");
 		}
-		prompt.append("<|im_start|>user\n");
+		prompt.append("<|start_header_id|>user<|end_header_id|>\n\n");
 		prompt.append(question);
 		if (!question.isEmpty() && !text.isEmpty()) {
-			prompt.append("\n");
+			prompt.append("\n\n");
 		}
 		prompt.append(text);
-		prompt.append("<|im_end|>\n<|im_start|>assistant\n");
+		prompt.append("<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n");
+		
 		return prompt;
 	}
 	
@@ -32,18 +36,16 @@ public class ChatMLPromptStrategy implements PromptStrategy {
 	@Override
 	public void next(final StringBuilder prompt, final String assistant, final String user) {
 		prompt.append(assistant);
-		prompt.append("<|im_end|>\n<|im_start|>user\n");
-		prompt.append(user);
-		prompt.append("<|im_end|>\n<|im_start|>assistant\n");
+		prompt.append("<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n" + user + "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n");
 	}
 	
 	@Override
 	public String removeEOT(final String prompt) {
-		return prompt.strip().replace("<|im_end|>", "");
+		return prompt.strip().replace("<|eot_id|>", "");
 	}
 	
 	@Override
 	public String getPromptName() {
-		return "chatml";
+		return "llama3";
 	}
 }

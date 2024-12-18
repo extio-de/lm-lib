@@ -1,8 +1,8 @@
-package de.extio.lmlib.client.token;
+package de.extio.lmlib.token;
 
 import java.util.List;
 
-import de.extio.lmlib.client.profile.ModelProfile;
+import de.extio.lmlib.profile.ModelProfile;
 
 public interface Tokenizer {
 	

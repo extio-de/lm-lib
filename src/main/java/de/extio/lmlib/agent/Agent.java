@@ -17,7 +17,7 @@ import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.TurnType;
-import de.extio.lmlib.client.profile.ModelCategory;
+import de.extio.lmlib.profile.ModelCategory;
 
 public record Agent(String name, AgentType agentType, ModelCategory modelCategory, String systemPrompt, String textTemplate, AgentResponseHandler responseHandler, Consumer<AgentContext> preProcessor, Consumer<AgentContext> postProcessor, Function<List<AgentContext>, List<AgentContext>> merger, Function<AgentContext, AgentNext> chooseNext) {
 	

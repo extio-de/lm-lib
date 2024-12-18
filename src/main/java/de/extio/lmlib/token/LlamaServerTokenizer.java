@@ -1,4 +1,4 @@
-package de.extio.lmlib.client.token;
+package de.extio.lmlib.token;
 
 import java.time.Duration;
 import java.util.List;
@@ -9,7 +9,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClient.Builder;
 
-import de.extio.lmlib.client.profile.ModelProfile;
+import de.extio.lmlib.profile.ModelProfile;
 
 import reactor.util.retry.Retry;
 

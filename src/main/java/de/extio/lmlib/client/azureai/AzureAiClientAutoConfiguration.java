@@ -4,8 +4,8 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.annotation.Bean;
 
-import de.extio.lmlib.client.profile.ModelProfileService;
-import de.extio.lmlib.client.token.Tokenizer;
+import de.extio.lmlib.profile.ModelProfileService;
+import de.extio.lmlib.token.Tokenizer;
 
 @AutoConfiguration
 @ConditionalOnClass(name = "com.azure.ai.inference.ChatCompletionsClient")

@@ -5,8 +5,8 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import de.extio.lmlib.client.profile.ModelCategory;
-import de.extio.lmlib.client.profile.ModelProfileService;
+import de.extio.lmlib.profile.ModelCategory;
+import de.extio.lmlib.profile.ModelProfileService;
 
 @Service
 public class ClientService {
