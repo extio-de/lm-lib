@@ -108,6 +108,7 @@ public class ModelProfileService {
 					}
 				})
 				.filter(Objects::nonNull)
+				.distinct()
 				.collect(Collectors.toList());
 	}
 }
