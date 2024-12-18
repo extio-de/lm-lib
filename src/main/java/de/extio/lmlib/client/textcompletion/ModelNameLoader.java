@@ -39,7 +39,7 @@ class ModelNameLoader implements Runnable {
 						.uri(uriBuilder -> uriBuilder.path("/v1/models").build())
 						.retrieve()
 						.bodyToMono(ModelsResponse.class)
-						.retryWhen(Retry.backoff(99, Duration.ofSeconds(1)).maxBackoff(Duration.ofSeconds(10)).jitter(0.25d).doAfterRetry(rs -> LOGGER.warn("Request failed", rs.failure())))
+						.retryWhen(Retry.backoff(99, Duration.ofSeconds(1)).maxBackoff(Duration.ofSeconds(10)).jitter(0.25d).doAfterRetry(rs -> LOGGER.warn("Request failed " + rs.failure().getMessage())))
 						.block()
 						.getData()
 						.stream()

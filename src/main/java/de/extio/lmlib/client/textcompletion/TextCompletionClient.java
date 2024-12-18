@@ -241,7 +241,7 @@ public class TextCompletionClient implements Client, DisposableBean {
 				.bodyValue(request)
 				.retrieve()
 				.bodyToMono(CompletionResponse.class)
-				.retryWhen(Retry.backoff(99, Duration.ofSeconds(1)).maxBackoff(Duration.ofSeconds(10)).jitter(0.25d).doAfterRetry(rs -> LOGGER.warn("Request failed", rs.failure())))
+				.retryWhen(Retry.backoff(99, Duration.ofSeconds(1)).maxBackoff(Duration.ofSeconds(10)).jitter(0.25d).doAfterRetry(rs -> LOGGER.warn("Request failed " + rs.failure().getMessage())))
 				.block();
 	}
 	

@@ -34,7 +34,7 @@ final class LlamaServerTokenizer implements Tokenizer {
 				.bodyValue(request)
 				.retrieve()
 				.bodyToMono(TokenizeResponse.class)
-				.retryWhen(Retry.backoff(99, Duration.ofSeconds(1)).maxBackoff(Duration.ofSeconds(10)).jitter(0.25d).doAfterRetry(rs -> LOGGER.warn("Request failed", rs.failure())))
+				.retryWhen(Retry.backoff(99, Duration.ofSeconds(1)).maxBackoff(Duration.ofSeconds(10)).jitter(0.25d).doAfterRetry(rs -> LOGGER.warn("Request failed " + rs.failure().getMessage())))
 				.block();
 		return response.tokens();
 	}
@@ -55,7 +55,7 @@ final class LlamaServerTokenizer implements Tokenizer {
 				.bodyValue(request)
 				.retrieve()
 				.bodyToMono(DetokenizeResponse.class)
-				.retryWhen(Retry.backoff(99, Duration.ofSeconds(1)).maxBackoff(Duration.ofSeconds(10)).jitter(0.25d).doAfterRetry(rs -> LOGGER.warn("Request failed", rs.failure())))
+				.retryWhen(Retry.backoff(99, Duration.ofSeconds(1)).maxBackoff(Duration.ofSeconds(10)).jitter(0.25d).doAfterRetry(rs -> LOGGER.warn("Request failed " + rs.failure().getMessage())))
 				.block();
 		return response.content();
 	}
