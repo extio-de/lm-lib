@@ -1,4 +1,4 @@
-package de.extio.lmlib.client.token;
+package de.extio.lmlib.token;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -14,8 +14,6 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfileService;
-import de.extio.lmlib.token.JTokkitTokenizer;
-import de.extio.lmlib.token.LlamaServerTokenizer;
 
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
