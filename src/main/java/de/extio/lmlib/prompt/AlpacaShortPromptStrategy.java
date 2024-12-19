@@ -5,9 +5,12 @@ public class AlpacaShortPromptStrategy implements PromptStrategy {
 	@Override
 	public StringBuilder start(final String instruction, final String question, final String text) {
 		final StringBuilder prompt = new StringBuilder();
-		prompt.append("### Instruction:\n");
-		prompt.append(instruction);
-		prompt.append("\n\n### Input:\n");
+		if (! instruction.isEmpty()) {
+			prompt.append("### Instruction:\n");
+			prompt.append(instruction);
+			prompt.append("\n\n");
+		}
+		prompt.append("### Input:\n");
 		prompt.append(question);
 		if (!question.isEmpty() && !text.isEmpty()) {
 			prompt.append("\n");
