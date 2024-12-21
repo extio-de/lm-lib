@@ -1,13 +1,15 @@
 package de.extio.lmlib.agent;
 
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -17,7 +19,28 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(JsonAgentResponseHandler.class);
 	
-	private final ObjectMapper objectMapper = new ObjectMapper();
+	private final ObjectMapper objectMapper;
+	
+	public JsonAgentResponseHandler() {
+		this.objectMapper = new ObjectMapper();
+		this.objectMapper.configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false);
+		this.objectMapper.configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false);
+		this.objectMapper.configure(DeserializationFeature.FAIL_ON_MISSING_EXTERNAL_TYPE_ID_PROPERTY, false);
+		this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNRESOLVED_OBJECT_IDS, false);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_MISSING_VALUES, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_NON_NUMERIC_NUMBERS, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_TRAILING_COMMA, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_CONTROL_CHARS, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_YAML_COMMENTS, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_LEADING_DECIMAL_POINT_FOR_NUMBERS, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_LEADING_PLUS_SIGN_FOR_NUMBERS, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_TRAILING_DECIMAL_POINT_FOR_NUMBERS, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+	}
 	
 	@Override
 	public boolean handle(final Split split, final Completion completion) {
@@ -38,7 +61,7 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 		while (fields.hasNext()) {
 			final var entry = fields.next();
 			if (entry.getValue().isArray()) {
-				final var items = new HashSet<>();
+				final var items = new LinkedHashSet<>();
 				entry.getValue().elements().forEachRemaining(item -> items.add(item.asText()));
 				split.context().getContext().put(entry.getKey(), List.copyOf(items));
 				hasResponse = true;

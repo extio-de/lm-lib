@@ -6,13 +6,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
 
 public final class AgentContext {
 	
 	private final Map<String, Agent> agents;
 	
-	private final Map<String, List<Object>> context;
+	private final Map<String, List<? extends Object>> context;
 	
 	private final AgentRequestStatistic requestStatistic;
 	
@@ -21,6 +22,8 @@ public final class AgentContext {
 	private volatile Conversation conversation;
 	
 	private volatile AgentNext nextAgent;
+	
+	private volatile Completion lastCompletion;
 	
 	public AgentContext(final Map<String, Agent> agents) {
 		this.agents = agents;
@@ -32,18 +35,19 @@ public final class AgentContext {
 		this(other, new ConcurrentHashMap<>(other.context));
 	}
 	
-	public AgentContext(final AgentContext other, final Map<String, List<Object>> context) {
+	public AgentContext(final AgentContext other, final Map<String, List<? extends Object>> context) {
 		this.agents = other.agents;
 		this.context = context;
 		this.conversation = Conversation.copy(other.conversation);
 		this.nextAgent = other.nextAgent;
 		this.requestStatistic = other.requestStatistic;
+		this.lastCompletion = other.lastCompletion;
 		synchronized (other.graph) {
 			this.graph.addAll(other.graph);
 		}
 	}
 	
-	public Map<String, List<Object>> getContext() {
+	public Map<String, List<? extends Object>> getContext() {
 		return this.context;
 	}
 	
@@ -73,6 +77,14 @@ public final class AgentContext {
 	
 	public List<String> getGraph() {
 		return this.graph;
+	}
+	
+	public Completion getLastCompletion() {
+		return this.lastCompletion;
+	}
+	
+	public void setLastCompletion(final Completion lastCompletion) {
+		this.lastCompletion = lastCompletion;
 	}
 	
 }

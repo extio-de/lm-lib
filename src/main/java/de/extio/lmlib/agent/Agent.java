@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
@@ -24,7 +25,7 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 	private static final Logger LOGGER = LoggerFactory.getLogger(Agent.class);
 	
 	public List<AgentContext> execute(final Client client, final ExecutorService agentExecutorService, final AgentContext context) {
-		final var retContexts = Collections.synchronizedList(new ArrayList<AgentContext>());
+		final var finishedSplits = Collections.synchronizedList(new ArrayList<Split>());
 		
 		context.setNextAgent(null);
 		
@@ -36,57 +37,76 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 		final var tasks = new ArrayList<CompletableFuture<?>>(splits.size());
 		for (final var split : splits) {
 			tasks.add(CompletableFuture.runAsync(() -> {
-				split.context().getGraph().add(this.modelCategory.getShortName());
-				split.context().getGraph().add(this.name());
-				
-				final var conversation = this.setupConversation(split);
-				LOGGER.debug("Conversation: {}", conversation);
-				
-				Completion completion = null;
-				boolean parseable = false;
-				for (int i = 0; i < 2; i++) {
-					completion = client.conversation(this.modelCategory, conversation);
-					split.context().getRequestStatistic().add(completion);
+				try {
+					if (this.agentType() != AgentType.PROCESSING_ONLY) {
+						split.context().getGraph().add(this.modelCategory.getShortName());
+					}
+					split.context().getGraph().add(this.name());
 					
-					try {
-						if (!this.responseHandler.handle(split, completion)) {
-							context.getGraph().add("⚠");
-							LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response());
-							continue;
-						}
+					if (this.agentType != AgentType.PROCESSING_ONLY) {
+						final var conversation = this.setupConversation(split);
+						LOGGER.debug("Conversation: {}", conversation);
 						
-						parseable = true;
-						break;
+						Completion completion = null;
+						boolean parseable = false;
+						for (int i = 0; i < 2; i++) {
+							completion = client.conversation(this.modelCategory, conversation);
+							split.context().setLastCompletion(completion);
+							split.context().getRequestStatistic().add(completion);
+							
+							try {
+								if (!this.responseHandler.handle(split, completion)) {
+									context.getGraph().add("⚠");
+									LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response());
+									continue;
+								}
+								
+								parseable = true;
+								break;
+							}
+							catch (final Exception e) {
+								context.getGraph().add("⚠");
+								LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response(), e);
+								continue;
+							}
+						}
+						if (!parseable) {
+							LOGGER.warn("{} Response is still not parseable after last attempt", this.name());
+							context.getGraph().add("☢");
+							return;
+						}
 					}
-					catch (final Exception e) {
-						context.getGraph().add("⚠");
-						LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response(), e);
-						continue;
+					
+					if (this.postProcessor != null) {
+						this.postProcessor.accept(split.context());
 					}
+					
+					finishedSplits.add(split);
 				}
-				if (!parseable) {
-					LOGGER.warn("{} Response is still not parseable after last attempt", this.name());
-					context.getGraph().add("☢");
-					return;
+				catch (final Exception ex) {
+					LOGGER.error("Error during agent execution", ex);
 				}
-				
-				if (this.postProcessor != null) {
-					this.postProcessor.accept(split.context());
-				}
-				
-				this.chooseNextAgent(conversation, completion, split.context());
-				
-				retContexts.add(split.context());
 			}, agentExecutorService));
 		}
 		
 		CompletableFuture.allOf(tasks.toArray(new CompletableFuture[0])).join();
 		
+		var retContexts = finishedSplits
+				.stream()
+				.sorted((s0, s1) -> Integer.compare(s0.index(), s1.index()))
+				.map(Split::context)
+				.toList();
+		
 		if (this.merger != null) {
-			final var mergedContexts = this.merger.apply(retContexts);
-			mergedContexts.forEach(c -> c.getGraph().add(retContexts.size() + "↣" + mergedContexts.size()));
-			return mergedContexts;
+			final int size = retContexts.size();
+			retContexts = this.merger.apply(retContexts);
+			for (final var retContext : retContexts) {
+				retContext.getGraph().add(size + "↣" + retContexts.size());
+			}
 		}
+		
+		retContexts.forEach(this::chooseNextAgent);
+		
 		return retContexts;
 	}
 	
@@ -112,7 +132,7 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 	}
 	
 	private List<Split> applyTemplate(final AgentContext context) {
-		String text = this.textTemplate;
+		String text = this.textTemplate != null ? this.textTemplate : "";
 		for (final var entry : context.getContext().entrySet()) {
 			final var k = "{{" + entry.getKey() + "}}";
 			if (text.contains(k)) {
@@ -120,31 +140,39 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 			}
 		}
 		
+		var branchedEntriesMinCntValues = 0;
+		final var branchedEntries = new ArrayList<Entry<String, List<? extends Object>>>();
 		for (final var entry : context.getContext().entrySet()) {
 			final var k = "[[" + entry.getKey() + "]]";
 			if (text.contains(k)) {
-				final var result = new ArrayList<Split>();
-				
-				int i = 0;
-				for (final var value : entry.getValue()) {
-					final var nextText = text.replace(k, value.toString());
-					
-					final var nextContext = new HashMap<>(context.getContext());
-					nextContext.put(entry.getKey(), List.of(value));
-					
-					final var nextAgentContext = new AgentContext(context, nextContext);
-					if (entry.getValue().size() > 1) {
-						nextAgentContext.getGraph().add("⇉ " + ++i + "/" + entry.getValue().size());
-					}
-					
-					result.add(new Split(nextText, nextAgentContext));
-				}
-				
-				return result; // TODO: Multiple splits not supported yet
+				branchedEntries.add(entry);
+				branchedEntriesMinCntValues = branchedEntriesMinCntValues == 0 ? entry.getValue().size() : Math.min(branchedEntriesMinCntValues, entry.getValue().size());
 			}
 		}
+		if (!branchedEntries.isEmpty()) {
+			final var result = new ArrayList<Split>();
+			
+			for (int i = 0; i < branchedEntriesMinCntValues; i++) {
+				String nextText = text;
+				final var nextContext = new HashMap<>(context.getContext());
+				for (final var entry : branchedEntries) {
+					final var k = "[[" + entry.getKey() + "]]";
+					nextText = nextText.replace(k, entry.getValue().get(i).toString());
+					nextContext.put(entry.getKey(), List.of(entry.getValue().get(i)));
+				}
+				
+				final var nextAgentContext = new AgentContext(context, nextContext);
+				if (branchedEntriesMinCntValues > 1) {
+					nextAgentContext.getGraph().add("⇉ " + (i + 1) + "/" + branchedEntriesMinCntValues);
+				}
+				
+				result.add(new Split(nextText, nextAgentContext, i));
+			}
+			
+			return result;
+		}
 		
-		return List.of(new Split(text, context));
+		return List.of(new Split(text, context, 0));
 	}
 	
 	private Conversation setupConversation(final Split split) {
@@ -158,7 +186,7 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 			split.context().setConversation(conversation);
 		}
 		else {
-			if (conversation.getConversation().get(0).type() == TurnType.SYSTEM) {
+			if (conversation.getConversation().get(0).type() == TurnType.SYSTEM && this.agentType() != AgentType.CONVERSATION_WITH_SYSTEM_PROMPT) {
 				final var mergedSysAndUser = conversation.getConversation().get(0).text() + "\n" + conversation.getConversation().get(1).text();
 				
 				final var newConversation = Conversation.create(mergedSysAndUser);
@@ -176,7 +204,7 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 		return conversation;
 	}
 	
-	private void chooseNextAgent(final Conversation conversation, final Completion completion, final AgentContext context) {
+	private void chooseNextAgent(final AgentContext context) {
 		context.setNextAgent(this.chooseNext.apply(context));
 		
 		if (context.getNextAgent() != null) {
@@ -194,22 +222,12 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 				return;
 			}
 			
-			String answer = completion.response();
-			if (context.getNextAgent().transformResponse() != null) {
-				answer = context.getNextAgent().transformResponse().apply(answer);
-			}
-			
 			final Agent nextAgent = context.getAgents().get(context.getNextAgent().name());
 			switch (nextAgent) {
 				case null -> {
 					context.getGraph().add("☢");
 					LOGGER.error("Agent not found: {}", context.getNextAgent().name());
 					context.setNextAgent(null);
-				}
-				
-				case final Agent a when context.getNextAgent().responseAsUserPrompt() == Boolean.TRUE -> {
-					context.getGraph().add("↺");
-					conversation.replaceTurn(new Conversation.Turn(TurnType.USER, answer));
 				}
 				
 				case final Agent a when a.agentType() == AgentType.COMPLETION -> {
@@ -222,9 +240,15 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 					context.setConversation(null);
 				}
 				
-				case final Agent a when a.agentType() == AgentType.CONVERSATION -> {
+				case final Agent a when a.agentType() == AgentType.CONVERSATION || a.agentType() == AgentType.CONVERSATION_WITH_SYSTEM_PROMPT -> {
 					context.getGraph().add("↴");
-					conversation.addTurn(new Conversation.Turn(TurnType.ASSISTANT, answer));
+					if (context.getConversation().getConversation().getLast().type() != TurnType.ASSISTANT) {
+						context.getConversation().addTurn(new Conversation.Turn(TurnType.ASSISTANT, context.getLastCompletion().response()));
+					}
+				}
+				
+				case final Agent a when a.agentType() == AgentType.PROCESSING_ONLY -> {
+					context.getGraph().add("○");
 				}
 				
 				default -> {

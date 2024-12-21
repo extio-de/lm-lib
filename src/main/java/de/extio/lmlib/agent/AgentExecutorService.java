@@ -60,7 +60,12 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 				}
 				
 				branchTasks.add(CompletableFuture.runAsync(() -> {
-					responses.addAll(this.walkGraph(branchAgent, branchContext));
+					try {
+						responses.addAll(this.walkGraph(branchAgent, branchContext));
+					}
+					catch (Exception e) {
+						LOGGER.error("Error executing agent", e);
+					}
 				}, this.branchExecutorService));
 			}
 			else {

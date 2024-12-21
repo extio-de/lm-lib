@@ -54,7 +54,7 @@ public class AgentTest {
 						null,
 						null,
 						null,
-						context -> new AgentNext("FeatureIdentifier", null, null, null)),
+						context -> new AgentNext("FeatureIdentifier", null)),
 				
 				"FeatureIdentifier",
 				new Agent("FeatureIdentifier",
@@ -66,7 +66,7 @@ public class AgentTest {
 						null,
 						context -> context.getContext().get("features").forEach(feature -> LOGGER.info(feature.toString())),
 						null,
-						context -> new AgentNext("FeatureAnalyzer", null, null, null)),
+						context -> new AgentNext("FeatureAnalyzer", null)),
 				
 				"FeatureAnalyzer",
 				new Agent("FeatureAnalyzer",
@@ -81,7 +81,7 @@ public class AgentTest {
 						null,
 						null,
 						contexts -> Agent.mergeContexts(List.of("features", "featureDescription"), contexts),
-						context -> new AgentNext("AnswerGenerator", null, null, null)),
+						context -> new AgentNext("AnswerGenerator", null)),
 				
 				"AnswerGenerator",
 				new Agent("AnswerGenerator",
@@ -99,7 +99,7 @@ public class AgentTest {
 						},
 						null,
 						null,
-						context -> new AgentNext(null, null, null, null)));
+						context -> new AgentNext(null, null)));
 		
 		final var context = new AgentContext(agents);
 		context.getContext().put("code", List.of(Files.readString(Path.of("src/main/java/de/extio/lmlib/agent/Agent.java"))));
@@ -131,7 +131,7 @@ public class AgentTest {
 						null,
 						null,
 						null,
-						context -> new AgentNext("SecondLevel", null, null, null)),
+						context -> new AgentNext("SecondLevel", null)),
 				
 				"SecondLevel",
 				new Agent("SecondLevel",
@@ -143,7 +143,7 @@ public class AgentTest {
 						null,
 						null,
 						null,
-						context -> new AgentNext("Calculator", null, null, null)),
+						context -> new AgentNext("Calculator", null)),
 				
 				"Calculator",
 				new Agent("Calculator",
@@ -155,7 +155,7 @@ public class AgentTest {
 						null,
 						null,
 						null,
-						context -> new AgentNext("Grader", null, null, null)),
+						context -> new AgentNext("Grader", null)),
 				
 				"Grader",
 				new Agent("Grader",
@@ -179,7 +179,7 @@ public class AgentTest {
 									context.getContext().put("random", List.of(String.valueOf(ThreadLocalRandom.current().nextInt(10))));
 								}
 							}
-							return new AgentNext(pass ? null : "Calculator", pass, null, null);
+							return new AgentNext(pass ? null : "Calculator", pass);
 						}));
 		
 		final var context = new AgentContext(agents);
