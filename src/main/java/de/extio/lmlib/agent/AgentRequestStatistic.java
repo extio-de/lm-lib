@@ -36,16 +36,16 @@ public final class AgentRequestStatistic {
 		return this.requestDuration;
 	}
 	
-	public Duration getAbsoluteDuration() {
+	public Duration getEffectiveDuration() {
 		return Duration.between(this.start, Instant.now());
 	}
 	
 	public String getTps() {
-		return new DecimalFormat("#.##").format((double) (this.inTokens.get() + this.outTokens.get()) / (double)this.getAbsoluteDuration().toMillis() * 1000.0);
+		return new DecimalFormat("#.##").format((double) (this.inTokens.get() + this.outTokens.get()) / (double)this.getEffectiveDuration().toMillis() * 1000.0);
 	}
 	
 	public String getOutTps() {
-		return new DecimalFormat("#.##").format((double) this.outTokens.get() / (double)this.getAbsoluteDuration().toMillis() * 1000.0);
+		return new DecimalFormat("#.##").format((double) this.outTokens.get() / (double)this.getEffectiveDuration().toMillis() * 1000.0);
 	}
 	
 	public void add(final Completion completion) {
@@ -70,8 +70,8 @@ public final class AgentRequestStatistic {
 		builder.append(this.outTokens);
 		builder.append(", requestDuration=");
 		builder.append(this.requestDuration);
-		builder.append(", getAbsoluteDuration()=");
-		builder.append(this.getAbsoluteDuration());
+		builder.append(", getEffectiveDuration()=");
+		builder.append(this.getEffectiveDuration());
 		builder.append(", getTps()=");
 		builder.append(this.getTps());
 		builder.append(", getOutTps()=");

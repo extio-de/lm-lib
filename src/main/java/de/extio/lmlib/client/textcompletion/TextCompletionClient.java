@@ -2,6 +2,7 @@ package de.extio.lmlib.client.textcompletion;
 
 import java.text.DecimalFormat;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -28,8 +29,8 @@ import de.extio.lmlib.client.textcompletion.dto.CompletionRequest;
 import de.extio.lmlib.client.textcompletion.dto.CompletionResponse;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
-import de.extio.lmlib.profile.ModelProfileService;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
+import de.extio.lmlib.profile.ModelProfileService;
 import de.extio.lmlib.prompt.PromptStrategy;
 import de.extio.lmlib.prompt.PromptStrategyFactory;
 import de.extio.lmlib.token.Tokenizer;
@@ -270,6 +271,8 @@ public class TextCompletionClient implements Client, DisposableBean {
 	
 	static class CompletionStatistics {
 		
+		private final Instant start = Instant.now();
+		
 		volatile int requests;
 		
 		volatile Duration duration = Duration.ofMillis(0l);
@@ -300,6 +303,13 @@ public class TextCompletionClient implements Client, DisposableBean {
 			builder.append(new DecimalFormat("#.##").format(((double) (this.outTokens + this.inTokens) / (double) this.requests) / ((double) this.duration.toMillis() / 1000.0 / (double) this.requests)));
 			builder.append(", averageOutTps=");
 			builder.append(new DecimalFormat("#.##").format((double) this.outTokens / ((double) this.duration.toMillis() / 1000.0)));
+			builder.append(", effectiveDuration=");
+			final var effectiveDuration = Duration.between(this.start, Instant.now());
+			builder.append(effectiveDuration);
+			builder.append(", effectiveTps=");
+			builder.append(new DecimalFormat("#.##").format(((double) (this.outTokens + this.inTokens) / (double) this.requests) / ((double) effectiveDuration.toMillis() / 1000.0 / (double) this.requests)));
+			builder.append(", effectiveOutTps=");
+			builder.append(new DecimalFormat("#.##").format((double) this.outTokens / ((double) effectiveDuration.toMillis() / 1000.0)));
 			builder.append("]");
 			return builder.toString();
 		}
