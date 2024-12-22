@@ -14,6 +14,9 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
@@ -23,6 +26,8 @@ import de.extio.lmlib.profile.ModelCategory;
 public record Agent(String name, AgentType agentType, ModelCategory modelCategory, String systemPrompt, String textTemplate, AgentResponseHandler responseHandler, Consumer<AgentContext> preProcessor, Consumer<AgentContext> postProcessor, Function<List<AgentContext>, List<AgentContext>> merger, Function<AgentContext, AgentNext> chooseNext) {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(Agent.class);
+	
+	private static final ObjectMapper objectMapper = new ObjectMapper();
 	
 	public List<AgentContext> execute(final Client client, final ExecutorService agentExecutorService, final AgentContext context) {
 		final var finishedSplits = Collections.synchronizedList(new ArrayList<Split>());
@@ -56,7 +61,7 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 							
 							try {
 								if (!this.responseHandler.handle(split, completion)) {
-									context.getGraph().add("⚠");
+									split.context().getGraph().add("⚠");
 									LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response());
 									continue;
 								}
@@ -65,14 +70,15 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 								break;
 							}
 							catch (final Exception e) {
-								context.getGraph().add("⚠");
+								split.context().getGraph().add("⚠");
 								LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response(), e);
 								continue;
 							}
 						}
 						if (!parseable) {
 							LOGGER.warn("{} Response is still not parseable after last attempt", this.name());
-							context.getGraph().add("☢");
+							split.context().getGraph().add("☢");
+							split.context().setError(true);
 							return;
 						}
 					}
@@ -85,6 +91,7 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 				}
 				catch (final Exception ex) {
 					LOGGER.error("Error during agent execution", ex);
+					split.context().setError(true);
 				}
 			}, agentExecutorService));
 		}
@@ -93,19 +100,24 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 		
 		var retContexts = finishedSplits
 				.stream()
+				.filter(s -> !s.context().isError())
 				.sorted((s0, s1) -> Integer.compare(s0.index(), s1.index()))
 				.map(Split::context)
-				.toList();
+				.collect(Collectors.toCollection(ArrayList::new));
 		
-		if (this.merger != null) {
-			final int size = retContexts.size();
-			retContexts = this.merger.apply(retContexts);
-			for (final var retContext : retContexts) {
-				retContext.getGraph().add(size + "↣" + retContexts.size());
+		if (!retContexts.isEmpty()) {
+			if (this.merger != null) {
+				final int size = retContexts.size();
+				retContexts = new ArrayList<>(this.merger.apply(retContexts));
+				for (final var retContext : retContexts) {
+					retContext.getGraph().add(size + "↣" + retContexts.size());
+				}
 			}
+			
+			retContexts.forEach(this::nextAgent);
 		}
 		
-		retContexts.forEach(this::chooseNextAgent);
+		retContexts.addAll(finishedSplits.stream().filter(s -> s.context().isError()).map(s -> s.context()).toList());
 		
 		return retContexts;
 	}
@@ -134,7 +146,17 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 	private List<Split> applyTemplate(final AgentContext context) {
 		String text = this.textTemplate != null ? this.textTemplate : "";
 		for (final var entry : context.getContext().entrySet()) {
-			final var k = "{{" + entry.getKey() + "}}";
+			var k = "{{{" + entry.getKey() + "}}}";
+			if (text.contains(k)) {
+				try {
+					text = text.replace(k, objectMapper.writeValueAsString(entry.getValue()));
+				}
+				catch (final JsonProcessingException e) {
+					LOGGER.warn("Cannot write json", e);
+				}
+			}
+			
+			k = "{{" + entry.getKey() + "}}";
 			if (text.contains(k)) {
 				text = text.replace(k, entry.getValue().stream().map(Object::toString).collect(Collectors.joining("\n\n")));
 			}
@@ -204,7 +226,7 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 		return conversation;
 	}
 	
-	private void chooseNextAgent(final AgentContext context) {
+	private void nextAgent(final AgentContext context) {
 		context.setNextAgent(this.chooseNext.apply(context));
 		
 		if (context.getNextAgent() != null) {

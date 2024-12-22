@@ -1,6 +1,6 @@
 package de.extio.lmlib.agent;
 
-import java.util.List;
+import java.util.ArrayList;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
@@ -8,19 +8,19 @@ import org.slf4j.LoggerFactory;
 
 import de.extio.lmlib.client.Completion;
 
-public class TextAgentResponseHandler implements AgentResponseHandler {
+public class AccumulateTextAgentResponseHandler implements AgentResponseHandler {
 	
-	private static final Logger LOGGER = LoggerFactory.getLogger(TextAgentResponseHandler.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(AccumulateTextAgentResponseHandler.class);
 	
 	private final String key;
 	
 	private final Function<String, String> transformer;
 	
-	public TextAgentResponseHandler(final String key) {
+	public AccumulateTextAgentResponseHandler(final String key) {
 		this(key, null);
 	}
 	
-	public TextAgentResponseHandler(final String key, final Function<String, String> transformer) {
+	public AccumulateTextAgentResponseHandler(final String key, final Function<String, String> transformer) {
 		this.key = key;
 		this.transformer = transformer;
 	}
@@ -32,7 +32,7 @@ public class TextAgentResponseHandler implements AgentResponseHandler {
 		if (this.transformer != null) {
 			response = this.transformer.apply(response);
 		}
-		split.context().getContext().put(this.key, List.of(response));
+		((ArrayList<Object>) split.context().getContext().computeIfAbsent(this.key, k -> new ArrayList<>())).add(response);
 		return true;
 	}
 	

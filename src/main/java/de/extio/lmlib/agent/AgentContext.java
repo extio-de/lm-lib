@@ -1,10 +1,13 @@
 package de.extio.lmlib.agent;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
@@ -25,6 +28,8 @@ public final class AgentContext {
 	
 	private volatile Completion lastCompletion;
 	
+	private volatile boolean error;
+	
 	public AgentContext(final Map<String, Agent> agents) {
 		this.agents = agents;
 		this.context = new ConcurrentHashMap<>();
@@ -42,9 +47,34 @@ public final class AgentContext {
 		this.nextAgent = other.nextAgent;
 		this.requestStatistic = other.requestStatistic;
 		this.lastCompletion = other.lastCompletion;
+		this.error = other.error;
 		synchronized (other.graph) {
 			this.graph.addAll(other.graph);
 		}
+	}
+	
+	public String getStringValue(final String key) {
+		final var values = this.context.get(key);
+		if (values == null || values.isEmpty()) {
+			return null;
+		}
+		return values.getFirst().toString();
+	}
+	
+	public void setStringValue(final String key, final String value) {
+		this.context.put(key, List.of(value));
+	}
+	
+	public List<String> getStringValues(final String key) {
+		final var values = this.context.get(key);
+		if (values == null) {
+			return null;
+		}
+		return values.stream().map(Objects::toString).collect(Collectors.toCollection(ArrayList::new));
+	}
+	
+	public void setStringValues(final String key, final Collection<String> value) {
+		this.context.put(key, List.copyOf(value));
 	}
 	
 	public Map<String, List<? extends Object>> getContext() {
@@ -85,6 +115,14 @@ public final class AgentContext {
 	
 	public void setLastCompletion(final Completion lastCompletion) {
 		this.lastCompletion = lastCompletion;
+	}
+	
+	public boolean isError() {
+		return this.error;
+	}
+	
+	public void setError(final boolean error) {
+		this.error = error;
 	}
 	
 }

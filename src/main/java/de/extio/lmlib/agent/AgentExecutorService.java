@@ -53,7 +53,7 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 		final var branches = agent.execute(client, this.agentExecutorService, context);
 		final var branchTasks = new ArrayList<CompletableFuture<?>>(branches.size());
 		for (final var branchContext : branches) {
-			if (branchContext.getNextAgent() != null) {
+			if (!branchContext.isError() && branchContext.getNextAgent() != null) {
 				final var branchAgent = context.getAgents().get(branchContext.getNextAgent().name());
 				if (branchAgent == null) {
 					throw new IllegalArgumentException("Agent not found: " + branchContext.getNextAgent().name());
@@ -63,7 +63,7 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 					try {
 						responses.addAll(this.walkGraph(branchAgent, branchContext));
 					}
-					catch (Exception e) {
+					catch (final Exception e) {
 						LOGGER.error("Error executing agent", e);
 					}
 				}, this.branchExecutorService));
