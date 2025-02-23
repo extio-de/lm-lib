@@ -1,5 +1,6 @@
 package de.extio.lmlib.client.azureai;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
@@ -108,6 +109,7 @@ public final class AzureAiClient implements Client {
 				statistics.duration,
 				statistics.inTokens,
 				statistics.outTokens,
+				new BigDecimal(statistics.inTokens).multiply(modelProfile.costInToken()).add(new BigDecimal(statistics.outTokens).multiply(modelProfile.costOutToken())),
 				false);
 	}
 	
@@ -120,7 +122,7 @@ public final class AzureAiClient implements Client {
 		Turn assistantTurn = null;
 		boolean first = true;
 		
-		final int maxLength = modelProfile.maxContextLength() - modelProfile.maxTokens() - 50; // 50 is a margin for EOT and other special tokens
+		final int maxLength = modelProfile.maxContextLength() - modelProfile.maxTokens() - 15; // 15 is a margin for EOT and other special tokens
 		final AtomicInteger tokens = new AtomicInteger();
 		
 		while (!turns.isEmpty()) {
@@ -165,21 +167,19 @@ public final class AzureAiClient implements Client {
 	}
 	
 	private boolean addChatRequestMessage(final String text, final int maxLength, final AtomicInteger tokens, final List<ChatRequestMessage> chat, final ModelProfile modelProfile, final Function<String, ChatRequestMessage> messageFactory) {
-		final int textTokens = this.tokenizer.count(text, modelProfile);
-		
-		String trimmedText;
+		String prompt = text;
 		boolean trimmed = false;
+		
+		final int textTokens = this.tokenizer.count(prompt, modelProfile);
 		if (tokens.addAndGet(textTokens) > maxLength) {
 			// TODO: Cut smarter, e.g. split conversation into parts while keeping system prompt
-			LOGGER.warn("Prompt too long: {} tokens / {} max. Prompt will be cut!", tokens.get(), maxLength);
-			trimmedText = text.substring(0, text.length() - (tokens.get() - maxLength) / 3);
+			List<Long> tokenized = this.tokenizer.tokenize(prompt, modelProfile);
+			LOGGER.warn("Prompt too long: {} tokens / {} max. Prompt will be cut!", tokenized.size(), maxLength);
+			tokenized = tokenized.subList(0, tokenized.size() - (tokens.get() - maxLength));
+			prompt = this.tokenizer.detokenize(tokenized, modelProfile);
 			trimmed = true;
-		}
-		else {
-			trimmedText = text;
-		}
-		
-		chat.add(messageFactory.apply(trimmedText));
+		}		
+		chat.add(messageFactory.apply(prompt));
 		
 		return trimmed;
 	}
@@ -246,7 +246,7 @@ public final class AzureAiClient implements Client {
 		long outTokens;
 		
 		void add(final Duration duration, final int inTokens, final int outTokens) {
-			LOGGER.info("Request duration: {}; in: {}; out: {}; tps: {}", duration, inTokens, outTokens, String.format("%.2f", (inTokens + outTokens) / (double) duration.toMillis() * 1000.0));
+			LOGGER.debug("Request duration: {}; in: {}; out: {}; tps: {}", duration, inTokens, outTokens, String.format("%.2f", (inTokens + outTokens) / (double) duration.toMillis() * 1000.0));
 			
 			this.requests++;
 			this.duration = this.duration.plus(duration);

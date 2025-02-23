@@ -1,5 +1,6 @@
 package de.extio.lmlib.agent;
 
+import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.time.Duration;
 import java.time.Instant;
@@ -12,16 +13,24 @@ public final class AgentRequestStatistic {
 	
 	private final AtomicInteger requests = new AtomicInteger();
 	
+	private final AtomicInteger cachedPrompts = new AtomicInteger();
+	
 	private final AtomicLong inTokens = new AtomicLong();
 	
 	private final AtomicLong outTokens = new AtomicLong();
 	
-	private final Instant start = Instant.now();
+	private volatile Instant start = Instant.now();
 	
 	private volatile Duration requestDuration = Duration.ofMillis(0L);
 	
+	private volatile BigDecimal cost = BigDecimal.ZERO;
+	
 	public AtomicInteger getRequests() {
 		return this.requests;
+	}
+	
+	public AtomicInteger getCachedPrompts() {
+		return this.cachedPrompts;
 	}
 	
 	public AtomicLong getInTokens() {
@@ -41,22 +50,44 @@ public final class AgentRequestStatistic {
 	}
 	
 	public String getTps() {
-		return new DecimalFormat("#.##").format((double) (this.inTokens.get() + this.outTokens.get()) / (double)this.getEffectiveDuration().toMillis() * 1000.0);
+		return new DecimalFormat("#.##").format((double) (this.inTokens.get() + this.outTokens.get()) / (double) this.getEffectiveDuration().toMillis() * 1000.0);
 	}
 	
 	public String getOutTps() {
-		return new DecimalFormat("#.##").format((double) this.outTokens.get() / (double)this.getEffectiveDuration().toMillis() * 1000.0);
+		return new DecimalFormat("#.##").format((double) this.outTokens.get() / (double) this.getEffectiveDuration().toMillis() * 1000.0);
+	}
+	
+	public BigDecimal getCost() {
+		return this.cost;
 	}
 	
 	public void add(final Completion completion) {
-		this.getRequests().addAndGet(completion.requests());
+		if (completion.cached()) {
+			this.cachedPrompts.incrementAndGet();
+		}
+		else {
+			this.getRequests().addAndGet(completion.requests());
+		}
 		this.getInTokens().addAndGet(completion.inTokens());
 		this.getOutTokens().addAndGet(completion.outTokens());
-		this.addRequestDuration(completion.duration());
+		synchronized (this) {
+			this.requestDuration = this.requestDuration.plus(completion.duration());
+			this.cost = this.cost.add(completion.cost());
+		}
 	}
 	
-	public synchronized void addRequestDuration(final Duration duration) {
-		this.requestDuration = this.requestDuration.plus(duration);
+	public void add(final AgentRequestStatistic other) {
+		this.getRequests().addAndGet(other.getRequests().get());
+		this.getCachedPrompts().addAndGet(other.getCachedPrompts().get());
+		this.getInTokens().addAndGet(other.getInTokens().get());
+		this.getOutTokens().addAndGet(other.getOutTokens().get());
+		synchronized (this) {
+			if (other.start.isBefore(this.start)) {
+				this.start = other.start;
+			}
+			this.requestDuration = this.requestDuration.plus(other.getRequestDuration());
+			this.cost = this.cost.add(other.getCost());
+		}
 	}
 	
 	@Override
@@ -64,6 +95,8 @@ public final class AgentRequestStatistic {
 		final StringBuilder builder = new StringBuilder();
 		builder.append("AgentRequestStatistic [requests=");
 		builder.append(this.requests);
+		builder.append(", cachedPrompts=");
+		builder.append(this.cachedPrompts);
 		builder.append(", inTokens=");
 		builder.append(this.inTokens);
 		builder.append(", outTokens=");
@@ -76,6 +109,8 @@ public final class AgentRequestStatistic {
 		builder.append(this.getTps());
 		builder.append(", getOutTps()=");
 		builder.append(this.getOutTps());
+		builder.append(", getCost()=");
+		builder.append(this.getCost());
 		builder.append("]");
 		return builder.toString();
 	}

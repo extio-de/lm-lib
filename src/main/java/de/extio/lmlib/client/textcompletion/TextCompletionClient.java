@@ -1,5 +1,6 @@
 package de.extio.lmlib.client.textcompletion;
 
+import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.time.Duration;
 import java.time.Instant;
@@ -122,6 +123,7 @@ public class TextCompletionClient implements Client, DisposableBean {
 				statistics.duration,
 				statistics.inTokens,
 				statistics.outTokens,
+				new BigDecimal(statistics.inTokens).multiply(modelProfile.costInToken()).add(new BigDecimal(statistics.outTokens).multiply(modelProfile.costOutToken())),
 				false);
 	}
 	
@@ -207,9 +209,10 @@ public class TextCompletionClient implements Client, DisposableBean {
 				final var dur = Duration.between(start, LocalDateTime.now());
 				final var in = this.tokenizer.count(promptStr, modelProfile);
 				final var out = this.tokenizer.count(content, modelProfile);
-				LOGGER.debug("Request duration: " + dur + "; in tokens: " + in + "; out tokens: " + out);
-				statistics.add(dur, in, out);
-				this.totalStatistics.add(dur, in, out);
+				final var cost = new BigDecimal(in).multiply(modelProfile.costInToken()).add(new BigDecimal(out).multiply(modelProfile.costOutToken()));
+				LOGGER.debug("Request duration: " + dur + "; in tokens: " + in + "; out tokens: " + out + "; cost: " + new DecimalFormat("0.####").format(cost));
+				statistics.add(dur, in, out, cost);
+				this.totalStatistics.add(dur, in, out, cost);
 			}
 			
 			answer.append(content);
@@ -247,7 +250,7 @@ public class TextCompletionClient implements Client, DisposableBean {
 	}
 	
 	private void summarize(final List<StringBuilder> answers, final ModelProfile modelProfile, final PromptStrategy promptStrategy, final CompletionStatistics statistics) {
-		// TODO: Reactivate when multiple (split) prompts have been implemented again
+		// TODO: Reactivate when multiple (split) prompts have been implemented again in #createPrompts
 		//		LOGGER.debug("Summarizing answers");
 		//		
 		//		final StringBuilder summary = new StringBuilder();
@@ -264,7 +267,7 @@ public class TextCompletionClient implements Client, DisposableBean {
 	
 	@Override
 	public void destroy() throws Exception {
-		if (this.collectStatistics) {
+		if (this.collectStatistics && this.totalStatistics.requests > 0) {
 			LOGGER.info("Client Statistics: {}", this.totalStatistics);
 		}
 	}
@@ -273,19 +276,22 @@ public class TextCompletionClient implements Client, DisposableBean {
 		
 		private final Instant start = Instant.now();
 		
-		volatile int requests;
+		private int requests;
 		
-		volatile Duration duration = Duration.ofMillis(0l);
+		private Duration duration = Duration.ofMillis(0l);
 		
-		volatile long inTokens;
+		private long inTokens;
 		
-		volatile long outTokens;
+		private long outTokens;
 		
-		synchronized void add(final Duration duration, final int inTokens, final int outTokens) {
+		private BigDecimal cost = BigDecimal.ZERO;
+		
+		synchronized void add(final Duration duration, final int inTokens, final int outTokens, final BigDecimal cost) {
 			this.requests++;
 			this.duration = this.duration.plus(duration);
 			this.inTokens += inTokens;
 			this.outTokens += outTokens;
+			this.cost = this.cost.add(cost);
 		}
 		
 		@Override
@@ -300,16 +306,18 @@ public class TextCompletionClient implements Client, DisposableBean {
 			builder.append(", outTokens=");
 			builder.append(this.outTokens);
 			builder.append(", averageTps=");
-			builder.append(new DecimalFormat("#.##").format(((double) (this.outTokens + this.inTokens) / (double) this.requests) / ((double) this.duration.toMillis() / 1000.0 / (double) this.requests)));
+			builder.append(new DecimalFormat("0.##").format(((double) (this.outTokens + this.inTokens) / (double) this.requests) / ((double) this.duration.toMillis() / 1000.0 / (double) this.requests)));
 			builder.append(", averageOutTps=");
-			builder.append(new DecimalFormat("#.##").format((double) this.outTokens / ((double) this.duration.toMillis() / 1000.0)));
+			builder.append(new DecimalFormat("0.##").format((double) this.outTokens / ((double) this.duration.toMillis() / 1000.0)));
 			builder.append(", effectiveDuration=");
 			final var effectiveDuration = Duration.between(this.start, Instant.now());
 			builder.append(effectiveDuration);
 			builder.append(", effectiveTps=");
-			builder.append(new DecimalFormat("#.##").format(((double) (this.outTokens + this.inTokens) / (double) this.requests) / ((double) effectiveDuration.toMillis() / 1000.0 / (double) this.requests)));
+			builder.append(new DecimalFormat("0.##").format(((double) (this.outTokens + this.inTokens) / (double) this.requests) / ((double) effectiveDuration.toMillis() / 1000.0 / (double) this.requests)));
 			builder.append(", effectiveOutTps=");
-			builder.append(new DecimalFormat("#.##").format((double) this.outTokens / ((double) effectiveDuration.toMillis() / 1000.0)));
+			builder.append(new DecimalFormat("0.##").format((double) this.outTokens / ((double) effectiveDuration.toMillis() / 1000.0)));
+			builder.append(", cost=");
+			builder.append(new DecimalFormat("0.###").format(cost.doubleValue()));
 			builder.append("]");
 			return builder.toString();
 		}

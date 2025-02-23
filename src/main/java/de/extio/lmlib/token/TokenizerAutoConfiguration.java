@@ -14,7 +14,7 @@ public class TokenizerAutoConfiguration {
 	
 	@Bean
 	@ConditionalOnProperty(name = "tokenizer.strategy", havingValue = "llamaServer")
-	@ConditionalOnMissingBean
+	@ConditionalOnMissingBean(type = "de.extio.lmlib.token.Tokenizer")
 	Tokenizer llamaServerTokenizer(@Qualifier("lmLibWebClientBuilder") final WebClient.Builder webClientBuilder) {
 		return new LlamaServerTokenizer(webClientBuilder);
 	}
@@ -22,7 +22,7 @@ public class TokenizerAutoConfiguration {
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnClass(name = "com.knuddels.jtokkit.Encodings")
 	@ConditionalOnProperty(name = "tokenizer.strategy", havingValue = "jTokkit")
-	@ConditionalOnMissingBean
+	@ConditionalOnMissingBean(type = "de.extio.lmlib.token.Tokenizer")
 	public static class SomeServiceConfiguration {
 		
 		@Bean

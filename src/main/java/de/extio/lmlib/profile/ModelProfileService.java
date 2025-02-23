@@ -1,6 +1,7 @@
 package de.extio.lmlib.profile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -12,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.support.ResourcePropertySource;
 import org.springframework.stereotype.Service;
@@ -38,7 +40,9 @@ public class ModelProfileService {
 			throw new IllegalStateException("No model found for profile: " + modelProfile);
 		}
 		try {
+			
 			final var resource = new ResourcePropertySource("classpath:" + modelName + ".properties");
+			
 			final var promptTemplate = Optional.ofNullable(resource.getProperty("prompts"))
 					.map(Object::toString)
 					.orElseThrow(() -> new IllegalStateException("No model name found for model: " + modelName));
@@ -75,11 +79,29 @@ public class ModelProfileService {
 			final var url = Optional.ofNullable(resource.getProperty("url"))
 					.map(Object::toString)
 					.orElseThrow(() -> new IllegalStateException("No model url found for model: " + modelName));
-			final var apiKey = Optional.ofNullable(resource.getProperty("apiKey"))
+			final var costInToken = Optional.ofNullable(resource.getProperty("cost1MInTokens"))
 					.map(Object::toString)
-					.orElseThrow(() -> new IllegalStateException("No model apiKey found for model: " + modelName));
+					.map(value -> new BigDecimal(value))
+					.orElse(BigDecimal.ZERO)
+					.divide(new BigDecimal(1000000.0));
+			final var costOutToken = Optional.ofNullable(resource.getProperty("cost1MOutTokens"))
+					.map(Object::toString)
+					.map(value -> new BigDecimal(value))
+					.orElse(BigDecimal.ZERO)
+					.divide(new BigDecimal(1000000.0));
 			
-			return new ModelProfile(promptTemplate, tokenEncoding, maxTokens, maxContextLength, temperature, topP, maxContinuations, modelProvider, modelNameCfg, url, apiKey);
+			//To resolve api key placeholder ${exchangeautodocumentation.azure.apikey} in model-name.properties file
+			String apiKey = null;
+			synchronized (this.environment) {
+				if (this.environment instanceof ConfigurableEnvironment configurableEnvironment) {
+					configurableEnvironment.getPropertySources().addLast(resource);
+				}
+				apiKey = Optional.ofNullable(this.environment.getProperty("apiKey"))
+						.map(Object::toString)
+						.orElseThrow(() -> new IllegalStateException("No model apiKey found for model: " + modelName));
+			}
+			
+			return new ModelProfile(promptTemplate, tokenEncoding, maxTokens, maxContextLength, temperature, topP, maxContinuations, modelProvider, modelNameCfg, url, apiKey, costInToken, costOutToken);
 		}
 		catch (final IOException e) {
 			LOGGER.error("Error while reading model profile", e);

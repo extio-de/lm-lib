@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.ClientService;
 
 @Service
@@ -47,10 +48,14 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 	public List<AgentContext> walkGraph(final Agent agent, final AgentContext context) {
 		LOGGER.info("Agent: {}", agent.name());
 		
-		final var client = this.clientService.getClient(agent.modelCategory());
-		final var responses = Collections.synchronizedList(new ArrayList<AgentContext>());
+		Client client = null;
+		if (agent.agentType() != AgentType.PROCESSING_ONLY) {
+			client = this.clientService.getClient(agent.modelCategory());
+		}
 		
 		final var branches = agent.execute(client, this.agentExecutorService, context);
+		
+		final var responses = Collections.synchronizedList(new ArrayList<AgentContext>());
 		final var branchTasks = new ArrayList<CompletableFuture<?>>(branches.size());
 		for (final var branchContext : branches) {
 			if (!branchContext.isError() && branchContext.getNextAgent() != null) {
