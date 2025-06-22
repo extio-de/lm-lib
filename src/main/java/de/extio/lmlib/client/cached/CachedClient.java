@@ -69,35 +69,26 @@ public class CachedClient implements Client {
 			throw new IllegalArgumentException("ModelProfile " + modelCategory.getModelProfile());
 		}
 		
-		final var key = new StringBuilder();
-		key.append(Objects.requireNonNullElse(modelProfile.modelName(), modelCategory.name()));
-		key.append("_");
-		key.append(modelProfile.maxTokens());
-		key.append("_");
-		key.append(modelProfile.maxContextLength());
-		key.append("_");
-		key.append(modelProfile.maxContinuations());
-		key.append("_");
-		key.append(modelProfile.temperature());
-		key.append("_");
-		key.append(modelProfile.topP());
-		key.append("_");
-		
 		MessageDigest digest;
 		try {
 			digest = MessageDigest.getInstance("SHA-256");
+			digest.update(Objects.requireNonNullElse(modelProfile.modelName(), modelCategory.name()).getBytes());
+			digest.update(String.valueOf(modelProfile.modelProvider()).getBytes());
+			digest.update(String.valueOf(modelProfile.maxTokens()).getBytes());
+			digest.update(String.valueOf(modelProfile.maxContextLength()).getBytes());
+			digest.update(String.valueOf(modelProfile.maxContinuations()).getBytes());
+			digest.update(String.valueOf(modelProfile.temperature()).getBytes());
+			digest.update(String.valueOf(modelProfile.topP()).getBytes());
 			for (final var k : keys) {
 				if (k != null && !k.isEmpty()) {
 					digest.update(k.getBytes());
 				}
 			}
-			key.append(HexFormat.of().formatHex(digest.digest()));
+			return HexFormat.of().formatHex(digest.digest());
 		}
 		catch (final NoSuchAlgorithmException e) {
 			throw new RuntimeException("Error calculating hash", e);
 		}
-		
-		return key.toString();
 	}
 	
 }

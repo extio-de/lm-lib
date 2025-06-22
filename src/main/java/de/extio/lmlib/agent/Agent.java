@@ -43,12 +43,17 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 		for (final var split : splits) {
 			tasks.add(CompletableFuture.runAsync(() -> {
 				try {
-					if (this.agentType() != AgentType.PROCESSING_ONLY) {
+					boolean skipCompletion = split.context().isSkipNextCompletion() || this.agentType() == AgentType.PROCESSING_ONLY;
+					if (skipCompletion) {
+						split.context().setSkipNextCompletion(false);
+						split.context().getGraph().add("○");
+					}
+					else {
 						split.context().getGraph().add(this.modelCategory.getShortName());
 					}
 					split.context().getGraph().add(this.name());
 					
-					if (this.agentType != AgentType.PROCESSING_ONLY) {
+					if (!skipCompletion) {
 						final var conversation = this.setupConversation(split);
 						LOGGER.debug("Conversation: {}", conversation);
 						
@@ -270,7 +275,7 @@ public record Agent(String name, AgentType agentType, ModelCategory modelCategor
 				}
 				
 				case final Agent a when a.agentType() == AgentType.PROCESSING_ONLY -> {
-					context.getGraph().add("○");
+					
 				}
 				
 				default -> {

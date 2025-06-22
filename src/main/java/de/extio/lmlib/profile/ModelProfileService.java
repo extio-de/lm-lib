@@ -94,7 +94,7 @@ public class ModelProfileService {
 			String apiKey = null;
 			synchronized (this.environment) {
 				if (this.environment instanceof ConfigurableEnvironment configurableEnvironment) {
-					configurableEnvironment.getPropertySources().addLast(resource);
+					configurableEnvironment.getPropertySources().addFirst(resource);
 				}
 				apiKey = Optional.ofNullable(this.environment.getProperty("apiKey"))
 						.map(Object::toString)

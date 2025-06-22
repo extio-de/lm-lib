@@ -30,6 +30,8 @@ public final class AgentContext {
 	
 	private volatile boolean error;
 	
+	private volatile boolean skipNextCompletion;
+	
 	public AgentContext(final Map<String, Agent> agents) {
 		this.agents = agents;
 		this.context = new ConcurrentHashMap<>();
@@ -48,6 +50,7 @@ public final class AgentContext {
 		this.requestStatistic = other.requestStatistic;
 		this.lastCompletion = other.lastCompletion;
 		this.error = other.error;
+		this.skipNextCompletion = other.skipNextCompletion;
 		synchronized (other.graph) {
 			this.graph.addAll(other.graph);
 		}
@@ -123,6 +126,14 @@ public final class AgentContext {
 	
 	public void setError(final boolean error) {
 		this.error = error;
+	}
+	
+	public boolean isSkipNextCompletion() {
+		return this.skipNextCompletion;
+	}
+	
+	public void setSkipNextCompletion(final boolean skipNextCompletion) {
+		this.skipNextCompletion = skipNextCompletion;
 	}
 	
 }
