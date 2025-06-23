@@ -66,7 +66,11 @@ public interface BaseAgent {
 	}
 	
 	default Function<AgentContext, AgentNext> chooseNext() {
-		return context -> new AgentNext(null, null);
+		return this::chooseNext;
+	}
+	
+	default AgentNext chooseNext(final AgentContext context) {
+		return new AgentNext(null, null);
 	}
 	
 	default List<AgentContext> execute(final Client client, final ExecutorService agentExecutorService, final AgentContext context) {
