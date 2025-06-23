@@ -86,6 +86,27 @@ public final class AgentContext {
 		this.context.put(key, List.copyOf(value));
 	}
 	
+	public <T> T getValue(final String key, final Class<T> type) {
+		final var values = this.context.get(key);
+		if (values == null || values.isEmpty()) {
+			return null;
+		}
+		final var firstValue = values.getFirst();
+		if (type.isInstance(firstValue)) {
+			return type.cast(firstValue);
+		}
+		throw new IllegalArgumentException("Value for key '" + key + "' is not of type " + type.getName());
+	}
+	
+	public <T> void setValue(final String key, final T value) {
+		if (value == null) {
+			this.context.remove(key);
+		}
+		else {
+			this.context.put(key, List.of(value));
+		}
+	}
+	
 	public Map<String, List<? extends Object>> getContext() {
 		return this.context;
 	}
