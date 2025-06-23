@@ -80,7 +80,7 @@ public class AgentTest {
 						new TextAgentResponseHandler("featureDescription"),
 						null,
 						null,
-						contexts -> Agent.mergeContexts(List.of("features", "featureDescription"), contexts),
+						contexts -> BaseAgent.mergeContexts(List.of("features", "featureDescription"), contexts),
 						context -> new AgentNext("AnswerGenerator", null)),
 				
 				"AnswerGenerator",

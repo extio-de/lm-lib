@@ -45,7 +45,7 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 		this.agentExecutorService.close();
 	}
 	
-	public List<AgentContext> walkGraph(final Agent agent, final AgentContext context) {
+	public List<AgentContext> walkGraph(final BaseAgent agent, final AgentContext context) {
 		LOGGER.debug("Agent: {}", agent.name());
 		
 		Client client = null;

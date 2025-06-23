@@ -14,7 +14,7 @@ import de.extio.lmlib.client.Conversation;
 
 public final class AgentContext {
 	
-	private final Map<String, Agent> agents;
+	private final Map<String, ? extends BaseAgent> agents;
 	
 	private final Map<String, List<? extends Object>> context;
 	
@@ -32,7 +32,7 @@ public final class AgentContext {
 	
 	private volatile boolean skipNextCompletion;
 	
-	public AgentContext(final Map<String, Agent> agents) {
+	public AgentContext(final Map<String, ? extends BaseAgent> agents) {
 		this.agents = agents;
 		this.context = new ConcurrentHashMap<>();
 		this.requestStatistic = new AgentRequestStatistic();
@@ -84,7 +84,7 @@ public final class AgentContext {
 		return this.context;
 	}
 	
-	public Map<String, Agent> getAgents() {
+	public Map<String, ? extends BaseAgent> getAgents() {
 		return this.agents;
 	}
 	
