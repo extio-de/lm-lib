@@ -20,6 +20,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.PropertySource;
 
 import de.extio.lmlib.client.ClientService;
+import de.extio.lmlib.grader.Grader;
 import de.extio.lmlib.profile.ModelCategory;
 
 import io.netty.util.internal.ThreadLocalRandom;
@@ -114,7 +115,7 @@ public class AgentTest {
 		assertEquals(1, resultContext.getContext().get("blogPost").size());
 		assertEquals(8, resultContext.getRequestStatistic().getRequests().get());
 		for (final var feature : resultContext.getContext().get("features")) {
-			assertTrue(this.assessScoreBinary("Does the following blog post mention the feature " + feature, resultContext.getContext().get("blogPost").getFirst().toString()));
+			assertTrue(Grader.assessScoreBinary("Does the following blog post mention the feature " + feature, resultContext.getContext().get("blogPost").getFirst().toString(), this.clientService));
 		}
 	}
 	
@@ -195,34 +196,6 @@ public class AgentTest {
 			assertEquals(expected, Integer.parseInt(resultContext.getContext().get("result").getFirst().toString().strip()));
 			LOGGER.info(number0 + " + " + number1 + " = " + expected + "; " + resultContext.getGraph().toString() + " " + resultContext.getRequestStatistic().toString());
 		}
-	}
-	
-	private boolean assessScoreBinary(final String question, final String text) {
-		LOGGER.info(question);
-		
-		final var client = this.clientService.getClient(ModelCategory.MEDIUM);
-		
-		var score = 0;
-		while (Math.abs(score) < 3) {
-			final var completion = client.completion(
-					ModelCategory.MEDIUM,
-					"""
-							You are a grader assessing the truthfulness of a given text to a user question.
-							Please provide a binary response 'true' or 'false' for the following text.
-							'true' means that the text provides a truthful answer to the question, while 'false' means that it does not.
-							Only provide the response as a single word and no preamble and no explanation.""",
-					"Here is the text:\n" + text,
-					"\nHere is the user question: " + question);
-			LOGGER.info(completion.response());
-			score += Boolean.parseBoolean(completion.response().strip()) ? 1 : -1;
-			if (Math.abs(score) == 2) {
-				break;
-			}
-		}
-		
-		final var result = score > 0;
-		LOGGER.info("->" + String.valueOf(result));
-		return result;
 	}
 	
 }
