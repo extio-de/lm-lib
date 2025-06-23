@@ -32,6 +32,12 @@ public final class AgentContext {
 	
 	private volatile boolean skipNextCompletion;
 	
+	public AgentContext(final Collection<? extends BaseAgent> agents) {
+		this.agents = agents.stream().collect(Collectors.toMap(BaseAgent::name, agent -> agent));
+		this.context = new ConcurrentHashMap<>();
+		this.requestStatistic = new AgentRequestStatistic();
+	}
+	
 	public AgentContext(final Map<String, ? extends BaseAgent> agents) {
 		this.agents = agents;
 		this.context = new ConcurrentHashMap<>();
