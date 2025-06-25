@@ -220,7 +220,7 @@ public interface BaseAgent {
 				branchedEntriesMinCntValues = branchedEntriesMinCntValues == 0 ? entry.getValue().size() : Math.min(branchedEntriesMinCntValues, entry.getValue().size());
 			}
 		}
-		if (!branchedEntries.isEmpty()) {
+		if (!branchedEntries.isEmpty() && branchedEntriesMinCntValues > 0) {
 			final var result = new ArrayList<Split>();
 			
 			for (int i = 0; i < branchedEntriesMinCntValues; i++) {
