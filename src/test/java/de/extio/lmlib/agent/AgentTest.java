@@ -100,7 +100,7 @@ public class AgentTest {
 						},
 						null,
 						null,
-						context -> new AgentNext(null, null)));
+						context -> AgentNext.END));
 		
 		final var context = new AgentContext(agents);
 		context.getContext().put("code", List.of(Files.readString(Path.of("src/main/java/de/extio/lmlib/agent/Agent.java"))));

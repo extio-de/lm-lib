@@ -70,7 +70,7 @@ public interface BaseAgent {
 	}
 	
 	default AgentNext chooseNext(final AgentContext context) {
-		return new AgentNext(null, null);
+		return AgentNext.END;
 	}
 	
 	default List<AgentContext> execute(final Client client, final ExecutorService agentExecutorService, final AgentContext context) {
