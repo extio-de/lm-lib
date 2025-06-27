@@ -30,7 +30,7 @@ public class ModelNameSupplier implements InitializingBean {
 	
 	@Override
 	public void afterPropertiesSet() throws Exception {
-		final var urls = this.modelProfileService.getModelProfileUrls(ModelProvider.OAI_TEXT_COMPLETION);
+		final var urls = this.modelProfileService.getModelProfileUrls(ModelProvider.OAI_TEXT_COMPLETION, ModelProvider.OAI_CHAT_COMPLETION);
 		for (final var url : urls) {
 			this.countDownLatches.put(url, new CountDownLatch(1));
 			this.fetchModelName(url);

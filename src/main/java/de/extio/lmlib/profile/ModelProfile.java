@@ -17,6 +17,6 @@ public record ModelProfile(
 		BigDecimal costOutToken) {
 	
 	public static enum ModelProvider {
-		AZURE_AI, OAI_TEXT_COMPLETION;
+		AZURE_AI, OAI_TEXT_COMPLETION, OAI_CHAT_COMPLETION;
 	}
 }

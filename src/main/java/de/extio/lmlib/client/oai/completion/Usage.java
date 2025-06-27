@@ -2,7 +2,7 @@ package de.extio.lmlib.client.oai.completion;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-final class Usage {
+public final class Usage {
     
     private int completionTokens;
     

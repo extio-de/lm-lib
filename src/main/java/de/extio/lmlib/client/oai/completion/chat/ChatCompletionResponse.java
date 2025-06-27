@@ -1,10 +1,12 @@
-package de.extio.lmlib.client.oai.completion;
+package de.extio.lmlib.client.oai.completion.chat;
 
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-final class CompletionResponse {
+import de.extio.lmlib.client.oai.completion.Usage;
+
+final class ChatCompletionResponse {
 	
 	private String id;
 	
@@ -12,12 +14,8 @@ final class CompletionResponse {
 	
 	private Integer created;
 	
-	private List<Choice> choices;
+	private List<ChatChoice> choices;
 	
-	private String content;
-	
-	private boolean isStoppedEos;
-
 	private Usage usage;
 
 	@JsonProperty("id")
@@ -48,30 +46,12 @@ final class CompletionResponse {
 	}
 	
 	@JsonProperty("choices")
-	public List<Choice> getChoices() {
+	public List<ChatChoice> getChoices() {
 		return this.choices;
 	}
 	
-	public void setChoices(final List<Choice> choices) {
+	public void setChoices(final List<ChatChoice> choices) {
 		this.choices = choices;
-	}
-	
-	@JsonProperty("content")
-	public String getContent() {
-		return this.content;
-	}
-	
-	public void setContent(final String content) {
-		this.content = content;
-	}
-	
-	@JsonProperty("stopped_eos")
-	public boolean isStoppedEos() {
-		return this.isStoppedEos;
-	}
-	
-	public void setStoppedEos(final boolean isStoppedEos) {
-		this.isStoppedEos = isStoppedEos;
 	}
 		
 	@JsonProperty("usage")
@@ -94,10 +74,6 @@ final class CompletionResponse {
 		builder.append(this.created);
 		builder.append(", choices=");
 		builder.append(this.choices);
-		builder.append(", content=");
-		builder.append(this.content);
-		builder.append(", isStoppedEos=");
-		builder.append(this.isStoppedEos);
 		builder.append(", usage=");
 		builder.append(this.usage);
 		builder.append("]");

@@ -21,46 +21,62 @@ import org.springframework.context.annotation.PropertySource;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
-import de.extio.lmlib.client.oai.completion.TextCompletionClient;
+import de.extio.lmlib.client.oai.completion.chat.ChatCompletionClient;
+import de.extio.lmlib.client.oai.completion.text.TextCompletionClient;
 import de.extio.lmlib.grader.Grader;
 import de.extio.lmlib.profile.ModelCategory;
 
-//@Disabled("This test requires a running Llama server")
+@Disabled("This test requires a running Llama server")
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
 @ComponentScan(basePackages = "de.extio.lmlib")
 @PropertySource("classpath:/application-test.properties")
-public class TextCompletionClientTest {
+public class CompletionClientTest {
 	
-	private static final Logger LOGGER = LoggerFactory.getLogger(TextCompletionClientTest.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(CompletionClientTest.class);
 	
 	@Autowired
-	private TextCompletionClient client;
+	private TextCompletionClient textCompletionClient;
 	
+	@Autowired
+	private ChatCompletionClient chatCompletionclient;
+
 	@Test
 	void completion() throws Exception {
-		final var completion = this.client.completion(
+		final var completion = this.textCompletionClient.completion(
 				null,
 				"You are a helpful assistant",
 				"Say the color is green");
 		
 		LOGGER.info(completion.response());
 		
-		assertTrue(Grader.assessScoreBinary("Does the text mention the color green?", completion.response(), this.client));
+		assertTrue(Grader.assessScoreBinary("Does the text mention the color green?", completion.response(), this.textCompletionClient));
 	}
 	
 	@Test
-	void chat() throws Exception {
+	void chatTextCompletion() throws Exception {
 		final var conversation = Conversation.create("You are a helpful assistant", "I would like to paint my canvas in a solid color.");
 		conversation.addTurn(new Turn(TurnType.ASSISTANT, "Which color do you want to see?"));
 		conversation.addTurn(new Turn(TurnType.USER, "You choose!"));
-		final var completion = this.client.conversation(ModelCategory.MEDIUM, conversation);
+		final var completion = this.textCompletionClient.conversation(ModelCategory.MEDIUM, conversation);
 		
 		LOGGER.info(completion.response());
 		
-		assertTrue(Grader.assessScoreBinary("Does the text mention a color?", completion.response(), this.client));
+		assertTrue(Grader.assessScoreBinary("Does the text mention a color?", completion.response(), this.textCompletionClient));
 	}
-	
+		
+	@Test
+	void chatCompletion() throws Exception {
+		final var conversation = Conversation.create("You are a helpful assistant", "I would like to paint my canvas in a solid color.");
+		conversation.addTurn(new Turn(TurnType.ASSISTANT, "Which color do you want to see?"));
+		conversation.addTurn(new Turn(TurnType.USER, "You choose!"));
+		final var completion = this.chatCompletionclient.conversation(ModelCategory.MEDIUM, conversation);
+		
+		LOGGER.info(completion.response());
+		
+		assertTrue(Grader.assessScoreBinary("Does the text mention a color?", completion.response(), this.textCompletionClient));
+	}
+
 	@Disabled
 	@Test
 	void hugePrompt() throws Exception {
@@ -71,7 +87,7 @@ public class TextCompletionClientTest {
 		}
 		sb.delete(sb.length() - 2, sb.length());
 		
-		final var completion = this.client.completion(
+		final var completion = this.textCompletionClient.completion(
 				null,
 				"You are counting machine",
 				"How many numbers do you count?\n" + sb.toString());
@@ -119,7 +135,7 @@ public class TextCompletionClientTest {
 	private Tasks createTasks() {
 		return new Tasks(() -> {
 			try {
-				final var completion = this.client.completion(
+				final var completion = this.textCompletionClient.completion(
 						null,
 						"You are a helpful assistant",
 						"How do I calculate the annual profit margin?");
@@ -130,7 +146,7 @@ public class TextCompletionClientTest {
 			}
 		}, () -> {
 			try {
-				final var completion = this.client.completion(
+				final var completion = this.textCompletionClient.completion(
 						null,
 						"You are a helpful assistant",
 						"How do I calculate the operating profit ratio?");
@@ -141,7 +157,7 @@ public class TextCompletionClientTest {
 			}
 		}, () -> {
 			try {
-				final var completion = this.client.completion(
+				final var completion = this.textCompletionClient.completion(
 						null,
 						"You are a helpful assistant",
 						"How do I calculate the return of investment?");
@@ -152,7 +168,7 @@ public class TextCompletionClientTest {
 			}
 		}, () -> {
 			try {
-				final var completion = this.client.completion(
+				final var completion = this.textCompletionClient.completion(
 						null,
 						"You are a helpful assistant",
 						"How do I calculate the return on net worth?");

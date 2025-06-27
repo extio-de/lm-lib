@@ -70,13 +70,17 @@ If you use jtokkit tokenizer:
         <artifactId>jtokkit</artifactId>
     </dependency>
 
-It is required to select the right prompt template. See package .lmlib.prompt for available prompt templates or implement your own PromptStrategy (must be a bean in the spring context).
+The library supports both chat completions and (legacy) text completions. Choose one of these options in your model profile:
 
-Set the following property in your model profile:
+    modelProvider=OAI_CHAT_COMPLETION
+    modelProvider=OAI_TEXT_COMPLETION
+
+Chat completions are recommended for most use cases and easy to use, since the library only needs to send the actual conversation to the server, whereas for text completions, the library needs to create a raw prompt that includes the correct instruction formatting (e.g. special tokens). Text completions are still preferred if you need more control over the raw prompt or if you don't use an instruct model. For text completions, it is required to select the right prompt template. See package .lmlib.prompt for available prompt templates or implement your own PromptStrategy (must be a bean in the spring context).
+To activate a prompt template, set the following property in your model profile:
 
     prompts=llama3
 
-Example profile: src/test/resources/llama3-local.properties
+Example profile: src/test/resources/xxx-local.properties
 
 ## Azure AI client
 

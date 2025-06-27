@@ -105,7 +105,7 @@ public class ModelProfileService {
 		}
 	}
 	
-	public List<String> getModelProfileUrls(final ModelProvider modelProvider) {
+	public List<String> getModelProfileUrls(final ModelProvider... modelProviders) {
 		final var modelProfiles = Binder.get(this.environment)
 				.bind(MODEL_PROFILE_PREFIX, Bindable.mapOf(String.class, String.class))
 				.orElse(Collections.emptyMap());
@@ -115,8 +115,10 @@ public class ModelProfileService {
 				.map(model -> {
 					try {
 						final var resource = new ResourcePropertySource("classpath:" + model + ".properties");
-						if (modelProvider.name().equals(resource.getProperty("modelProvider"))) {
-							return resource.getProperty("url") != null ? resource.getProperty("url").toString() : null;
+						for (final ModelProvider modelProvider : modelProviders) {
+							if (modelProvider.name().equals(resource.getProperty("modelProvider"))) {
+								return resource.getProperty("url") != null ? resource.getProperty("url").toString() : null;
+							}
 						}
 						return null;
 					}

@@ -106,7 +106,7 @@ public final class AzureAiClient implements Client {
 		
 		final var chat = this.createChats(conversation, modelProfile);
 		
-		return this.requestCompletionsContinuations(chat, modelCategory, modelProfile);
+		return this.requestCompletions(chat, modelCategory, modelProfile);
 	}
 	
 	private List<ChatRequestMessage> createChats(final Conversation conversation, final ModelProfile modelProfile) {
@@ -180,7 +180,7 @@ public final class AzureAiClient implements Client {
 		return trimmed;
 	}
 	
-	private Completion requestCompletionsContinuations(final List<ChatRequestMessage> chat, final ModelCategory modelCategory, final ModelProfile modelProfile) {
+	private Completion requestCompletions(final List<ChatRequestMessage> chat, final ModelCategory modelCategory, final ModelProfile modelProfile) {
 		LOGGER.debug("Requesting ChatCompletion at {}", modelProfile.modelName());
 		final LocalDateTime start = LocalDateTime.now();
 		

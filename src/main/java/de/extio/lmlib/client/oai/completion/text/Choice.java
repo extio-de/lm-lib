@@ -1,4 +1,4 @@
-package de.extio.lmlib.client.oai.completion;
+package de.extio.lmlib.client.oai.completion.text;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
