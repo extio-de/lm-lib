@@ -131,6 +131,10 @@ All language model requests will be cached if you add a CachedClientRepository b
 
 This library contains a graph executor for implementing comprehensive processes using agent-based design patterns. See class AgentTest for examples.
 
+# Grader
+
+The library includes a grader component that evaluates the correctness of agent responses.
+
 # Usage
 
 1. Setup dependencies, see above

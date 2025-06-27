@@ -7,8 +7,6 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -25,16 +23,16 @@ import de.extio.lmlib.profile.ModelCategory;
 
 public interface BaseAgent {
 	
-	static final Logger LOGGER = LoggerFactory.getLogger(Agent.class);
+	static final Logger LOGGER = LoggerFactory.getLogger(BaseAgent.class);
 	
 	static final ObjectMapper objectMapper = new ObjectMapper();
 	
 	default String name() {
-		throw new IllegalStateException("Name must be implemented in the agent");
+		throw new UnsupportedOperationException("Name must be implemented in the agent");
 	}
 	
 	default AgentType agentType() {
-		throw new IllegalStateException("Agent type must be implemented in the agent");
+		throw new UnsupportedOperationException("Agent type must be implemented in the agent");
 	}
 	
 	default ModelCategory modelCategory() {
@@ -42,34 +40,30 @@ public interface BaseAgent {
 	}
 	
 	default String systemPrompt() {
-		return "";
+		return null;
 	}
 	
 	default String textTemplate() {
-		return "";
+		return null;
 	}
 	
 	default AgentResponseHandler responseHandler() {
-		return (split, completion) -> true;
+		return new TextAgentResponseHandler("response");
 	}
 	
-	default Consumer<AgentContext> preProcessor() {
+	default void preProcess(final AgentContext context) {
+		
+	}
+	
+	default void postProcess(final AgentContext context) {
+		
+	}
+	
+	default List<AgentContext> merge(final List<AgentContext> contexts) {
 		return null;
 	}
 	
-	default Consumer<AgentContext> postProcessor() {
-		return null;
-	}
-	
-	default Function<List<AgentContext>, List<AgentContext>> merger() {
-		return null;
-	}
-	
-	default Function<AgentContext, AgentNext> chooseNext() {
-		return this::chooseNext;
-	}
-	
-	default AgentNext chooseNext(final AgentContext context) {
+	default AgentNext chooseNextAgent(final AgentContext context) {
 		return AgentNext.END;
 	}
 	
@@ -78,9 +72,7 @@ public interface BaseAgent {
 		
 		context.setNextAgent(null);
 		
-		if (this.preProcessor() != null) {
-			this.preProcessor().accept(context);
-		}
+		this.preProcess(context);
 		
 		final var splits = this.applyTemplate(context);
 		final var tasks = new ArrayList<CompletableFuture<?>>(splits.size());
@@ -132,9 +124,7 @@ public interface BaseAgent {
 						}
 					}
 					
-					if (this.postProcessor() != null) {
-						this.postProcessor().accept(split.context());
-					}
+					this.postProcess(split.context());
 					
 					finishedSplits.add(split);
 				}
@@ -155,9 +145,10 @@ public interface BaseAgent {
 				.collect(Collectors.toCollection(ArrayList::new));
 		
 		if (!retContexts.isEmpty()) {
-			if (this.merger() != null) {
-				final int size = retContexts.size();
-				retContexts = new ArrayList<>(this.merger().apply(retContexts));
+			final var merged = this.merge(List.copyOf(retContexts));
+			if (merged != null) {
+				final var size = retContexts.size();
+				retContexts = new ArrayList<>(merged);
 				for (final var retContext : retContexts) {
 					retContext.getGraph().add(size + "↣" + retContexts.size());
 				}
@@ -276,7 +267,7 @@ public interface BaseAgent {
 	}
 	
 	private void nextAgent(final AgentContext context) {
-		context.setNextAgent(this.chooseNext().apply(context));
+		context.setNextAgent(this.chooseNextAgent(context));
 		
 		if (context.getNextAgent() != null) {
 			if (context.getNextAgent().gradingPassed() != null) {

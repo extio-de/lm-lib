@@ -62,7 +62,7 @@ public class AgentTest {
 						AgentType.CONVERSATION,
 						ModelCategory.MEDIUM,
 						"",
-						"Generate a list of 5 distinct features. Provide no preamble and no explanation. Return the response in JSON format with the following field: { \"features\": [\"Feature 1\", \"Feature 2\", ... ] }",
+						"Generate a list of 5 distinct functional features. In scope is business logic, not code mechanics. Provide no preamble and no explanation. Return the response in JSON format with the following field: { \"features\": [\"Feature 1\", \"Feature 2\", ... ] }",
 						new JsonAgentResponseHandler(),
 						null,
 						context -> context.getContext().get("features").forEach(feature -> LOGGER.info(feature.toString())),
@@ -103,7 +103,7 @@ public class AgentTest {
 						context -> AgentNext.END));
 		
 		final var context = new AgentContext(agents);
-		context.getContext().put("code", List.of(Files.readString(Path.of("src/main/java/de/extio/lmlib/agent/Agent.java"))));
+		context.getContext().put("code", List.of(Files.readString(Path.of("src/main/java/de/extio/lmlib/agent/BaseAgent.java"))));
 		
 		final var resultContexts = this.agentExecutor.walkGraph(agents.get("CodeSummarizer"), context);
 		
