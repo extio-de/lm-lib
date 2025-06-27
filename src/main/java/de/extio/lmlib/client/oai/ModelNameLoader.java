@@ -1,4 +1,4 @@
-package de.extio.lmlib.client.textcompletion;
+package de.extio.lmlib.client.oai;
 
 import java.time.Duration;
 import java.util.function.Consumer;
@@ -9,9 +9,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpMethod;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import de.extio.lmlib.client.textcompletion.dto.Model;
-import de.extio.lmlib.client.textcompletion.dto.ModelsResponse;
-
+import de.extio.lmlib.client.oai.textcompletion.dto.Model;
+import de.extio.lmlib.client.oai.textcompletion.dto.ModelsResponse;
 import reactor.util.retry.Retry;
 
 class ModelNameLoader implements Runnable {

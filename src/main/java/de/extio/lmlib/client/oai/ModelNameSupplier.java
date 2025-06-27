@@ -1,4 +1,4 @@
-package de.extio.lmlib.client.textcompletion;
+package de.extio.lmlib.client.oai;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -15,7 +15,7 @@ import de.extio.lmlib.profile.ModelProfileService;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 
 @Component
-class ModelNameSupplier implements InitializingBean {
+public class ModelNameSupplier implements InitializingBean {
 	
 	@Autowired
 	@Qualifier("lmLibWebClientBuilder")

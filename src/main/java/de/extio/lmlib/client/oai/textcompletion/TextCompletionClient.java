@@ -1,4 +1,4 @@
-package de.extio.lmlib.client.textcompletion;
+package de.extio.lmlib.client.oai.textcompletion;
 
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
@@ -25,9 +25,10 @@ import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
-import de.extio.lmlib.client.textcompletion.dto.Choice;
-import de.extio.lmlib.client.textcompletion.dto.CompletionRequest;
-import de.extio.lmlib.client.textcompletion.dto.CompletionResponse;
+import de.extio.lmlib.client.oai.ModelNameSupplier;
+import de.extio.lmlib.client.oai.textcompletion.dto.Choice;
+import de.extio.lmlib.client.oai.textcompletion.dto.CompletionRequest;
+import de.extio.lmlib.client.oai.textcompletion.dto.CompletionResponse;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
