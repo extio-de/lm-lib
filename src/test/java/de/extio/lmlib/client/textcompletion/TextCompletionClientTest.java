@@ -23,6 +23,7 @@ import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
 import de.extio.lmlib.profile.ModelCategory;
 
+@Disabled("This test requires a running Llama server")
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
 @ComponentScan(basePackages = "de.extio.lmlib")

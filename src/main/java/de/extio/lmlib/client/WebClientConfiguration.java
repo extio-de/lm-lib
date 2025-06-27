@@ -19,7 +19,7 @@ import reactor.netty.http.client.HttpClient;
 @Configuration
 public class WebClientConfiguration {
 	
-	private static final int TIMEOUT = 900000;
+	private static final int TIMEOUT = 300000;
 	
 	private static final int CONNECT_TIMEOUT = 10000;
 	

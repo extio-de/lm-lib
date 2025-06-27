@@ -8,13 +8,13 @@ The program is a comprehensive conversational AI system that provides natural la
 
 The program consists of several packages that work together to achieve this goal. These packages include:
 
-1. **Caching layer (com.transporeon.exchange.lmlib.client.cached)**: Improves performance by reducing requests to the underlying client through caching and retrieving completion responses.
-2. **Natural Language Processing (com.transporeon.exchange.lmlib.client)**: Provides conversation management and text completion functionality, generating completions, processing conversations, and managing models.
-3. **Azure AI Integration (com.transporeon.exchange.lmlib.client.azureai)**: Integrates with Azure AI services, managing model profiles and handling conversation completions.
-4. **Text Completion (com.transporeon.exchange.lmlib.client.textcompletion)**: Provides text completion functionality using AI models, including model selection, prompt generation, and response handling.
-5. **Text Tokenization (com.transporeon.exchange.lmlib.token)**: Tokenizes text into numerical tokens and detokenizes numerical tokens back into human-readable text.
-6. **Conversation Prompts (com.transporeon.exchange.lmlib.prompt)**: Manages conversation prompts, creating new prompts, continuing conversations, and removing end-of-text markers.
-7. **Agent Executor (com.transporeon.exchange.lmlib.agent)**: Executes agent graphs concurrently, handles agent responses, and tracks request statistics.
+1. **Caching layer (.lmlib.client.cached)**: Improves performance by reducing requests to the underlying client through caching and retrieving completion responses.
+2. **Natural Language Processing (.lmlib.client)**: Provides conversation management and text completion functionality, generating completions, processing conversations, and managing models.
+3. **Azure AI Integration (.lmlib.client.azureai)**: Integrates with Azure AI services, managing model profiles and handling conversation completions.
+4. **Text Completion (.lmlib.client.textcompletion)**: Provides text completion functionality using AI models, including model selection, prompt generation, and response handling.
+5. **Text Tokenization (.lmlib.token)**: Tokenizes text into numerical tokens and detokenizes numerical tokens back into human-readable text.
+6. **Conversation Prompts (.lmlib.prompt)**: Manages conversation prompts, creating new prompts, continuing conversations, and removing end-of-text markers.
+7. **Agent Executor (.lmlib.agent)**: Executes agent graphs concurrently, handles agent responses, and tracks request statistics.
 
 The program's key features include:
 
@@ -88,7 +88,7 @@ If you use jtokkit tokenizer:
         <artifactId>jtokkit</artifactId>
     </dependency>
 
-It is required to select the right prompt template. See package com.transporeon.exchange.lmlib.prompt for available prompt templates or implement your own PromptStrategy (must be a bean in the spring context).
+It is required to select the right prompt template. See package .lmlib.prompt for available prompt templates or implement your own PromptStrategy (must be a bean in the spring context).
 
 Set the following property in your model profile:
 

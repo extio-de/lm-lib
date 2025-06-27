@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +29,7 @@ import io.netty.util.internal.ThreadLocalRandom;
 /**
  * These tests have been verified with Llama 3.1 8B and Gemma2 27B models
  */
+@Disabled("This test requires a running Llama server or an Azure subscription (setup azure key in model profile)")
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
 @ComponentScan(basePackages = "de.extio.lmlib")

@@ -2,6 +2,7 @@ package de.extio.lmlib.token;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -42,8 +43,9 @@ public class TokenizerTest {
 	}
 	
 	/**
-	 * Tested with a Llama 3.1 8B model. The test will likely fail if you load a different model. 
+	 * Tested with a Llama 3.1 8B model. The test will likely fail if you load a different model.
 	 */
+	@Disabled("Requires llama.cpp model profile")
 	@Test
 	void llamaServer() throws Exception {
 		final var tokenizer = new LlamaServerTokenizer(this.webClientBuilder);

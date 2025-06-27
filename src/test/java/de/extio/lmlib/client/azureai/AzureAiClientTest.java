@@ -16,7 +16,7 @@ import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
 import de.extio.lmlib.profile.ModelCategory;
 
-@Disabled
+@Disabled("This test requires an Azure subscription (setup azure key in model profile)")
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
 @ComponentScan(basePackages = "de.extio.lmlib")
@@ -35,7 +35,7 @@ public class AzureAiClientTest {
 				"You are a clever story teller",
 				"Continue this story:",
 				"Once upon a time, there was a spaceship travelling to a black hole. The crew were cats!");
-		LOGGER.info(completion.response());
+		LOGGER.info(completion.toString());
 	}
 	
 	@Test

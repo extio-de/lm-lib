@@ -1,6 +1,8 @@
 package de.extio.lmlib.client.azureai;
 
 import java.math.BigDecimal;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
@@ -26,6 +28,8 @@ import com.azure.ai.inference.models.ChatRequestSystemMessage;
 import com.azure.ai.inference.models.ChatRequestUserMessage;
 import com.azure.ai.inference.models.CompletionsFinishReason;
 import com.azure.core.credential.AzureKeyCredential;
+import com.azure.core.http.HttpClient;
+import com.azure.core.http.okhttp.OkHttpAsyncHttpClientBuilder;
 import com.azure.core.http.policy.ExponentialBackoffOptions;
 import com.azure.core.http.policy.RetryOptions;
 
@@ -35,13 +39,24 @@ import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
-import de.extio.lmlib.profile.ModelProfileService;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
+import de.extio.lmlib.profile.ModelProfileService;
 import de.extio.lmlib.token.Tokenizer;
+
+import okhttp3.Authenticator;
+import okhttp3.Challenge;
+import okhttp3.Credentials;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.Route;
 
 public final class AzureAiClient implements Client {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(AzureAiClient.class);
+	
+	private static final int TIMEOUT = 300000;
+	private static final int CONNECT_TIMEOUT = 10000;
 	
 	private final ConcurrentMap<ModelCategory, ChatCompletionsClient> chatCompletionsClients = new ConcurrentHashMap<>();
 	
@@ -49,9 +64,24 @@ public final class AzureAiClient implements Client {
 	
 	private final Tokenizer tokenizer;
 	
-	AzureAiClient(final ModelProfileService modelProfileService, final Tokenizer tokenizer) {
+	private final boolean proxyEnabled;
+	
+	private final String proxyHost;
+	
+	private final int proxyPort;
+	
+	private final String proxyUser;
+	
+	private final String proxyPassword;
+	
+	AzureAiClient(final ModelProfileService modelProfileService, final Tokenizer tokenizer, final boolean proxyEnabled, final String proxyHost, final int proxyPort, final String proxyUser, final String proxyPassword) {
 		this.modelProfileService = modelProfileService;
 		this.tokenizer = tokenizer;
+		this.proxyEnabled = proxyEnabled;
+		this.proxyHost = proxyHost;
+		this.proxyPort = proxyPort;
+		this.proxyUser = proxyUser;
+		this.proxyPassword = proxyPassword;
 	}
 	
 	@Override
@@ -98,7 +128,7 @@ public final class AzureAiClient implements Client {
 			answers.add(answer);
 		}
 		
-		// TODO: Reactivate when multiple (split) prompts have been implemented again
+		// TODO: Reactivate when multiple (split) prompts have been implemented again in #addChatRequestMessage
 		//		if (answers.size() > 1) {
 		//			this.summarize(answers, modelProfile, promptStrategy, statistics);
 		//		}
@@ -178,7 +208,8 @@ public final class AzureAiClient implements Client {
 			tokenized = tokenized.subList(0, tokenized.size() - (tokens.get() - maxLength));
 			prompt = this.tokenizer.detokenize(tokenized, modelProfile);
 			trimmed = true;
-		}		
+		}
+		
 		chat.add(messageFactory.apply(prompt));
 		
 		return trimmed;
@@ -211,21 +242,8 @@ public final class AzureAiClient implements Client {
 	private ChatCompletions requestCompletions(final List<ChatRequestMessage> chat, final ModelCategory modelCategory, final ModelProfile modelProfile) {
 		LOGGER.debug("Requesting ChatCompletion at {}", modelProfile.modelName());
 		
-		final var client = this.chatCompletionsClients.computeIfAbsent(modelCategory, key -> {
-			final ExponentialBackoffOptions exponentialOptions = new ExponentialBackoffOptions()
-					.setMaxRetries(99)
-					.setBaseDelay(Duration.ofSeconds(1))
-					.setMaxDelay(Duration.ofSeconds(10));
-			final RetryOptions retryOptions = new RetryOptions(exponentialOptions);
-			
-			final ChatCompletionsClient chatCompletionsClient = new ChatCompletionsClientBuilder()
-					.credential(new AzureKeyCredential(modelProfile.apiKey()))
-					.endpoint(modelProfile.url())
-					.retryOptions(retryOptions)
-					.buildClient();
-			return chatCompletionsClient;
-		});
-		
+		final var client = this.createHttpClient(modelCategory, modelProfile);
+
 		final var options = new ChatCompletionsOptions(chat);
 		options.setModel(modelProfile.modelName());
 		options.setMaxTokens(modelProfile.maxTokens());
@@ -233,6 +251,80 @@ public final class AzureAiClient implements Client {
 		options.setTopP(modelProfile.topP());
 		
 		return client.complete(options);
+	}
+	
+	private ChatCompletionsClient createHttpClient(final ModelCategory modelCategory, final ModelProfile modelProfile) {
+		return this.chatCompletionsClients.computeIfAbsent(modelCategory, key -> {
+			final ExponentialBackoffOptions exponentialOptions = new ExponentialBackoffOptions()
+					.setMaxRetries(99)
+					.setBaseDelay(Duration.ofSeconds(1))
+					.setMaxDelay(Duration.ofSeconds(10));
+			
+			final RetryOptions retryOptions = new RetryOptions(exponentialOptions)
+					.setShouldRetryCondition(httpResponse -> {
+						if (httpResponse != null) {
+							if (httpResponse.getThrowable() != null) {
+								return true;
+							}
+							if (httpResponse.getResponse() != null) {
+								return this.shouldRetryError(httpResponse.getResponse().getStatusCode());
+							}
+						}
+						return false;
+					});
+			
+			final OkHttpClient.Builder nativeOkHttpClientBuilder = new OkHttpClient.Builder();
+
+			if (this.proxyEnabled) {
+				LOGGER.info("Proxy is enabled. Configuring proxy settings for host: {} port: {} user: {}", this.proxyHost, this.proxyPort, this.proxyUser);
+
+				final Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(this.proxyHost, this.proxyPort));
+				nativeOkHttpClientBuilder.proxy(proxy);
+
+				if (this.proxyUser != null && this.proxyPassword != null) {
+					final Authenticator proxyAuthenticator = new Authenticator() {
+						@Override
+                        public Request authenticate(final Route route, final Response response) {
+							for (final Challenge challenge : response.challenges()) {
+								if (challenge.scheme().equalsIgnoreCase("OkHttp-Preemptive")) {
+									final String credential = Credentials.basic(proxyUser, proxyPassword);
+									return response.request().newBuilder()
+											.header("Proxy-Authorization", credential)
+											.build();
+								}
+							}
+							return null;
+						}
+					};
+					nativeOkHttpClientBuilder.proxyAuthenticator(proxyAuthenticator);
+				} else {
+					LOGGER.warn("Proxy user or password is not set. Skipping proxy authentication.");
+				}
+			} else {
+				LOGGER.info("Proxy is not enabled. Skipping proxy configuration.");
+			}
+
+			final OkHttpClient nativeOkHttpClient = nativeOkHttpClientBuilder.build();
+			final OkHttpAsyncHttpClientBuilder okHttpClientBuilder = new OkHttpAsyncHttpClientBuilder(nativeOkHttpClient);
+			final HttpClient okHttpClient = okHttpClientBuilder
+					.connectionTimeout(Duration.ofMillis(CONNECT_TIMEOUT))
+					.readTimeout(Duration.ofMillis(TIMEOUT))
+					.responseTimeout(Duration.ofMillis(TIMEOUT))
+					.writeTimeout(Duration.ofMillis(TIMEOUT))
+					.build();
+			
+			final ChatCompletionsClient chatCompletionsClient = new ChatCompletionsClientBuilder()
+					.credential(new AzureKeyCredential(modelProfile.apiKey()))
+					.endpoint(modelProfile.url())
+					.retryOptions(retryOptions)
+					.httpClient(okHttpClient)
+					.buildClient();
+			return chatCompletionsClient;
+		});
+	}
+	
+	private boolean shouldRetryError(final int statusCode) {
+		return statusCode == 408 || statusCode == 429 || (statusCode >= 500 && statusCode < 600);
 	}
 	
 	static class CompletionStatistics {
