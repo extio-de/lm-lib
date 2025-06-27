@@ -1,32 +1,14 @@
-# Purpose
+# lm-lib
 
-The purpose of this application is to provide a comprehensive conversational AI system that enables efficient and effective human-computer interactions through natural language processing, conversation management, and text completion capabilities, utilizing caching, tokenization, and integration with external AI models and services to deliver a robust and scalable solution for applications such as chatbots, virtual assistants, and customer service platforms.
-
-# Program Description
-
-The program is a comprehensive conversational AI system that provides natural language processing functionality, conversation management, and text completion capabilities. The purpose of the program is to enable efficient and effective human-computer interactions through AI-powered conversations.
-
-The program consists of several packages that work together to achieve this goal. These packages include:
-
-1. **Caching layer (.lmlib.client.cached)**: Improves performance by reducing requests to the underlying client through caching and retrieving completion responses.
-2. **Natural Language Processing (.lmlib.client)**: Provides conversation management and text completion functionality, generating completions, processing conversations, and managing models.
-3. **Azure AI Integration (.lmlib.client.azureai)**: Integrates with Azure AI services, managing model profiles and handling conversation completions.
-4. **Text Completion (.lmlib.client.textcompletion)**: Provides text completion functionality using AI models, including model selection, prompt generation, and response handling.
-5. **Text Tokenization (.lmlib.token)**: Tokenizes text into numerical tokens and detokenizes numerical tokens back into human-readable text.
-6. **Conversation Prompts (.lmlib.prompt)**: Manages conversation prompts, creating new prompts, continuing conversations, and removing end-of-text markers.
-7. **Agent Executor (.lmlib.agent)**: Executes agent graphs concurrently, handles agent responses, and tracks request statistics.
+The purpose of this library is to provide a comprehensive conversational AI system that enables efficient and effective human-computer interactions through natural language processing, conversation management, and text completion capabilities, utilizing caching, tokenization, and integration with external AI models and services to deliver a robust and scalable solution for applications such as chatbots, virtual assistants, and service platforms.
 
 The program's key features include:
 
 * Agent graph execution
-* Conversation management and text completion
-* Integration with external AI models and services (e.g., Azure AI)
-* Support for multiple prompt strategies and tokenization implementations
-* Caching and performance optimization
-
-Overall, the program is designed to provide a robust and efficient conversational AI system that can be used in various applications, such as chatbots, virtual assistants, and customer service platforms.
-
-*AgentRequestStatistic [requests=43, cachedPrompts=2, inTokens=23437, outTokens=7403, requestDuration=PT2M31.7349284S, getEffectiveDuration()=PT1M37.2400495S, getTps()=317.15, getOutTps()=76.13, getCost()=0.01458674]*
+* Integration with external AI models and services (e.g., Azure AI and OpenAi Api compatible)
+* Model profiles (choose the right model and parameters for the task)
+* Conversation management and text completion with support for multiple prompt strategies and tokenization implementations
+* Prompt caching
 
 # Setup
 
@@ -73,7 +55,7 @@ Profiles must be located in the main resources location.
 
 Examples can be found in test resources.
 
-## OpenAi compatible text completion client
+## OpenAi compatible client
 
 Use tokenizer strategy jtokkit or llamaServer (if the model is hosted on a llama.cpp server)
 
@@ -127,6 +109,12 @@ Example profile: src/test/resources/llama3.3-70b-azure.properties
 
 All language model requests will be cached if you add a CachedClientRepository bean to your context.
 
+# Completion Interceptors
+
+You can intercept every Conversation and Completion by implementing CompletionInterceptor.
+This is for example useful for accounting purposes or to implement a circuit breaker.
+The client will autowire all implementations and intercept requests accordingly.
+
 # Agentic Flows
 
 This library contains a graph executor for implementing comprehensive processes using agent-based design patterns. See class AgentTest for examples.
@@ -134,6 +122,10 @@ This library contains a graph executor for implementing comprehensive processes 
 # Grader
 
 The library includes a grader component that evaluates the correctness of agent responses.
+
+Example:
+
+    assertTrue(Grader.assessScoreBinary("Does the following blog post mention the feature " + feature, resultContext.getStringValue("blogPost"), this.clientService));
 
 # Usage
 
@@ -143,7 +135,7 @@ The library includes a grader component that evaluates the correctness of agent 
 4. For chats or completions, use ClientService service bean
 5. For agentic flows, create an AgentContext and use AgentExecutorService service bean
 
-# Examples
+# Usage Examples
 
 Text completions: AzureAiClientTest#completion  
 Chat: AzureAiClientTest#chat  
