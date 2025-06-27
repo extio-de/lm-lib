@@ -50,8 +50,8 @@ public class ClientService {
 		}
 		
 		@Override
-		public Completion completion(final ModelCategory modelCategory, final String system, final String question, final String fullText) {
-			return this.client.completion(modelCategory, system, question, fullText);
+		public Completion completion(final ModelCategory modelCategory, final String system, final String text) {
+			return this.client.completion(modelCategory, system, text);
 		}
 		
 		@Override

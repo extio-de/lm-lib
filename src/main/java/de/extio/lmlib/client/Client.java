@@ -5,7 +5,11 @@ import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 
 public interface Client {
 	
-	Completion completion(ModelCategory modelCategory, String system, String question, String fullText);
+	/**
+	 * @deprecated use {@link #conversation(ModelCategory, Conversation)} instead. Conversation can be converted from a system and text by Conversation.create(system, text)
+	 */
+	@Deprecated
+	Completion completion(ModelCategory modelCategory, String system, String text);
 	
 	Completion conversation(ModelCategory modelCategory, Conversation conversation);
 	

@@ -48,8 +48,7 @@ public class CachedClientTest {
 		var completion = this.clientService.getClient(ModelCategory.MEDIUM).completion(
 				ModelCategory.MEDIUM,
 				"You are a funny person",
-				"Tell me a cat joke",
-				"");
+				"Tell me a cat joke");
 		LOGGER.info(completion.toString());
 		assertFalse(completion.cached());
 		assertEquals(1, completion.requests());
@@ -59,8 +58,7 @@ public class CachedClientTest {
 		completion = this.clientService.getClient(ModelCategory.MEDIUM).completion(
 				ModelCategory.MEDIUM,
 				"You are a funny person",
-				"Tell me a cat joke",
-				"");
+				"Tell me a cat joke");
 		LOGGER.info(completion.toString());
 		assertTrue(completion.cached());
 		assertEquals(0, completion.requests());
@@ -69,8 +67,7 @@ public class CachedClientTest {
 		completion = this.clientService.getClient(ModelCategory.MEDIUM).completion(
 				ModelCategory.MEDIUM,
 				"You are a funny person",
-				"Tell me a dog joke",
-				"");
+				"Tell me a dog joke");
 		LOGGER.info(completion.toString());
 		assertFalse(completion.cached());
 		assertEquals(1, completion.requests());

@@ -22,6 +22,7 @@ import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
 import de.extio.lmlib.client.oai.textcompletion.TextCompletionClient;
+import de.extio.lmlib.grader.Grader;
 import de.extio.lmlib.profile.ModelCategory;
 
 //@Disabled("This test requires a running Llama server")
@@ -41,12 +42,11 @@ public class TextCompletionClientTest {
 		final var completion = this.client.completion(
 				null,
 				"You are a helpful assistant",
-				"",
 				"Say the color is green");
 		
 		LOGGER.info(completion.response());
 		
-		assertTrue(this.assessScoreBinary("Does the text mention the color green?", completion.response()));
+		assertTrue(Grader.assessScoreBinary("Does the text mention the color green?", completion.response(), this.client));
 	}
 	
 	@Test
@@ -58,7 +58,7 @@ public class TextCompletionClientTest {
 		
 		LOGGER.info(completion.response());
 		
-		assertTrue(this.assessScoreBinary("Does the text mention a color?", completion.response()));
+		assertTrue(Grader.assessScoreBinary("Does the text mention a color?", completion.response(), this.client));
 	}
 	
 	@Disabled
@@ -74,8 +74,7 @@ public class TextCompletionClientTest {
 		final var completion = this.client.completion(
 				null,
 				"You are counting machine",
-				"How many numbers do you count?",
-				sb.toString());
+				"How many numbers do you count?\n" + sb.toString());
 		LOGGER.info(completion.response());
 	}
 	
@@ -123,7 +122,6 @@ public class TextCompletionClientTest {
 				final var completion = this.client.completion(
 						null,
 						"You are a helpful assistant",
-						"",
 						"How do I calculate the annual profit margin?");
 				LOGGER.info(completion.response());
 			}
@@ -135,7 +133,6 @@ public class TextCompletionClientTest {
 				final var completion = this.client.completion(
 						null,
 						"You are a helpful assistant",
-						"",
 						"How do I calculate the operating profit ratio?");
 				LOGGER.info(completion.response());
 			}
@@ -147,7 +144,6 @@ public class TextCompletionClientTest {
 				final var completion = this.client.completion(
 						null,
 						"You are a helpful assistant",
-						"",
 						"How do I calculate the return of investment?");
 				LOGGER.info(completion.response());
 			}
@@ -159,7 +155,6 @@ public class TextCompletionClientTest {
 				final var completion = this.client.completion(
 						null,
 						"You are a helpful assistant",
-						"",
 						"How do I calculate the return on net worth?");
 				LOGGER.info(completion.response());
 			}
@@ -170,31 +165,5 @@ public class TextCompletionClientTest {
 	}
 	
 	static record Tasks(Runnable task1, Runnable task2, Runnable task3, Runnable task4) {
-	}
-	
-	private boolean assessScoreBinary(final String question, final String text) {
-		LOGGER.info(question);
-		
-		var score = 0;
-		while (Math.abs(score) < 3) {
-			final var completion = this.client.completion(
-					ModelCategory.MEDIUM,
-					"""
-							You are a grader assessing the truthfulness of a given text to a user question.
-							Please provide a binary response 'true' or 'false' for the following text.
-							'true' means that the text provides a truthful answer to the question, while 'false' means that it does not.
-							Only provide the response as a single word and no preamble and no explanation.""",
-					"Here is the text:\n" + text,
-					"\nHere is the user question: " + question);
-			LOGGER.info(completion.response());
-			score += Boolean.parseBoolean(completion.response().strip()) ? 1 : -1;
-			if (Math.abs(score) == 2) {
-				break;
-			}
-		}
-		
-		final var result = score > 0;
-		LOGGER.info("->" + String.valueOf(result));
-		return result;
 	}
 }

@@ -31,8 +31,8 @@ public class CachedClient implements Client {
 	}
 	
 	@Override
-	public Completion completion(final ModelCategory modelCategory, final String system, final String question, final String fullText) {
-		return this.getCachedResponse(modelCategory, () -> this.client.completion(modelCategory, system, question, fullText), system, question, fullText);
+	public Completion completion(final ModelCategory modelCategory, final String system, final String text) {
+		return this.getCachedResponse(modelCategory, () -> this.client.completion(modelCategory, system, text), system, text);
 	}
 	
 	@Override

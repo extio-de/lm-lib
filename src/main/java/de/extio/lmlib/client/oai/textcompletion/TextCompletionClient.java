@@ -68,21 +68,7 @@ public class TextCompletionClient implements Client, DisposableBean {
 	}
 	
 	@Override
-	public Completion completion(final ModelCategory modelCategory, final String system, final String question, final String fullText) {
-		String text = "";
-		if (!question.isEmpty() && !fullText.isEmpty()) {
-			text = question + "\n" + fullText;
-		}
-		else if (!question.isEmpty()) {
-			text = question;
-		}
-		else if (!fullText.isEmpty()) {
-			text = fullText;
-		}
-		else {
-			throw new IllegalArgumentException("Either question or fullText must be set");
-		}
-		
+	public Completion completion(final ModelCategory modelCategory, final String system, final String text) {
 		return this.conversation(modelCategory, Conversation.create(system, text));
 	}
 	
