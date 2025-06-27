@@ -1,8 +1,8 @@
-package de.extio.lmlib.client.oai.textcompletion;
+package de.extio.lmlib.client.oai.completion;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public final class Choice {
+final class Choice {
 	
 	public static final String FINISH_REASON_STOP = "stop";
 	

@@ -1,4 +1,4 @@
-package de.extio.lmlib.client.oai.textcompletion;
+package de.extio.lmlib.client.oai.completion;
 
 import java.math.BigDecimal;
 import java.text.DecimalFormat;

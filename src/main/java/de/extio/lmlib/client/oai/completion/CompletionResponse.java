@@ -1,10 +1,10 @@
-package de.extio.lmlib.client.oai.textcompletion;
+package de.extio.lmlib.client.oai.completion;
 
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public final class CompletionResponse {
+final class CompletionResponse {
 	
 	private String id;
 	

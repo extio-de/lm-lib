@@ -21,11 +21,11 @@ import org.springframework.context.annotation.PropertySource;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
-import de.extio.lmlib.client.oai.textcompletion.TextCompletionClient;
+import de.extio.lmlib.client.oai.completion.TextCompletionClient;
 import de.extio.lmlib.grader.Grader;
 import de.extio.lmlib.profile.ModelCategory;
 
-@Disabled("This test requires a running Llama server")
+//@Disabled("This test requires a running Llama server")
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
 @ComponentScan(basePackages = "de.extio.lmlib")

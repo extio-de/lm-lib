@@ -1,8 +1,8 @@
-package de.extio.lmlib.client.oai.textcompletion;
+package de.extio.lmlib.client.oai.completion;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public final class CompletionRequest {
+final class CompletionRequest {
 	
 	private String model;
 	
