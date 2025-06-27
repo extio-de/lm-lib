@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 public class Llama3PromptStrategy implements PromptStrategy {
 	
 	@Override
-	public StringBuilder start(final String system, final String question, final String text) {
+	public StringBuilder start(final String system, final String user) {
 		final StringBuilder prompt = new StringBuilder();
 		prompt.append("<|begin_of_text|>");
 		if (!system.isEmpty()) {
@@ -18,11 +18,7 @@ public class Llama3PromptStrategy implements PromptStrategy {
 			prompt.append("<|eot_id|>");
 		}
 		prompt.append("<|start_header_id|>user<|end_header_id|>\n\n");
-		prompt.append(question);
-		if (!question.isEmpty() && !text.isEmpty()) {
-			prompt.append("\n\n");
-		}
-		prompt.append(text);
+		prompt.append(user);
 		prompt.append("<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n");
 		
 		return prompt;

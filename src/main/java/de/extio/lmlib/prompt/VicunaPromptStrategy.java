@@ -6,16 +6,15 @@ import org.springframework.stereotype.Component;
 public class VicunaPromptStrategy implements PromptStrategy {
 	
 	@Override
-	public StringBuilder start(final String system, final String question, final String text) {
+	public StringBuilder start(final String system, final String user) {
 		final StringBuilder prompt = new StringBuilder();
-		prompt.append(system);
-		prompt.append(" USER: ");
-		prompt.append(question);
-		if (!question.isEmpty() && !text.isEmpty()) {
+		if (system.isEmpty()) {
+			prompt.append(system);
 			prompt.append("\n");
 		}
-		prompt.append(text);
-		prompt.append(" ASSISTANT:");
+		prompt.append("USER: ");
+		prompt.append(user);
+		prompt.append("\nASSISTANT:");
 		return prompt;
 	}
 	
@@ -30,7 +29,7 @@ public class VicunaPromptStrategy implements PromptStrategy {
 		prompt.append(assistant);
 		prompt.append("</s>USER: ");
 		prompt.append(user);
-		prompt.append(" ASSISTANT:");
+		prompt.append("\nASSISTANT:");
 	}
 	
 	@Override

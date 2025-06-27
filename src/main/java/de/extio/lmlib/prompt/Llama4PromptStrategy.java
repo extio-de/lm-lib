@@ -3,13 +3,13 @@ package de.extio.lmlib.prompt;
 import org.springframework.stereotype.Component;
 
 /**
- * @see https://llama.meta.com/docs/model-cards-and-prompt-formats/meta-llama-3
+ * @see https://www.llama.com/docs/model-cards-and-prompt-formats/llama4/
  */
 @Component
 public class Llama4PromptStrategy implements PromptStrategy {
 	
 	@Override
-	public StringBuilder start(final String system, final String question, final String text) {
+	public StringBuilder start(final String system, final String user) {
 		final StringBuilder prompt = new StringBuilder();
 		prompt.append("<|begin_of_text|>");
 		if (!system.isEmpty()) {
@@ -18,11 +18,7 @@ public class Llama4PromptStrategy implements PromptStrategy {
 			prompt.append("<|eot|>");
 		}
 		prompt.append("<|header_start|>user<|header_end|>\n\n");
-		prompt.append(question);
-		if (!question.isEmpty() && !text.isEmpty()) {
-			prompt.append("\n\n");
-		}
-		prompt.append(text);
+		prompt.append(user);
 		prompt.append("<|eot|><|header_start|>assistant<|header_end|>\n");
 		
 		return prompt;

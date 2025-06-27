@@ -168,7 +168,7 @@ public class TextCompletionClient implements Client, DisposableBean {
 			}
 			
 			if (first && userTurn != null) {
-				prompt.append(promptStrategy.start(systemTurn != null ? systemTurn.text() : "", "", userTurn.text()));
+				prompt.append(promptStrategy.start(systemTurn != null ? systemTurn.text() : "", userTurn.text()));
 				userTurn = null;
 				first = false;
 			}

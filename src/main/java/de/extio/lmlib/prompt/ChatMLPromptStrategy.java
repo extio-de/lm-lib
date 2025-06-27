@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 public class ChatMLPromptStrategy implements PromptStrategy {
 	
 	@Override
-	public StringBuilder start(final String system, final String question, final String text) {
+	public StringBuilder start(final String system, final String user) {
 		final StringBuilder prompt = new StringBuilder();
 		prompt.append("<|im_start|>");
 		if (!system.isEmpty()) {
@@ -15,11 +15,7 @@ public class ChatMLPromptStrategy implements PromptStrategy {
 			prompt.append("<|im_end|>\n");
 		}
 		prompt.append("<|im_start|>user\n");
-		prompt.append(question);
-		if (!question.isEmpty() && !text.isEmpty()) {
-			prompt.append("\n");
-		}
-		prompt.append(text);
+		prompt.append(user);
 		prompt.append("<|im_end|>\n<|im_start|>assistant\n");
 		return prompt;
 	}

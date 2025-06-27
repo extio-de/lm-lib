@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 public class Phi4PromptStrategy implements PromptStrategy {
 	
 	@Override
-	public StringBuilder start(final String system, final String question, final String text) {
+	public StringBuilder start(final String system, final String user) {
 		final StringBuilder prompt = new StringBuilder();
 		if (! system.isEmpty()) {
 			prompt.append("<|im_start|>system<|im_sep|>\n");
@@ -14,11 +14,7 @@ public class Phi4PromptStrategy implements PromptStrategy {
 			prompt.append("<|im_end|>\n");
 		}
 		prompt.append("<|im_start|>user<|im_sep|>\n");
-		prompt.append(question);
-		if (!question.isEmpty() && !text.isEmpty()) {
-			prompt.append("\n");
-		}
-		prompt.append(text);
+		prompt.append(user);
 		prompt.append("<|im_end|>\n<|im_start|>assistant<|im_sep|>");
 		return prompt;
 	}

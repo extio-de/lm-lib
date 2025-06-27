@@ -4,7 +4,7 @@ public interface PromptStrategy {
 	
 	String getPromptName();
 	
-	StringBuilder start(String system, String question, String text);
+	StringBuilder start(String system, String user);
 	
 	void continue_(StringBuilder prompt, String assistant);
 	

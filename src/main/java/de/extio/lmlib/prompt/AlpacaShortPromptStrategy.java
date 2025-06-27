@@ -3,7 +3,7 @@ package de.extio.lmlib.prompt;
 public class AlpacaShortPromptStrategy implements PromptStrategy {
 	
 	@Override
-	public StringBuilder start(final String instruction, final String question, final String text) {
+	public StringBuilder start(final String instruction, final String user) {
 		final StringBuilder prompt = new StringBuilder();
 		if (! instruction.isEmpty()) {
 			prompt.append("### Instruction:\n");
@@ -11,11 +11,7 @@ public class AlpacaShortPromptStrategy implements PromptStrategy {
 			prompt.append("\n\n");
 		}
 		prompt.append("### Input:\n");
-		prompt.append(question);
-		if (!question.isEmpty() && !text.isEmpty()) {
-			prompt.append("\n");
-		}
-		prompt.append(text);
+		prompt.append(user);
 		prompt.append("\n\n### Response:\n");
 		return prompt;
 	}

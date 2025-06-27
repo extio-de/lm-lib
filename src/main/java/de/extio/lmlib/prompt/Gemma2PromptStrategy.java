@@ -2,22 +2,22 @@ package de.extio.lmlib.prompt;
 
 import org.springframework.stereotype.Component;
 
+/**
+ * Works for both Gemma2 and Gemma3
+ * @see https://ai.google.dev/gemma/docs/core/prompt-structure
+ */
 @Component
 public class Gemma2PromptStrategy implements PromptStrategy {
 	
 	@Override
-	public StringBuilder start(final String system, final String question, final String text) {
+	public StringBuilder start(final String system, final String user) {
 		final StringBuilder prompt = new StringBuilder();
 		prompt.append("<start_of_turn>user\n");
 		if (!system.isEmpty()) {
 			prompt.append(system);
-			prompt.append("\n");
+			prompt.append("\n\n");
 		}
-		prompt.append(question);
-		if (!question.isEmpty() && !text.isEmpty()) {
-			prompt.append("\n");
-		}
-		prompt.append(text);
+		prompt.append(user);
 		prompt.append("<end_of_turn>\n<start_of_turn>model\n");
 		return prompt;
 	}

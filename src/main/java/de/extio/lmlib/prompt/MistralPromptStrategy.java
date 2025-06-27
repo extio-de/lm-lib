@@ -6,18 +6,14 @@ import org.springframework.stereotype.Component;
 public class MistralPromptStrategy implements PromptStrategy {
 	
 	@Override
-	public StringBuilder start(final String instruction, final String question, final String text) {
+	public StringBuilder start(final String instruction, final String user) {
 		final StringBuilder prompt = new StringBuilder();
 		prompt.append("<s>[INST]");
 		prompt.append(instruction);
-		if (!instruction.isEmpty() && !question.isEmpty()) {
+		if (!instruction.isEmpty() && !user.isEmpty()) {
 			prompt.append("\n");
 		}
-		prompt.append(question);
-		if ((!instruction.isEmpty() || !question.isEmpty()) && !text.isEmpty()) {
-			prompt.append("\n");
-		}
-		prompt.append(text);
+		prompt.append(user);
 		prompt.append(" [/INST]");
 		return prompt;
 	}
