@@ -162,6 +162,7 @@ public class TextCompletionClient implements Client, DisposableBean {
 		final var response = webClient
 				.method(HttpMethod.POST)
 				.uri(uriBuilder -> uriBuilder.path("/v1/completions").build())
+				.header("Content-Type", "application/json")
 				.bodyValue(request)
 				.retrieve()
 				.bodyToMono(CompletionResponse.class)
@@ -170,11 +171,7 @@ public class TextCompletionClient implements Client, DisposableBean {
 		
 		String content;
 		CompletionFinishReason finishReason;
-		if (response.getContent() != null) {
-			content = promptStrategy.removeEOT(response.getContent());
-			finishReason = response.isStoppedEos() ? CompletionFinishReason.DONE : CompletionFinishReason.TOKEN_LIMIT_REACHED;
-		}
-		else {
+		if (response.getChoices() != null && !response.getChoices().isEmpty()) {
 			final var choice = response.getChoices().getFirst();
 			content = promptStrategy.removeEOT(choice.getText());
 			finishReason = switch (choice.getFinishReason()) {
@@ -183,19 +180,35 @@ public class TextCompletionClient implements Client, DisposableBean {
 				default -> CompletionFinishReason.DONE;
 			};
 		}
+		else if (response.getContent() != null) {
+			content = promptStrategy.removeEOT(response.getContent());
+			finishReason = response.isStoppedEos() ? CompletionFinishReason.DONE : CompletionFinishReason.TOKEN_LIMIT_REACHED;
+		}
+		else {
+			throw new IllegalStateException("No parseable response content from server");
+		}
 		
-		final var in = this.tokenizer.count(prompt, modelProfile);
-		final var out = this.tokenizer.count(content, modelProfile);
+		int inTokens;
+		int outTokens;
+		if (response.getUsage() != null && response.getUsage().getPromptTokens() > 0) {
+			inTokens = response.getUsage().getPromptTokens();
+			outTokens = response.getUsage().getCompletionTokens();
+		}
+		else {
+			inTokens = this.tokenizer.count(prompt, modelProfile);
+			outTokens = this.tokenizer.count(content, modelProfile);
+		}
+		
 		final var statistics = new de.extio.lmlib.client.CompletionStatistics(
 				1,
 				Duration.between(start, LocalDateTime.now()),
-				in,
-				out,
-				new BigDecimal(in).multiply(modelProfile.costInToken()).add(new BigDecimal(out).multiply(modelProfile.costOutToken())),
+				inTokens,
+				outTokens,
+				new BigDecimal(inTokens).multiply(modelProfile.costInToken()).add(new BigDecimal(outTokens).multiply(modelProfile.costOutToken())),
 				false);
 		LOGGER.debug("{}", statistics);
 		if (this.collectStatistics) {
-			this.totalStatistics.add(statistics.duration(), in, out, statistics.cost());
+			this.totalStatistics.add(statistics.duration(), inTokens, outTokens, statistics.cost());
 		}
 		
 		return new Completion(content, finishReason, statistics);

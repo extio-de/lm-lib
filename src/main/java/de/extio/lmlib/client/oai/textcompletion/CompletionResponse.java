@@ -17,7 +17,9 @@ public final class CompletionResponse {
 	private String content;
 	
 	private boolean isStoppedEos;
-	
+
+	private Usage usage;
+
 	@JsonProperty("id")
 	public String getId() {
 		return this.id;
@@ -71,7 +73,16 @@ public final class CompletionResponse {
 	public void setStoppedEos(final boolean isStoppedEos) {
 		this.isStoppedEos = isStoppedEos;
 	}
-	
+		
+	@JsonProperty("usage")
+	public Usage getUsage() {
+		return usage;
+	}
+
+	public void setUsage(final Usage usage) {
+		this.usage = usage;
+	}
+
 	@Override
 	public String toString() {
 		final StringBuilder builder = new StringBuilder();
@@ -87,6 +98,8 @@ public final class CompletionResponse {
 		builder.append(this.content);
 		builder.append(", isStoppedEos=");
 		builder.append(this.isStoppedEos);
+		builder.append(", usage=");
+		builder.append(this.usage);
 		builder.append("]");
 		return builder.toString();
 	}

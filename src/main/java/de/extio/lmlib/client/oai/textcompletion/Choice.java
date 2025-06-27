@@ -15,7 +15,7 @@ public final class Choice {
 	private Double score;
 	
 	private String finishReason;
-	
+
 	@JsonProperty("text")
 	public String getText() {
 		return this.text;
