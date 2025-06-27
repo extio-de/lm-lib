@@ -18,7 +18,7 @@ public class AzureAiClientAutoConfiguration {
 	@Value("${extproxy.host:}")
 	private String proxyHost;
 	
-	@Value("${extproxy.port:}")
+	@Value("${extproxy.port:0}")
 	private int proxyPort;
 	
 	@Value("${extproxy.username:}")
