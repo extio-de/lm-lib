@@ -1,4 +1,4 @@
-package de.extio.lmlib.client.oai.textcompletion.dto;
+package de.extio.lmlib.client.oai.textcompletion;
 
 import java.util.List;
 
