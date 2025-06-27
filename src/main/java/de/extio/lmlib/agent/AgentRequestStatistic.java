@@ -62,17 +62,17 @@ public final class AgentRequestStatistic {
 	}
 	
 	public void add(final Completion completion) {
-		if (completion.cached()) {
+		if (completion.statistics().cached()) {
 			this.cachedPrompts.incrementAndGet();
 		}
 		else {
-			this.getRequests().addAndGet(completion.requests());
+			this.getRequests().addAndGet(completion.statistics().requests());
 		}
-		this.getInTokens().addAndGet(completion.inTokens());
-		this.getOutTokens().addAndGet(completion.outTokens());
+		this.getInTokens().addAndGet(completion.statistics().inTokens());
+		this.getOutTokens().addAndGet(completion.statistics().outTokens());
 		synchronized (this) {
-			this.requestDuration = this.requestDuration.plus(completion.duration());
-			this.cost = this.cost.add(completion.cost());
+			this.requestDuration = this.requestDuration.plus(completion.statistics().duration());
+			this.cost = this.cost.add(completion.statistics().cost());
 		}
 	}
 	

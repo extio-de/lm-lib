@@ -19,11 +19,6 @@ public class MistralPromptStrategy implements PromptStrategy {
 	}
 	
 	@Override
-	public void continue_(final StringBuilder prompt, final String assistant) {
-		this.next(prompt, assistant, "Continue");
-	}
-	
-	@Override
 	public void next(final StringBuilder prompt, final String assistant, final String user) {
 		prompt.append(" ");
 		prompt.append(assistant);

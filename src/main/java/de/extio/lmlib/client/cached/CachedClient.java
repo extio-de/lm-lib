@@ -11,6 +11,8 @@ import java.util.function.Supplier;
 
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
+import de.extio.lmlib.client.CompletionFinishReason;
+import de.extio.lmlib.client.CompletionStatistics;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
@@ -50,12 +52,12 @@ public class CachedClient implements Client {
 		
 		final var cachedCompletion = this.cacheRepository.get(key);
 		if (cachedCompletion != null) {
-			return new Completion(cachedCompletion.response(), 0, Duration.ZERO, cachedCompletion.inTokens(), cachedCompletion.outTokens(), BigDecimal.ZERO, true);
+			return new Completion(cachedCompletion.response(), CompletionFinishReason.DONE, new CompletionStatistics(0, Duration.ZERO, cachedCompletion.inTokens(), cachedCompletion.outTokens(), BigDecimal.ZERO, true));
 		}
 		
 		final var completion = supplier.get();
 		if (completion != null) {
-			this.cacheRepository.put(key, new CachedCompletion(completion.response(), completion.inTokens(), completion.outTokens(), OffsetDateTime.now()));
+			this.cacheRepository.put(key, new CachedCompletion(completion.response(), completion.finishReason(), completion.statistics().inTokens(), completion.statistics().outTokens(), OffsetDateTime.now()));
 		}
 		return completion;
 	}
@@ -76,7 +78,7 @@ public class CachedClient implements Client {
 			digest.update(String.valueOf(modelProfile.modelProvider()).getBytes());
 			digest.update(String.valueOf(modelProfile.maxTokens()).getBytes());
 			digest.update(String.valueOf(modelProfile.maxContextLength()).getBytes());
-			digest.update(String.valueOf(modelProfile.maxContinuations()).getBytes());
+			digest.update(String.valueOf("1").getBytes());
 			digest.update(String.valueOf(modelProfile.temperature()).getBytes());
 			digest.update(String.valueOf(modelProfile.topP()).getBytes());
 			for (final var k : keys) {

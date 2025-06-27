@@ -13,14 +13,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.azure.ai.inference.ChatCompletionsClient;
 import com.azure.ai.inference.ChatCompletionsClientBuilder;
-import com.azure.ai.inference.models.ChatCompletions;
 import com.azure.ai.inference.models.ChatCompletionsOptions;
 import com.azure.ai.inference.models.ChatRequestAssistantMessage;
 import com.azure.ai.inference.models.ChatRequestMessage;
@@ -35,6 +33,8 @@ import com.azure.core.http.policy.RetryOptions;
 
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
+import de.extio.lmlib.client.CompletionFinishReason;
+import de.extio.lmlib.client.CompletionStatistics;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.profile.ModelCategory;
@@ -42,7 +42,6 @@ import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.profile.ModelProfileService;
 import de.extio.lmlib.token.Tokenizer;
-
 import okhttp3.Authenticator;
 import okhttp3.Challenge;
 import okhttp3.Credentials;
@@ -56,6 +55,7 @@ public final class AzureAiClient implements Client {
 	private static final Logger LOGGER = LoggerFactory.getLogger(AzureAiClient.class);
 	
 	private static final int TIMEOUT = 300000;
+	
 	private static final int CONNECT_TIMEOUT = 10000;
 	
 	private final ConcurrentMap<ModelCategory, ChatCompletionsClient> chatCompletionsClients = new ConcurrentHashMap<>();
@@ -104,32 +104,12 @@ public final class AzureAiClient implements Client {
 			throw new IllegalArgumentException("ModelProfile " + modelCategory.getModelProfile());
 		}
 		
-		final List<List<ChatRequestMessage>> chats = this.createChats(conversation, modelProfile);
+		final var chat = this.createChats(conversation, modelProfile);
 		
-		final List<StringBuilder> answers = new ArrayList<>();
-		final CompletionStatistics statistics = new CompletionStatistics();
-		for (final List<ChatRequestMessage> chat : chats) {
-			final StringBuilder answer = new StringBuilder();
-			this.requestCompletionsContinuations(chat, answer, statistics, modelCategory, modelProfile);
-			answers.add(answer);
-		}
-		
-		// TODO: Reactivate when multiple (split) prompts have been implemented again in #addChatRequestMessage
-		//		if (answers.size() > 1) {
-		//			this.summarize(answers, modelProfile, promptStrategy, statistics);
-		//		}
-		
-		return new Completion(
-				answers.stream().collect(Collectors.joining()),
-				statistics.requests,
-				statistics.duration,
-				statistics.inTokens,
-				statistics.outTokens,
-				new BigDecimal(statistics.inTokens).multiply(modelProfile.costInToken()).add(new BigDecimal(statistics.outTokens).multiply(modelProfile.costOutToken())),
-				false);
+		return this.requestCompletionsContinuations(chat, modelCategory, modelProfile);
 	}
 	
-	private List<List<ChatRequestMessage>> createChats(final Conversation conversation, final ModelProfile modelProfile) {
+	private List<ChatRequestMessage> createChats(final Conversation conversation, final ModelProfile modelProfile) {
 		final List<ChatRequestMessage> chat = new ArrayList<>();
 		
 		final Deque<Turn> turns = new ArrayDeque<>(conversation.getConversation());
@@ -138,7 +118,6 @@ public final class AzureAiClient implements Client {
 		Turn assistantTurn = null;
 		boolean first = true;
 		
-		final int maxLength = modelProfile.maxContextLength() - modelProfile.maxTokens() - 15; // 15 is a margin for EOT and other special tokens
 		final AtomicInteger tokens = new AtomicInteger();
 		
 		while (!turns.isEmpty()) {
@@ -161,17 +140,17 @@ public final class AzureAiClient implements Client {
 				if (systemTurn != null) {
 					chat.add(new ChatRequestSystemMessage(systemTurn.text()));
 				}
-				if (this.addChatRequestMessage(userTurn.text(), maxLength, tokens, chat, modelProfile, ChatRequestUserMessage::new)) {
+				if (this.addChatRequestMessage(userTurn.text(), tokens, chat, modelProfile, ChatRequestUserMessage::new)) {
 					break;
 				}
 				userTurn = null;
 				first = false;
 			}
 			else if (!first && assistantTurn != null && userTurn != null) {
-				if (this.addChatRequestMessage(assistantTurn.text(), maxLength, tokens, chat, modelProfile, ChatRequestAssistantMessage::new)) {
+				if (this.addChatRequestMessage(assistantTurn.text(), tokens, chat, modelProfile, ChatRequestAssistantMessage::new)) {
 					break;
 				}
-				if (this.addChatRequestMessage(userTurn.text(), maxLength, tokens, chat, modelProfile, ChatRequestUserMessage::new)) {
+				if (this.addChatRequestMessage(userTurn.text(), tokens, chat, modelProfile, ChatRequestUserMessage::new)) {
 					break;
 				}
 				userTurn = null;
@@ -179,17 +158,17 @@ public final class AzureAiClient implements Client {
 			}
 		}
 		
-		return List.of(chat);
+		return chat;
 	}
 	
-	private boolean addChatRequestMessage(final String text, final int maxLength, final AtomicInteger tokens, final List<ChatRequestMessage> chat, final ModelProfile modelProfile, final Function<String, ChatRequestMessage> messageFactory) {
-		String prompt = text;
-		boolean trimmed = false;
+	private boolean addChatRequestMessage(final String text, final AtomicInteger tokens, final List<ChatRequestMessage> chat, final ModelProfile modelProfile, final Function<String, ChatRequestMessage> messageFactory) {
+		var prompt = text;
+		var trimmed = false;
 		
-		final int textTokens = this.tokenizer.count(prompt, modelProfile);
+		final var textTokens = this.tokenizer.count(prompt, modelProfile);
+		final int maxLength = modelProfile.maxContextLength() - modelProfile.maxTokens() - 15; // 15 is a margin for EOT and other special tokens
 		if (tokens.addAndGet(textTokens) > maxLength) {
-			// TODO: Cut smarter, e.g. split conversation into parts while keeping system prompt
-			List<Long> tokenized = this.tokenizer.tokenize(prompt, modelProfile);
+			var tokenized = this.tokenizer.tokenize(prompt, modelProfile);
 			LOGGER.warn("Prompt too long: {} tokens / {} max. Prompt will be cut!", tokenized.size(), maxLength);
 			tokenized = tokenized.subList(0, tokenized.size() - (tokens.get() - maxLength));
 			prompt = this.tokenizer.detokenize(tokenized, modelProfile);
@@ -201,42 +180,40 @@ public final class AzureAiClient implements Client {
 		return trimmed;
 	}
 	
-	private void requestCompletionsContinuations(final List<ChatRequestMessage> chat, final StringBuilder answer, final CompletionStatistics statistics, final ModelCategory modelCategory, final ModelProfile modelProfile) {
-		for (int continuation = 0; continuation < modelProfile.maxContinuations(); continuation++) {
-			final LocalDateTime start = LocalDateTime.now();
-			
-			final var response = this.requestCompletions(chat, modelCategory, modelProfile);
-			
-			final var choice = response.getChoice();
-			
-			statistics.add(Duration.between(start, LocalDateTime.now()), response.getUsage().getPromptTokens(), response.getUsage().getCompletionTokens());
-			
-			answer.append(choice.getMessage().getContent());
-			
-			final var complete = !(choice.getFinishReason() == CompletionsFinishReason.TOKEN_LIMIT_REACHED);
-			if (complete) {
-				LOGGER.debug("Prompt response complete");
-				break;
-			}
-			
-			answer.append('\n');
-			chat.add(new ChatRequestAssistantMessage(choice.getMessage().getContent()));
-			chat.add(new ChatRequestUserMessage("continue"));
-		}
-	}
-	
-	private ChatCompletions requestCompletions(final List<ChatRequestMessage> chat, final ModelCategory modelCategory, final ModelProfile modelProfile) {
+	private Completion requestCompletionsContinuations(final List<ChatRequestMessage> chat, final ModelCategory modelCategory, final ModelProfile modelProfile) {
 		LOGGER.debug("Requesting ChatCompletion at {}", modelProfile.modelName());
+		final LocalDateTime start = LocalDateTime.now();
 		
-		final var client = this.createHttpClient(modelCategory, modelProfile);
-
 		final var options = new ChatCompletionsOptions(chat);
 		options.setModel(modelProfile.modelName());
 		options.setMaxTokens(modelProfile.maxTokens());
 		options.setTemperature(modelProfile.temperature());
 		options.setTopP(modelProfile.topP());
 		
-		return client.complete(options);
+		final var client = this.createHttpClient(modelCategory, modelProfile);
+		final var response = client.complete(options);
+		
+		final CompletionFinishReason finishReason;
+		if (CompletionsFinishReason.CONTENT_FILTERED.equals(response.getChoice().getFinishReason())) {
+			finishReason = CompletionFinishReason.CONTENT_FILTERED;
+		}
+		else if (CompletionsFinishReason.TOKEN_LIMIT_REACHED.equals(response.getChoice().getFinishReason())) {
+			finishReason = CompletionFinishReason.TOKEN_LIMIT_REACHED;
+		}
+		else {
+			finishReason = CompletionFinishReason.DONE;
+		}
+		
+		final var statistics = new CompletionStatistics(
+				1,
+				Duration.between(start, LocalDateTime.now()),
+				response.getUsage().getPromptTokens(),
+				response.getUsage().getCompletionTokens(),
+				new BigDecimal(response.getUsage().getPromptTokens()).multiply(modelProfile.costInToken()).add(new BigDecimal(response.getUsage().getCompletionTokens()).multiply(modelProfile.costOutToken())),
+				false);
+		LOGGER.debug("{}", statistics);
+		
+		return new Completion(response.getChoice().getMessage().getContent(), finishReason, statistics);
 	}
 	
 	private ChatCompletionsClient createHttpClient(final ModelCategory modelCategory, final ModelProfile modelProfile) {
@@ -258,19 +235,20 @@ public final class AzureAiClient implements Client {
 						}
 						return false;
 					});
-			
+					
 			final OkHttpClient.Builder nativeOkHttpClientBuilder = new OkHttpClient.Builder();
-
+			
 			if (this.proxyEnabled) {
 				LOGGER.info("Proxy is enabled. Configuring proxy settings for host: {} port: {} user: {}", this.proxyHost, this.proxyPort, this.proxyUser);
-
+				
 				final Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(this.proxyHost, this.proxyPort));
 				nativeOkHttpClientBuilder.proxy(proxy);
-
+				
 				if (this.proxyUser != null && this.proxyPassword != null) {
 					final Authenticator proxyAuthenticator = new Authenticator() {
+						
 						@Override
-                        public Request authenticate(final Route route, final Response response) {
+						public Request authenticate(final Route route, final Response response) {
 							for (final Challenge challenge : response.challenges()) {
 								if (challenge.scheme().equalsIgnoreCase("OkHttp-Preemptive")) {
 									final String credential = Credentials.basic(proxyUser, proxyPassword);
@@ -283,13 +261,15 @@ public final class AzureAiClient implements Client {
 						}
 					};
 					nativeOkHttpClientBuilder.proxyAuthenticator(proxyAuthenticator);
-				} else {
+				}
+				else {
 					LOGGER.warn("Proxy user or password is not set. Skipping proxy authentication.");
 				}
-			} else {
+			}
+			else {
 				LOGGER.info("Proxy is not enabled. Skipping proxy configuration.");
 			}
-
+			
 			final OkHttpClient nativeOkHttpClient = nativeOkHttpClientBuilder.build();
 			final OkHttpAsyncHttpClientBuilder okHttpClientBuilder = new OkHttpAsyncHttpClientBuilder(nativeOkHttpClient);
 			final HttpClient okHttpClient = okHttpClientBuilder
@@ -311,26 +291,6 @@ public final class AzureAiClient implements Client {
 	
 	private boolean shouldRetryError(final int statusCode) {
 		return statusCode == 408 || statusCode == 429 || (statusCode >= 500 && statusCode < 600);
-	}
-	
-	static class CompletionStatistics {
-		
-		int requests;
-		
-		Duration duration = Duration.ofMillis(0l);
-		
-		long inTokens;
-		
-		long outTokens;
-		
-		void add(final Duration duration, final int inTokens, final int outTokens) {
-			LOGGER.debug("Request duration: {}; in: {}; out: {}; tps: {}", duration, inTokens, outTokens, String.format("%.2f", (inTokens + outTokens) / (double) duration.toMillis() * 1000.0));
-			
-			this.requests++;
-			this.duration = this.duration.plus(duration);
-			this.inTokens += inTokens;
-			this.outTokens += outTokens;
-		}
 	}
 	
 }

@@ -9,7 +9,6 @@ public record ModelProfile(
 		int maxContextLength,
 		double temperature,
 		double topP,
-		int maxContinuations,
 		ModelProvider modelProvider,
 		String modelName,
 		String url,

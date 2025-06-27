@@ -19,11 +19,6 @@ public class Phi3PromptStrategy implements PromptStrategy {
 	}
 	
 	@Override
-	public void continue_(final StringBuilder prompt, final String assistant) {
-		this.next(prompt, assistant, "Continue");
-	}
-	
-	@Override
 	public void next(final StringBuilder prompt, final String assistant, final String user) {
 		prompt.append("\n");
 		prompt.append(assistant);

@@ -17,11 +17,6 @@ public class AlpacaShortPromptStrategy implements PromptStrategy {
 	}
 	
 	@Override
-	public void continue_(final StringBuilder prompt, final String assistant) {
-		this.next(prompt, assistant, "Continue");
-	}
-	
-	@Override
 	public void next(final StringBuilder prompt, final String assistant, final String user) {
 		prompt.append(assistant);
 		prompt.append("\n\n### Input:\n");

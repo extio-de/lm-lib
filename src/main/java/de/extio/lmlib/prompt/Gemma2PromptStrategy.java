@@ -23,11 +23,6 @@ public class Gemma2PromptStrategy implements PromptStrategy {
 	}
 	
 	@Override
-	public void continue_(final StringBuilder prompt, final String assistant) {
-		this.next(prompt, assistant, "Continue");
-	}
-	
-	@Override
 	public void next(final StringBuilder prompt, final String assistant, final String user) {
 		prompt.append(assistant);
 		prompt.append("<end_of_turn>\n<start_of_turn>user\n");

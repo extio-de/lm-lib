@@ -65,10 +65,6 @@ public class ModelProfileService {
 					.map(Object::toString)
 					.map(Double::parseDouble)
 					.orElseThrow(() -> new IllegalStateException("No model topP found for model: " + modelName));
-			final var maxContinuations = Optional.ofNullable(resource.getProperty("maxContinuations"))
-					.map(Object::toString)
-					.map(Integer::parseInt)
-					.orElseThrow(() -> new IllegalStateException("No model maxContinuations found for model: " + modelName));
 			final var modelProvider = Optional.ofNullable(resource.getProperty("modelProvider"))
 					.map(Object::toString)
 					.map(ModelProvider::valueOf)
@@ -93,7 +89,7 @@ public class ModelProfileService {
 			//To resolve api key placeholder ${exchangeautodocumentation.azure.apikey} in model-name.properties file
 			String apiKey = null;
 			synchronized (this.environment) {
-				if (this.environment instanceof ConfigurableEnvironment configurableEnvironment) {
+				if (this.environment instanceof final ConfigurableEnvironment configurableEnvironment) {
 					configurableEnvironment.getPropertySources().addFirst(resource);
 				}
 				apiKey = Optional.ofNullable(this.environment.getProperty("apiKey"))
@@ -101,7 +97,7 @@ public class ModelProfileService {
 						.orElseThrow(() -> new IllegalStateException("No model apiKey found for model: " + modelName));
 			}
 			
-			return new ModelProfile(promptTemplate, tokenEncoding, maxTokens, maxContextLength, temperature, topP, maxContinuations, modelProvider, modelNameCfg, url, apiKey, costInToken, costOutToken);
+			return new ModelProfile(promptTemplate, tokenEncoding, maxTokens, maxContextLength, temperature, topP, modelProvider, modelNameCfg, url, apiKey, costInToken, costOutToken);
 		}
 		catch (final IOException e) {
 			LOGGER.error("Error while reading model profile", e);

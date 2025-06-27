@@ -23,7 +23,7 @@ import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
 import de.extio.lmlib.profile.ModelCategory;
 
-@Disabled("This test requires a running Llama server or an Azure subscription (setup azure key in model profile)")
+//@Disabled("This test requires a running Llama server or an Azure subscription (setup azure key in model profile)")
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
 @ComponentScan(basePackages = "de.extio.lmlib")
@@ -50,8 +50,8 @@ public class CachedClientTest {
 				"You are a funny person",
 				"Tell me a cat joke");
 		LOGGER.info(completion.toString());
-		assertFalse(completion.cached());
-		assertEquals(1, completion.requests());
+		assertFalse(completion.statistics().cached());
+		assertEquals(1, completion.statistics().requests());
 		final var firstResponse = completion.response();
 		assertFalse(firstResponse.isBlank());
 		
@@ -60,8 +60,8 @@ public class CachedClientTest {
 				"You are a funny person",
 				"Tell me a cat joke");
 		LOGGER.info(completion.toString());
-		assertTrue(completion.cached());
-		assertEquals(0, completion.requests());
+		assertTrue(completion.statistics().cached());
+		assertEquals(0, completion.statistics().requests());
 		assertEquals(firstResponse, completion.response());
 		
 		completion = this.clientService.getClient(ModelCategory.MEDIUM).completion(
@@ -69,8 +69,8 @@ public class CachedClientTest {
 				"You are a funny person",
 				"Tell me a dog joke");
 		LOGGER.info(completion.toString());
-		assertFalse(completion.cached());
-		assertEquals(1, completion.requests());
+		assertFalse(completion.statistics().cached());
+		assertEquals(1, completion.statistics().requests());
 		assertNotEquals(firstResponse, completion.response());
 	}
 	
@@ -80,15 +80,15 @@ public class CachedClientTest {
 		
 		var completion = this.clientService.getClient(ModelCategory.MEDIUM).conversation(ModelCategory.MEDIUM, conversation);
 		LOGGER.info(completion.toString());
-		assertFalse(completion.cached());
-		assertEquals(1, completion.requests());
+		assertFalse(completion.statistics().cached());
+		assertEquals(1, completion.statistics().requests());
 		final var firstResponse = completion.response();
 		assertFalse(firstResponse.isBlank());
 		
 		completion = this.clientService.getClient(ModelCategory.MEDIUM).conversation(ModelCategory.MEDIUM, conversation);
 		LOGGER.info(completion.toString());
-		assertTrue(completion.cached());
-		assertEquals(0, completion.requests());
+		assertTrue(completion.statistics().cached());
+		assertEquals(0, completion.statistics().requests());
 		assertEquals(firstResponse, completion.response());
 		
 		conversation.addTurn(new Turn(TurnType.ASSISTANT,
@@ -96,8 +96,8 @@ public class CachedClientTest {
 		conversation.addTurn(new Turn(TurnType.USER, "Great! How is the weather in summer?"));
 		completion = this.clientService.getClient(ModelCategory.MEDIUM).conversation(ModelCategory.MEDIUM, conversation);
 		LOGGER.info(completion.toString());
-		assertFalse(completion.cached());
-		assertEquals(1, completion.requests());
+		assertFalse(completion.statistics().cached());
+		assertEquals(1, completion.statistics().requests());
 		assertNotEquals(firstResponse, completion.response());
 	}
 }

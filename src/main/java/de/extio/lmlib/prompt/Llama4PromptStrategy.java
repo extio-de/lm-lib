@@ -25,11 +25,6 @@ public class Llama4PromptStrategy implements PromptStrategy {
 	}
 	
 	@Override
-	public void continue_(final StringBuilder prompt, final String assistant) {
-		this.next(prompt, assistant, "Continue");
-	}
-	
-	@Override
 	public void next(final StringBuilder prompt, final String assistant, final String user) {
 		prompt.append(assistant);
 		prompt.append("<|eot|><|header_start|>user<|header_end|>\n\n" + user + "<|eot|><|header_start|>assistant<|header_end|>\n");

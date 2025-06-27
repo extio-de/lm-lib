@@ -6,10 +6,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +21,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
+import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.oai.ModelNameSupplier;
@@ -33,7 +32,6 @@ import de.extio.lmlib.profile.ModelProfileService;
 import de.extio.lmlib.prompt.PromptStrategy;
 import de.extio.lmlib.prompt.PromptStrategyFactory;
 import de.extio.lmlib.token.Tokenizer;
-
 import reactor.util.retry.Retry;
 
 @Component
@@ -87,37 +85,17 @@ public class TextCompletionClient implements Client, DisposableBean {
 			throw new IllegalArgumentException("Prompt strategy not found: " + modelProfile.prompt());
 		}
 		
-		final List<StringBuilder> prompts = this.createPrompts(conversation, modelCategory, modelProfile, promptStrategy);
+		final var prompt = this.createPrompt(conversation, modelCategory, modelProfile, promptStrategy);
 		
-		final List<StringBuilder> answers = new ArrayList<>();
-		final CompletionStatistics statistics = new CompletionStatistics();
-		for (final StringBuilder prompt : prompts) {
-			final StringBuilder answer = new StringBuilder();
-			this.requestCompletionsContinuations(prompt, answer, statistics, modelProfile, promptStrategy);
-			answers.add(answer);
-		}
-		
-		if (answers.size() > 1) {
-			this.summarize(answers, modelProfile, promptStrategy, statistics);
-		}
-		
-		return new Completion(
-				answers.stream().collect(Collectors.joining()),
-				statistics.requests,
-				statistics.duration,
-				statistics.inTokens,
-				statistics.outTokens,
-				new BigDecimal(statistics.inTokens).multiply(modelProfile.costInToken()).add(new BigDecimal(statistics.outTokens).multiply(modelProfile.costOutToken())),
-				false);
+		return this.requestCompletion(prompt, modelProfile, promptStrategy);
 	}
 	
-	private List<StringBuilder> createPrompts(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final PromptStrategy promptStrategy) {
+	private String createPrompt(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final PromptStrategy promptStrategy) {
 		StringBuilder prompt = this.formatConversation(conversation, promptStrategy);
 		
 		List<Long> tokenized = this.tokenizer.tokenize(prompt.toString(), modelProfile);
 		final int maxLength = modelProfile.maxContextLength() - modelProfile.maxTokens() - 15; // 15 is a margin for EOT and other special tokens
 		if (tokenized.size() > maxLength) {
-			// TODO: Cut smarter, e.g. split conversation into parts while keeping system prompt
 			LOGGER.warn("Prompt too long: {} tokens / {} max. Prompt will be cut!", tokenized.size(), maxLength);
 			tokenized = tokenized.subList(0, maxLength);
 			prompt = new StringBuilder(this.tokenizer.detokenize(tokenized, modelProfile));
@@ -125,7 +103,7 @@ public class TextCompletionClient implements Client, DisposableBean {
 		
 		LOGGER.info("Completion request for {}. Input tokens: {}", modelCategory, tokenized.size());
 		
-		return List.of(prompt);
+		return prompt.toString();
 	}
 	
 	private StringBuilder formatConversation(final Conversation conversation, final PromptStrategy promptStrategy) {
@@ -168,51 +146,9 @@ public class TextCompletionClient implements Client, DisposableBean {
 		return prompt;
 	}
 	
-	private void requestCompletionsContinuations(final StringBuilder prompt, final StringBuilder answer, final CompletionStatistics statistics,
-			final ModelProfile modelProfile, final PromptStrategy promptStrategy) {
-		for (int continuation = 0; continuation < modelProfile.maxContinuations(); continuation++) {
-			final LocalDateTime start = LocalDateTime.now();
-			
-			final String promptStr = prompt.toString();
-			
-			final var response = this.requestCompletions(promptStr, modelProfile);
-			
-			String content = null;
-			var complete = false;
-			if (response.getContent() != null) {
-				content = promptStrategy.removeEOT(response.getContent());
-				complete = response.isStoppedEos();
-			}
-			else {
-				final var choice = response.getChoices().getFirst();
-				content = promptStrategy.removeEOT(choice.getText());
-				complete = !Choice.FINISH_REASON_LENGTH.equals(choice.getFinishReason());
-			}
-			
-			if (this.collectStatistics) {
-				final var dur = Duration.between(start, LocalDateTime.now());
-				final var in = this.tokenizer.count(promptStr, modelProfile);
-				final var out = this.tokenizer.count(content, modelProfile);
-				final var cost = new BigDecimal(in).multiply(modelProfile.costInToken()).add(new BigDecimal(out).multiply(modelProfile.costOutToken()));
-				LOGGER.debug("Request duration: " + dur + "; in tokens: " + in + "; out tokens: " + out + "; cost: " + new DecimalFormat("0.####").format(cost));
-				statistics.add(dur, in, out, cost);
-				this.totalStatistics.add(dur, in, out, cost);
-			}
-			
-			answer.append(content);
-			
-			if (complete) {
-				LOGGER.debug("Prompt response complete");
-				break;
-			}
-			
-			answer.append('\n');
-			promptStrategy.continue_(prompt, content);
-		}
-	}
-	
-	private CompletionResponse requestCompletions(final String prompt, final ModelProfile modelProfile) {
+	private Completion requestCompletion(final String prompt, final ModelProfile modelProfile, final PromptStrategy promptStrategy) {
 		LOGGER.debug("Requesting completion at {}", modelProfile.url());
+		final LocalDateTime start = LocalDateTime.now();
 		
 		final var request = new CompletionRequest();
 		request.setModel(this.modelNameSupplier.getModelName(modelProfile.url()));
@@ -223,7 +159,7 @@ public class TextCompletionClient implements Client, DisposableBean {
 		request.setStream(false);
 		
 		final var webClient = this.webClientBuilder.baseUrl(modelProfile.url()).build();
-		return webClient
+		final var response = webClient
 				.method(HttpMethod.POST)
 				.uri(uriBuilder -> uriBuilder.path("/v1/completions").build())
 				.bodyValue(request)
@@ -231,22 +167,38 @@ public class TextCompletionClient implements Client, DisposableBean {
 				.bodyToMono(CompletionResponse.class)
 				.retryWhen(Retry.backoff(99, Duration.ofSeconds(1)).maxBackoff(Duration.ofSeconds(10)).jitter(0.25d).doAfterRetry(rs -> LOGGER.warn("Request failed " + rs.failure().getMessage())))
 				.block();
-	}
-	
-	private void summarize(final List<StringBuilder> answers, final ModelProfile modelProfile, final PromptStrategy promptStrategy, final CompletionStatistics statistics) {
-		// TODO: Reactivate when multiple (split) prompts have been implemented again in #createPrompts
-		//		LOGGER.debug("Summarizing answers");
-		//		
-		//		final StringBuilder summary = new StringBuilder();
-		//		
-		//		final StringBuilder prompt = promptStrategy.start(instruction, question, "");
-		//		answers.forEach(answer -> promptStrategy.next(prompt, answer.toString(), "Continue"));
-		//		promptStrategy.next(prompt, "", "Generate now a full summary");
-		//		
-		//		this.requestCompletionsContinuations(prompt, summary, statistics, modelProfile, promptStrategy);
-		//		
-		//		answers.clear();
-		//		answers.add(summary);
+		
+		String content;
+		CompletionFinishReason finishReason;
+		if (response.getContent() != null) {
+			content = promptStrategy.removeEOT(response.getContent());
+			finishReason = response.isStoppedEos() ? CompletionFinishReason.DONE : CompletionFinishReason.TOKEN_LIMIT_REACHED;
+		}
+		else {
+			final var choice = response.getChoices().getFirst();
+			content = promptStrategy.removeEOT(choice.getText());
+			finishReason = switch (choice.getFinishReason()) {
+				case Choice.FINISH_REASON_CONTENT_FILTER -> CompletionFinishReason.CONTENT_FILTERED;
+				case Choice.FINISH_REASON_LENGTH -> CompletionFinishReason.TOKEN_LIMIT_REACHED;
+				default -> CompletionFinishReason.DONE;
+			};
+		}
+		
+		final var in = this.tokenizer.count(prompt, modelProfile);
+		final var out = this.tokenizer.count(content, modelProfile);
+		final var statistics = new de.extio.lmlib.client.CompletionStatistics(
+				1,
+				Duration.between(start, LocalDateTime.now()),
+				in,
+				out,
+				new BigDecimal(in).multiply(modelProfile.costInToken()).add(new BigDecimal(out).multiply(modelProfile.costOutToken())),
+				false);
+		LOGGER.debug("{}", statistics);
+		if (this.collectStatistics) {
+			this.totalStatistics.add(statistics.duration(), in, out, statistics.cost());
+		}
+		
+		return new Completion(content, finishReason, statistics);
 	}
 	
 	@Override
