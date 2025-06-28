@@ -5,13 +5,14 @@ The purpose of lm-lib is to provide a modular, extensible Java framework for int
 The libraries's key features include:
 
 - Unified API for multiple LLM providers (OpenAI, Azure, local models, etc.)  
-- Modular architecture for easy extension and customization  
-- Prompt and conversation management utilities  
-- Model profile configuration and switching  
 - Streaming and non-streaming completions  
+- Agentic flow execution
+- Model profile configuration and switching  
+- Prompt and conversation management utilities  
 - Request caching and statistics tracking  
+- Pluggable interceptors, e.g. for rate limiting
+- Modular architecture for easy extension and customization  
 - Spring integration for dependency injection and configuration  
-- Pluggable intercepts, e.g. for rate limiting
 
 # Setup
 
