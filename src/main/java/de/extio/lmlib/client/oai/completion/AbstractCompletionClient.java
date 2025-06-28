@@ -5,6 +5,7 @@ import java.text.DecimalFormat;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.reactive.function.client.WebClient;
+
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
@@ -46,25 +51,51 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 	
 	protected final CompletionStatistics totalStatistics = new CompletionStatistics();
 	
+	protected final ObjectMapper objectMapper;
+
+	public AbstractCompletionClient() {
+		this.objectMapper = new ObjectMapper();
+		this.objectMapper.configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false);
+		this.objectMapper.configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false);
+		this.objectMapper.configure(DeserializationFeature.FAIL_ON_MISSING_EXTERNAL_TYPE_ID_PROPERTY, false);
+		this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNRESOLVED_OBJECT_IDS, false);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_MISSING_VALUES, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_NON_NUMERIC_NUMBERS, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_TRAILING_COMMA, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_CONTROL_CHARS, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_YAML_COMMENTS, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_LEADING_DECIMAL_POINT_FOR_NUMBERS, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_LEADING_PLUS_SIGN_FOR_NUMBERS, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_TRAILING_DECIMAL_POINT_FOR_NUMBERS, true);
+		this.objectMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+	}
+
 	@Override
 	public Completion completion(final ModelCategory modelCategory, final String system, final String text) {
 		return this.conversation(modelCategory, Conversation.create(system, text));
 	}
 	
 	@Override
-	public Completion conversation(ModelCategory modelCategory, final Conversation conversation) {
-		if (modelCategory == null) {
-			modelCategory = ModelCategory.MEDIUM;
-		}
+	public Completion conversation(final ModelCategory modelCategory, final Conversation conversation) {
+		return this.streamConversation(modelCategory, conversation, null);
+	}
+	
+	@Override
+	public Completion streamConversation(final ModelCategory modelCategory_, final Conversation conversation, final Consumer<String> chunkConsumer) {
+		final ModelCategory modelCategory = (modelCategory_ == null) ? ModelCategory.MEDIUM : modelCategory_;
 		final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile());
 		if (modelProfile == null || (modelProfile.modelProvider() != ModelProvider.OAI_TEXT_COMPLETION && modelProfile.modelProvider() != ModelProvider.OAI_CHAT_COMPLETION)) {
 			throw new IllegalArgumentException("ModelProfile " + modelCategory.getModelProfile());
 		}
 		
-		return this.requestCompletion(conversation, modelCategory, modelProfile);
+		return this.requestCompletion(conversation, modelCategory, modelProfile, chunkConsumer);
 	}
 	
-	protected abstract Completion requestCompletion(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile);
+	protected abstract Completion requestCompletion(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final Consumer<String> chunkConsumer);
 	
 	protected de.extio.lmlib.client.CompletionStatistics createCompletionStatistics(final ModelProfile modelProfile, final LocalDateTime start, final Usage usage, final String prompt, final String response) {
 		int inTokens = 0;

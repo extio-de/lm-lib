@@ -18,7 +18,7 @@ final class CompletionResponse {
 	
 	private String content;
 	
-	private boolean isStoppedEos;
+	private Boolean isStoppedEos;
 
 	private Usage usage;
 
@@ -68,11 +68,11 @@ final class CompletionResponse {
 	}
 	
 	@JsonProperty("stopped_eos")
-	public boolean isStoppedEos() {
+	public Boolean isStoppedEos() {
 		return this.isStoppedEos;
 	}
 	
-	public void setStoppedEos(final boolean isStoppedEos) {
+	public void setStoppedEos(final Boolean isStoppedEos) {
 		this.isStoppedEos = isStoppedEos;
 	}
 		

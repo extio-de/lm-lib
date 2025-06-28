@@ -1,6 +1,7 @@
 package de.extio.lmlib.client;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
@@ -61,6 +62,19 @@ public class ClientService {
 				conversation = interceptor.before(modelCategory, conversation);
 			}
 			var completion = this.client.conversation(modelCategory, conversation);
+			for (final var interceptor : this.completionInterceptors) {
+				completion = interceptor.after(modelCategory, completion);
+			}
+			return completion;
+		}
+
+		@Override
+		public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation_, final Consumer<String> chunkConsumer) {
+			Conversation conversation = conversation_;
+			for (final var interceptor : this.completionInterceptors) {
+				conversation = interceptor.before(modelCategory, conversation);
+			}
+			var completion = this.client.streamConversation(modelCategory, conversation, chunkConsumer);
 			for (final var interceptor : this.completionInterceptors) {
 				completion = interceptor.after(modelCategory, completion);
 			}

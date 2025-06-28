@@ -22,6 +22,8 @@ final class ChatCompletionRequest {
 	
 	private Boolean stream;
 	
+	private ChatCompletionStreamOptions streamOptions;
+	
 	@JsonProperty("model")
 	public String getModel() {
 		return this.model;
@@ -84,4 +86,14 @@ final class ChatCompletionRequest {
 	public void setStream(final Boolean stream) {
 		this.stream = stream;
 	}
+	
+	@JsonProperty("stream_options")
+	public ChatCompletionStreamOptions getStreamOptions() {
+		return streamOptions;
+	}
+	
+	public void setStreamOptions(ChatCompletionStreamOptions streamOptions) {
+		this.streamOptions = streamOptions;
+	}
+	
 }

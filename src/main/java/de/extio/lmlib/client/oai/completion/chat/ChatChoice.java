@@ -2,17 +2,11 @@ package de.extio.lmlib.client.oai.completion.chat;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-final class ChatChoice {
+class ChatChoice {
 	
-	public static final String FINISH_REASON_STOP = "stop";
-	
-	public static final String FINISH_REASON_LENGTH = "length";
-	
-	public static final String FINISH_REASON_CONTENT_FILTER = "content_filter";
-	
-	private ChatMessage message;
+	protected ChatMessage message;
 		
-	private String finishReason;
+	protected String finishReason;
 	
 	@JsonProperty("message")
 	public ChatMessage getMessage() {
@@ -21,6 +15,15 @@ final class ChatChoice {
 
 	public void setMessage(final ChatMessage message) {
 		this.message = message;
+	}
+
+	@JsonProperty("delta")
+	public ChatMessage getDelta() {
+		return message;
+	}
+
+	public void setDelta(final ChatMessage delta) {
+		this.message = delta;
 	}
 
 	@JsonProperty("finish_reason")

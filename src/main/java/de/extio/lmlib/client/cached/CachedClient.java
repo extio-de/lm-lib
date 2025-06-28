@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import de.extio.lmlib.client.Client;
@@ -40,6 +41,15 @@ public class CachedClient implements Client {
 	@Override
 	public Completion conversation(final ModelCategory modelCategory, final Conversation conversation) {
 		return this.getCachedResponse(modelCategory, () -> this.client.conversation(modelCategory, conversation), conversation.getConversation().toString());
+	}
+
+	@Override
+	public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation, final Consumer<String> chunkConsumer) {
+		final var response = this.getCachedResponse(modelCategory, () -> this.client.streamConversation(modelCategory, conversation, chunkConsumer), conversation.getConversation().toString());
+		if (response.statistics().cached()) {
+			chunkConsumer.accept(response.response());
+		}
+		return response;
 	}
 	
 	@Override

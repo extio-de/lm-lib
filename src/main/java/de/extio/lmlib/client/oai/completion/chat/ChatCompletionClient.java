@@ -7,20 +7,25 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.oai.completion.AbstractCompletionClient;
+import de.extio.lmlib.client.oai.completion.FinishReasons;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
+import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
 @Component
@@ -28,13 +33,17 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(ChatCompletionClient.class);
 	
+	public ChatCompletionClient() {
+		super();
+	}
+	
 	@Override
 	public ModelProvider getModelProvider() {
 		return ModelProvider.OAI_CHAT_COMPLETION;
 	}
 	
 	@Override
-	protected Completion requestCompletion(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile) {
+	protected Completion requestCompletion(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final Consumer<String> chunkConsumer) {
 		final var chat = createChats(conversation, modelProfile);
 		
 		final var request = new ChatCompletionRequest();
@@ -44,18 +53,71 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		request.setMaxCompletionTokens(modelProfile.maxTokens());
 		request.setTemperature(modelProfile.temperature());
 		request.setTopP(modelProfile.topP());
-		request.setStream(false);
+		if (chunkConsumer == null) {
+			request.setStream(false);
+		}
+		else {
+			request.setStream(true);
+			request.setStreamOptions(new ChatCompletionStreamOptions());
+			request.getStreamOptions().setIncludeUsage(true);
+		}
 		
 		LOGGER.debug("Requesting chat completion at {}", modelProfile.url());
 		final LocalDateTime start = LocalDateTime.now();
 		final var webClient = this.webClientBuilder.baseUrl(modelProfile.url()).build();
+		
 		final var response = webClient
 				.method(HttpMethod.POST)
 				.uri(uriBuilder -> uriBuilder.path("/v1/chat/completions").build())
 				.header("Content-Type", "application/json")
 				.bodyValue(request)
-				.retrieve()
-				.bodyToMono(ChatCompletionResponse.class)
+				.exchangeToMono(clientResponse -> {
+					if (chunkConsumer == null) {
+						return clientResponse.bodyToMono(ChatCompletionResponse.class);
+					}
+					else {
+						final var chatCompletionResponse = new ChatCompletionResponse();
+						chatCompletionResponse.setChoices(List.of(new ChatChoice()));
+						final StringBuilder contenStringBuilder = new StringBuilder();
+						return clientResponse.bodyToFlux(String.class)
+								.doOnNext(buffer -> {
+									try {
+										if (! "[DONE]".equals(buffer)) {
+											final var streamResponse = this.objectMapper.readValue(buffer, ChatCompletionResponse.class);
+											
+											if (streamResponse.getId() != null && !streamResponse.getId().isEmpty()) {
+												chatCompletionResponse.setId(streamResponse.getId());
+											}
+											if (streamResponse.getObject() != null && !streamResponse.getObject().isEmpty()) {
+												chatCompletionResponse.setObject(streamResponse.getObject());
+											}
+											if (streamResponse.getCreated() != null) {
+												chatCompletionResponse.setCreated(streamResponse.getCreated());
+											}
+											if (streamResponse.getUsage() != null) {
+												chatCompletionResponse.setUsage(streamResponse.getUsage());
+											}
+											if (streamResponse.getChoices() != null && !streamResponse.getChoices().isEmpty()) {
+												if (streamResponse.getChoices().getFirst().getFinishReason() != null) {
+													chatCompletionResponse.getChoices().getFirst().setFinishReason(streamResponse.getChoices().getFirst().getFinishReason());
+												}
+												if (streamResponse.getChoices().getFirst().getMessage() != null && streamResponse.getChoices().getFirst().getMessage().getContent() != null && !streamResponse.getChoices().getFirst().getMessage().getContent().isEmpty()) {
+													contenStringBuilder.append(streamResponse.getChoices().getFirst().getMessage().getContent());
+													chunkConsumer.accept(streamResponse.getChoices().getFirst().getMessage().getContent());
+												}
+											}
+										}
+									}
+									catch (final JsonProcessingException e) {
+										LOGGER.warn("Streamed chunk is not parseable", e);
+									}
+								})
+								.then(Mono.<ChatCompletionResponse> fromSupplier(() -> {
+									chatCompletionResponse.getChoices().getFirst().setMessage(new ChatMessage("assistant", contenStringBuilder.toString()));
+									return chatCompletionResponse;
+								}));
+					}
+				})
 				.retryWhen(Retry.backoff(99, Duration.ofSeconds(1)).maxBackoff(Duration.ofSeconds(10)).jitter(0.25d).doAfterRetry(rs -> LOGGER.warn("Request failed " + rs.failure().getMessage())))
 				.block();
 		
@@ -66,8 +128,8 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		final var choice = response.getChoices().getFirst();
 		final var content = response.getChoices().getFirst().getMessage().getContent();
 		final var finishReason = switch (choice.getFinishReason()) {
-			case ChatChoice.FINISH_REASON_CONTENT_FILTER -> CompletionFinishReason.CONTENT_FILTERED;
-			case ChatChoice.FINISH_REASON_LENGTH -> CompletionFinishReason.TOKEN_LIMIT_REACHED;
+			case FinishReasons.FINISH_REASON_CONTENT_FILTER -> CompletionFinishReason.CONTENT_FILTERED;
+			case FinishReasons.FINISH_REASON_LENGTH -> CompletionFinishReason.TOKEN_LIMIT_REACHED;
 			default -> CompletionFinishReason.DONE;
 		};
 		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), null, content);

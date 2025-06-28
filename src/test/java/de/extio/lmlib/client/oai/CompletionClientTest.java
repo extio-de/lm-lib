@@ -1,5 +1,6 @@
 package de.extio.lmlib.client.oai;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalDateTime;
@@ -40,7 +41,7 @@ public class CompletionClientTest {
 	
 	@Autowired
 	private ChatCompletionClient chatCompletionclient;
-
+	
 	@Test
 	void completion() throws Exception {
 		final var completion = this.textCompletionClient.completion(
@@ -50,7 +51,7 @@ public class CompletionClientTest {
 		
 		LOGGER.info(completion.response());
 		
-		assertTrue(Grader.assessScoreBinary("Does the text mention the color green?", completion.response(), this.textCompletionClient));
+		assertTrue(Grader.assessScoreBinary("Does the text mention the color green?", completion.response(), this.chatCompletionclient));
 	}
 	
 	@Test
@@ -58,13 +59,28 @@ public class CompletionClientTest {
 		final var conversation = Conversation.create("You are a helpful assistant", "I would like to paint my canvas in a solid color.");
 		conversation.addTurn(new Turn(TurnType.ASSISTANT, "Which color do you want to see?"));
 		conversation.addTurn(new Turn(TurnType.USER, "You choose!"));
-		final var completion = this.textCompletionClient.conversation(ModelCategory.MEDIUM, conversation);
+		final var completion = this.textCompletionClient.conversation(ModelCategory.SMALL, conversation);
 		
 		LOGGER.info(completion.response());
 		
-		assertTrue(Grader.assessScoreBinary("Does the text mention a color?", completion.response(), this.textCompletionClient));
+		assertTrue(Grader.assessScoreBinary("Does the text mention a color?", completion.response(), this.chatCompletionclient));
 	}
+	
+	@Test
+	void streamTextCompletion() throws Exception {
+		final var conversation = Conversation.create("You are a helpful assistant", "I would like to play a role-playing game with you.");
+		conversation.addTurn(new Turn(TurnType.ASSISTANT, "Which character do you choose?"));
+		conversation.addTurn(new Turn(TurnType.USER, "You choose! But I need you to explain the character attributes to me."));
+		final StringBuilder sb = new StringBuilder();
+		final var completion = this.textCompletionClient.streamConversation(ModelCategory.SMALL, conversation, chunk -> {
+			System.out.print(chunk);
+			sb.append(chunk);
+		});
 		
+		assertEquals(completion.response(), sb.toString());
+		assertTrue(Grader.assessScoreBinary("Does the text mention a role-playing game character?", completion.response(), this.chatCompletionclient));
+	}
+	
 	@Test
 	void chatCompletion() throws Exception {
 		final var conversation = Conversation.create("You are a helpful assistant", "I would like to paint my canvas in a solid color.");
@@ -74,9 +90,24 @@ public class CompletionClientTest {
 		
 		LOGGER.info(completion.response());
 		
-		assertTrue(Grader.assessScoreBinary("Does the text mention a color?", completion.response(), this.textCompletionClient));
+		assertTrue(Grader.assessScoreBinary("Does the text mention a color?", completion.response(), this.chatCompletionclient));
 	}
-
+	
+	@Test
+	void streamChatCompletion() throws Exception {
+		final var conversation = Conversation.create("You are a helpful assistant", "I would like to play a game of chess.");
+		conversation.addTurn(new Turn(TurnType.ASSISTANT, "Which opening do you choose?"));
+		conversation.addTurn(new Turn(TurnType.USER, "You choose! But I need you to explain the opening to me."));
+		final StringBuilder sb = new StringBuilder();
+		final var completion = this.chatCompletionclient.streamConversation(ModelCategory.MEDIUM, conversation, chunk -> {
+			System.out.print(chunk);
+			sb.append(chunk);
+		});
+		
+		assertEquals(completion.response(), sb.toString());
+		assertTrue(Grader.assessScoreBinary("Does the text explain a chess opening?", completion.response(), this.chatCompletionclient));
+	}
+	
 	@Disabled
 	@Test
 	void hugePrompt() throws Exception {

@@ -23,7 +23,7 @@ import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
 import de.extio.lmlib.profile.ModelCategory;
 
-//@Disabled("This test requires a running Llama server or an Azure subscription (setup azure key in model profile)")
+@Disabled("This test requires a running Llama server or an Azure subscription (setup azure key in model profile)")
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
 @ComponentScan(basePackages = "de.extio.lmlib")
@@ -45,8 +45,8 @@ public class CachedClientTest {
 	
 	@Test
 	void cacheCompletion() throws Exception {
-		var completion = this.clientService.getClient(ModelCategory.MEDIUM).completion(
-				ModelCategory.MEDIUM,
+		var completion = this.clientService.getClient(ModelCategory.SMALL).completion(
+				ModelCategory.SMALL,
 				"You are a funny person",
 				"Tell me a cat joke");
 		LOGGER.info(completion.toString());
@@ -55,8 +55,8 @@ public class CachedClientTest {
 		final var firstResponse = completion.response();
 		assertFalse(firstResponse.isBlank());
 		
-		completion = this.clientService.getClient(ModelCategory.MEDIUM).completion(
-				ModelCategory.MEDIUM,
+		completion = this.clientService.getClient(ModelCategory.SMALL).completion(
+				ModelCategory.SMALL,
 				"You are a funny person",
 				"Tell me a cat joke");
 		LOGGER.info(completion.toString());
@@ -64,8 +64,8 @@ public class CachedClientTest {
 		assertEquals(0, completion.statistics().requests());
 		assertEquals(firstResponse, completion.response());
 		
-		completion = this.clientService.getClient(ModelCategory.MEDIUM).completion(
-				ModelCategory.MEDIUM,
+		completion = this.clientService.getClient(ModelCategory.SMALL).completion(
+				ModelCategory.SMALL,
 				"You are a funny person",
 				"Tell me a dog joke");
 		LOGGER.info(completion.toString());
@@ -99,5 +99,32 @@ public class CachedClientTest {
 		assertFalse(completion.statistics().cached());
 		assertEquals(1, completion.statistics().requests());
 		assertNotEquals(firstResponse, completion.response());
+	}
+
+	@Test
+	void cacheStream() throws Exception {
+		final var conversation = Conversation.create("You are an assistant who talks extremely like a pirate", "Hi there, I would like to know the climate in the red sea.");
+		
+		final var sb = new java.lang.StringBuilder();
+		var completion = this.clientService.getClient(ModelCategory.MEDIUM).streamConversation(ModelCategory.MEDIUM, conversation, chunk -> {
+			sb.append(chunk);
+			System.out.print(chunk);
+		});
+		assertFalse(completion.statistics().cached());
+		assertEquals(1, completion.statistics().requests());
+		assertTrue(!sb.isEmpty());
+		assertEquals(sb.toString(), completion.response());
+		
+		System.out.println();
+		LOGGER.info("### Next request");
+
+		final var sb2 = new java.lang.StringBuilder();
+		completion = this.clientService.getClient(ModelCategory.MEDIUM).streamConversation(ModelCategory.MEDIUM, conversation, chunk -> {
+			sb2.append(chunk);
+			System.out.print(chunk);
+		});
+		assertTrue(completion.statistics().cached());
+		assertEquals(sb.toString(), sb2.toString());
+		assertEquals(sb2.toString(), completion.response());
 	}
 }

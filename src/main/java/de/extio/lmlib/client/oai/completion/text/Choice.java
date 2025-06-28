@@ -4,12 +4,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 final class Choice {
 	
-	public static final String FINISH_REASON_STOP = "stop";
-	
-	public static final String FINISH_REASON_LENGTH = "length";
-	
-	public static final String FINISH_REASON_CONTENT_FILTER = "content_filter";
-	
 	private String text;
 	
 	private Double score;

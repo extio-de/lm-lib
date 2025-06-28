@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
  * @see https://ai.google.dev/gemma/docs/core/prompt-structure
  */
 @Component
-public class Gemma2PromptStrategy implements PromptStrategy {
+public class GemmaPromptStrategy implements PromptStrategy {
 	
 	@Override
 	public StringBuilder start(final String system, final String user) {
@@ -37,7 +37,7 @@ public class Gemma2PromptStrategy implements PromptStrategy {
 	
 	@Override
 	public String getPromptName() {
-		return "gemma2";
+		return "gemma";
 	}
 	
 }

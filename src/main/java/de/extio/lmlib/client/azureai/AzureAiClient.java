@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
@@ -107,6 +108,11 @@ public final class AzureAiClient implements Client {
 		final var chat = this.createChats(conversation, modelProfile);
 		
 		return this.requestCompletions(chat, modelCategory, modelProfile);
+	}
+
+	@Override
+	public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation, final Consumer<String> chunkConsumer) {
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 	
 	private List<ChatRequestMessage> createChats(final Conversation conversation, final ModelProfile modelProfile) {

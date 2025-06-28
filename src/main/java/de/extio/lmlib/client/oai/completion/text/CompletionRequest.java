@@ -16,6 +16,8 @@ final class CompletionRequest {
 	
 	private Boolean stream;
 	
+	private CompletionStreamOptions streamOptions;
+	
 	@JsonProperty("model")
 	public String getModel() {
 		return this.model;
@@ -68,5 +70,14 @@ final class CompletionRequest {
 	
 	public void setStream(final Boolean stream) {
 		this.stream = stream;
+	}
+	
+	@JsonProperty("stream_options")
+	public CompletionStreamOptions getStreamOptions() {
+		return streamOptions;
+	}
+	
+	public void setStreamOptions(final CompletionStreamOptions streamOptions) {
+		this.streamOptions = streamOptions;
 	}
 }
