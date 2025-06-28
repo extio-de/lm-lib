@@ -125,11 +125,11 @@ Example profile: src/test/resources/llama3.3-70b-azure.properties
 
 # Usage Examples
 
-Client service: clientService.getClient(ModelCategory.MEDIUM);
-Client usage details: CompletionClientTest and AzureAiClientTest
-Agentic flow: AgentTest#agenticFlow and AgentTest#streamedAgenticFlow
+- Client service: clientService.getClient(ModelCategory.MEDIUM);
+- Client usage details: CompletionClientTest and AzureAiClientTest
+- Agentic flow: AgentTest#agenticFlow and AgentTest#streamedAgenticFlow
 
-## Completions and Streaming
+# Completions and Streaming
 
 The library supports both streaming and non-streaming completions.
 
