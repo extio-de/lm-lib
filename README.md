@@ -1,14 +1,17 @@
 # lm-lib
 
-The purpose of this library is to provide a comprehensive conversational AI system that enables efficient and effective human-computer interactions through natural language processing, conversation management, and text completion capabilities, utilizing caching, tokenization, and integration with external AI models and services to deliver a robust and scalable solution for applications such as chatbots, virtual assistants, and service platforms.
+The purpose of lm-lib is to provide a modular, extensible Java framework for interacting with large language models (LLMs) from various providers (such as OpenAI, Azure AI, and local models). It abstracts away the complexities of prompt construction, conversation management, and model configuration, enabling developers to easily switch between models and providers. The library supports advanced features like streaming completions, request caching, statistics tracking, and agentic flow execution—allowing for the orchestration of multi-step, branching, and parallel conversational workflows. Integration with Spring ensures flexible configuration and dependency management, making it suitable for building scalable, maintainable, and sophisticated LLM-powered applications.
 
-The program's key features include:
+The libraries's key features include:
 
-* Agent graph execution (incl. template engine and branching capabilities)
-* Integration with external AI models and services (e.g., Azure AI and OpenAi Api compatible)
-* Model profiles (choose the right model and parameters for the task)
-* Conversation management and text completion with support for multiple prompt strategies and tokenization implementations
-* Prompt caching
+- Unified API for multiple LLM providers (OpenAI, Azure, local models, etc.)  
+- Modular architecture for easy extension and customization  
+- Prompt and conversation management utilities  
+- Model profile configuration and switching  
+- Streaming and non-streaming completions  
+- Request caching and statistics tracking  
+- Spring integration for dependency injection and configuration  
+- Pluggable intercepts, e.g. for rate limiting
 
 # Setup
 
