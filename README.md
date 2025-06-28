@@ -345,7 +345,7 @@ Beyond the individual methods, several parameters and flags within the `AgentCon
         *   A new `AgentContext` containing only the selected elements from the branched lists.
     * Branched flows are executed separately and in parallel from this moment on. However, these flows can be combined again using the `AgentContext`'s `merge()` method. merge() only supports depth 1, this means that the merge() method can only combine the results of the immediate splits, not the results of the splits of those splits.
 *   **Example:**
-    *   If `context.getContext().get("[[cities]]")` returns `["London", "Paris", "Tokyo"]` and `context.getContext().get("[[countries]]")` returns `["UK", "France"]`, then two splits will be created (because the minimum size is 2).
+    *   If `context.getContext().get("cities")` returns `["London", "Paris", "Tokyo"]` and `context.getContext().get("countries")` returns `["UK", "France"]`, then two splits will be created (because the minimum size is 2).
         *   **Split 1:** `text` will have `[[cities]]` replaced with `"London"` and `[[countries]]` replaced with `"UK"`. The context will contain only `{"cities": ["London"], "countries": ["UK"]}`.
         *   **Split 2:** `text` will have `[[cities]]` replaced with `"Paris"` and `[[countries]]` replaced with `"France"`. The context will contain only `{"cities": ["Paris"], "countries": ["France"]}`.
 
