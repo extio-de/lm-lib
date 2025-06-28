@@ -1,4 +1,4 @@
-package de.extio.lmlib.agent;
+package de.extio.lmlib.agent.responsehandler;
 
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -13,7 +13,9 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import de.extio.lmlib.agent.AgentContext;
 import de.extio.lmlib.client.Completion;
+import de.extio.lmlib.client.Conversation;
 
 public class JsonAgentResponseHandler implements AgentResponseHandler {
 	
@@ -43,7 +45,7 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 	}
 	
 	@Override
-	public boolean handle(final Split split, final Completion completion) {
+	public boolean handle(final Completion completion, final AgentContext context) {
 		final int firstCurly = completion.response().indexOf("{");
 		final int lastCurly = completion.response().lastIndexOf("}");
 		final var response = completion.response().substring(firstCurly, lastCurly + 1);
@@ -53,6 +55,7 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 		}
 		catch (final Exception e) {
 			LOGGER.warn("Cannot parse json response: {}", completion.response());
+			addJsonResponseErrorPrompt(context);
 			return false;
 		}
 		
@@ -63,18 +66,26 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 			if (entry.getValue().isArray()) {
 				final var items = new LinkedHashSet<>();
 				entry.getValue().elements().forEachRemaining(item -> items.add(item.asText()));
-				split.context().getContext().put(entry.getKey(), List.copyOf(items));
+				context.getContext().put(entry.getKey(), List.copyOf(items));
 				hasResponse = true;
 				LOGGER.debug("Response: {} {}", entry.getKey(), items);
 			}
 			else if (entry.getValue().isTextual() || entry.getValue().isNumber() || entry.getValue().isBoolean()) {
-				split.context().getContext().put(entry.getKey(), List.of(entry.getValue().asText()));
+				context.setStringValue(entry.getKey(), entry.getValue().asText());
 				hasResponse = true;
 				LOGGER.debug("Response: {} {}", entry.getKey(), entry.getValue().asText());
 			}
 		}
 		
+		if (!hasResponse) {
+			addJsonResponseErrorPrompt(context);
+		}
 		return hasResponse;
+	}
+
+	private void addJsonResponseErrorPrompt(final AgentContext context) {
+		final var turn = context.getConversation().getConversation().getLast();
+		context.getConversation().replaceTurn(new Conversation.Turn(turn.type(), turn.text() + "\n\nThe previous response could not be fully processed or validated. Please make sure to format the response in valid JSON syntax with properly escaped characters."));
 	}
 	
 }

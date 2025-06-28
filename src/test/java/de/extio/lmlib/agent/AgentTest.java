@@ -8,7 +8,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -20,10 +22,11 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.PropertySource;
 
+import de.extio.lmlib.agent.responsehandler.JsonAgentResponseHandler;
+import de.extio.lmlib.agent.responsehandler.TextAgentResponseHandler;
 import de.extio.lmlib.client.ClientService;
 import de.extio.lmlib.grader.Grader;
 import de.extio.lmlib.profile.ModelCategory;
-
 import io.netty.util.internal.ThreadLocalRandom;
 
 /**
@@ -67,7 +70,7 @@ public class AgentTest {
 						"Generate a list of 5 distinct functional features. In scope is business logic, not code mechanics. Provide no preamble and no explanation. Return the response in JSON format with the following field: { \"features\": [\"Feature 1\", \"Feature 2\", ... ] }",
 						new JsonAgentResponseHandler(),
 						null,
-						context -> context.getContext().get("features").forEach(feature -> LOGGER.info(feature.toString())),
+						context -> context.getStringValues("features").forEach(feature -> LOGGER.info(feature)),
 						null,
 						context -> new AgentNext("FeatureAnalyzer", null)),
 				
@@ -98,16 +101,16 @@ public class AgentTest {
 								{{featureDescription}}""",
 						new TextAgentResponseHandler("blogPost"),
 						context -> {
-							context.getContext().put("topics", List.of(String.join(", ", context.getContext().get("features").stream().map(String::valueOf).toArray(size -> new String[size]))));
+							context.setStringValues("topics", List.of(String.join(", ", context.getStringValues("features").stream().toArray(size -> new String[size]))));
 						},
 						null,
 						null,
-						context -> AgentNext.END));
+						AgentNext::end));
 		
 		final var context = new AgentContext(agents);
 		context.getContext().put("code", List.of(Files.readString(Path.of("src/main/java/de/extio/lmlib/agent/BaseAgent.java"))));
 		
-		final var resultContexts = this.agentExecutor.walkGraph(agents.get("CodeSummarizer"), context);
+		final var resultContexts = this.agentExecutor.walk(agents.get("CodeSummarizer"), context);
 		
 		final var resultContext = resultContexts.getFirst();
 		LOGGER.info(resultContext.getContext().get("blogPost").toString() + "\n\n" + resultContext.getGraph().toString() + "\n" + resultContext.getRequestStatistic().toString());
@@ -117,8 +120,46 @@ public class AgentTest {
 		assertEquals(1, resultContext.getContext().get("blogPost").size());
 		assertEquals(8, resultContext.getRequestStatistic().getRequests().get());
 		for (final var feature : resultContext.getContext().get("features")) {
-			assertTrue(Grader.assessScoreBinary("Does the following blog post mention the feature " + feature, resultContext.getContext().get("blogPost").getFirst().toString(), this.clientService));
+			assertTrue(Grader.assessScoreBinary("Does the following blog post mention the feature " + feature, resultContext.getStringValue("blogPost"), this.clientService));
 		}
+	}
+
+	@Test
+	void streamedAgenticFlow() throws IOException {
+		final var agents = Map.of(
+				"CodeSummarizer",
+				new Agent("CodeSummarizer",
+						AgentType.START_CONVERSATION,
+						ModelCategory.MEDIUM,
+						"Generate a summary of the following Java source code.",
+						"The source code is:\n{{code}}",
+						new TextAgentResponseHandler("summary"),
+						null,
+						context -> {
+							context.setStringValue("summary", context.getStringValue("summary") + "\npostprocessed");
+						},
+						null,
+						AgentNext::end));
+		
+		final var context = new AgentContext(agents);
+		context.setStreaming(true);
+		context.getContext().put("code", List.of(Files.readString(Path.of("src/main/java/de/extio/lmlib/agent/BaseAgent.java"))));
+		
+		final var lastStreamedSummary = new AtomicReference<String>();
+		final var resultContexts = this.agentExecutor.walk(agents.get("CodeSummarizer"), context, contextUpdate -> {
+			if ("summary".equals(contextUpdate.getStringValue(TextAgentResponseHandler.UPDATE_KEY))) { // UPDATE_KEY helps you to identify the streamed chunk
+				System.out.print(contextUpdate.getStringValue("summary_chunk")); // Single chunks can be accessed via _chunk suffix, depends on the StreamedAgentResponseHandler implementation
+				lastStreamedSummary.set(contextUpdate.getStringValue("summary")); // The current key value can also be accessed (e.g. concatenated, depends on the StreamedAgentResponseHandler implementation)
+			}
+		});
+		
+		assertEquals(1, resultContexts.size());
+		assertEquals(lastStreamedSummary.get(), resultContexts.getFirst().getStringValue("summary"));
+		assertTrue(resultContexts.getFirst().getStringValue("summary").endsWith("postprocessed"));
+		
+		System.out.println();
+		LOGGER.info("### final result");
+		LOGGER.info(resultContexts.getFirst().toString());
 	}
 	
 	@Test
@@ -187,7 +228,7 @@ public class AgentTest {
 		
 		final var context = new AgentContext(agents);
 		
-		final var resultContexts = this.agentExecutor.walkGraph(agents.get("FirstLevel"), context);
+		final var resultContexts = this.agentExecutor.walk(agents.get("FirstLevel"), context);
 		
 		assertEquals(25, resultContexts.size());
 		assertTrue(resultContexts.getFirst().getRequestStatistic().getRequests().get() >= 56);

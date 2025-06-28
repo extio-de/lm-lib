@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import de.extio.lmlib.agent.responsehandler.AgentResponseHandler;
 import de.extio.lmlib.profile.ModelCategory;
 
 public record Agent(String name,

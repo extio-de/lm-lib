@@ -15,6 +15,9 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import de.extio.lmlib.agent.responsehandler.AgentResponseHandler;
+import de.extio.lmlib.agent.responsehandler.StreamedAgentResponseHandler;
+import de.extio.lmlib.agent.responsehandler.TextAgentResponseHandler;
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
@@ -93,15 +96,29 @@ public interface BaseAgent {
 						final var conversation = this.setupConversation(split);
 						LOGGER.debug("Conversation: {}", conversation);
 						
-						Completion completion = null;
 						boolean parseable = false;
 						for (int i = 0; i < 2; i++) {
-							completion = client.conversation(this.modelCategory(), conversation);
+							Completion completion = null;
+							if (split.context().isStreaming()) {
+								if (this.responseHandler() instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
+									streamedResponseHandler.beforeStream(split.context());
+								}								
+								completion = client.streamConversation(this.modelCategory(), conversation, chunk -> {
+									if (this.responseHandler() instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
+										if (streamedResponseHandler.handleChunk(chunk, split.context()) && split.context().getAgentContextUpdateConsumer() != null) {
+											split.context().getAgentContextUpdateConsumer().accept(split.context());
+										}
+									}
+								});
+							}
+							else {
+								completion = client.conversation(this.modelCategory(), conversation);
+							}
 							split.context().setLastCompletion(completion);
 							split.context().getRequestStatistic().add(completion);
 							
 							try {
-								if (!this.responseHandler().handle(split, completion)) {
+								if (!this.responseHandler().handle(completion, split.context())) {
 									split.context().getGraph().add("⚠");
 									LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response());
 									continue;

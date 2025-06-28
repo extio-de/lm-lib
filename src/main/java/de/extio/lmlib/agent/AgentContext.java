@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import de.extio.lmlib.client.Completion;
@@ -14,23 +15,31 @@ import de.extio.lmlib.client.Conversation;
 
 public final class AgentContext {
 	
-	private final Map<String, ? extends BaseAgent> agents;
+	// Exposed
 	
 	private final Map<String, List<? extends Object>> context;
+	
+	private volatile boolean streaming;
+	
+	private volatile boolean error;
+	
+	private volatile boolean skipNextCompletion;
+	
+	private volatile Conversation conversation;
 	
 	private final AgentRequestStatistic requestStatistic;
 	
 	private final List<String> graph = Collections.synchronizedList(new ArrayList<>());
 	
-	private volatile Conversation conversation;
+	// Internal
+	
+	private final Map<String, ? extends BaseAgent> agents;
 	
 	private volatile AgentNext nextAgent;
 	
 	private volatile Completion lastCompletion;
 	
-	private volatile boolean error;
-	
-	private volatile boolean skipNextCompletion;
+	private Consumer<AgentContext> agentContextUpdateConsumer;
 	
 	public AgentContext(final Collection<? extends BaseAgent> agents) {
 		this.agents = agents.stream().collect(Collectors.toMap(BaseAgent::name, agent -> agent));
@@ -55,8 +64,10 @@ public final class AgentContext {
 		this.nextAgent = other.nextAgent;
 		this.requestStatistic = other.requestStatistic;
 		this.lastCompletion = other.lastCompletion;
+		this.agentContextUpdateConsumer = other.agentContextUpdateConsumer;
 		this.error = other.error;
 		this.skipNextCompletion = other.skipNextCompletion;
+		this.streaming = other.streaming;
 		synchronized (other.graph) {
 			this.graph.addAll(other.graph);
 		}
@@ -111,7 +122,7 @@ public final class AgentContext {
 		return this.context;
 	}
 	
-	public Map<String, ? extends BaseAgent> getAgents() {
+	Map<String, ? extends BaseAgent> getAgents() {
 		return this.agents;
 	}
 	
@@ -127,11 +138,11 @@ public final class AgentContext {
 		this.conversation = conversation;
 	}
 	
-	public AgentNext getNextAgent() {
+	AgentNext getNextAgent() {
 		return this.nextAgent;
 	}
 	
-	public void setNextAgent(final AgentNext next) {
+	void setNextAgent(final AgentNext next) {
 		this.nextAgent = next;
 	}
 	
@@ -139,11 +150,11 @@ public final class AgentContext {
 		return this.graph;
 	}
 	
-	public Completion getLastCompletion() {
+	Completion getLastCompletion() {
 		return this.lastCompletion;
 	}
 	
-	public void setLastCompletion(final Completion lastCompletion) {
+	void setLastCompletion(final Completion lastCompletion) {
 		this.lastCompletion = lastCompletion;
 	}
 	
@@ -163,4 +174,19 @@ public final class AgentContext {
 		this.skipNextCompletion = skipNextCompletion;
 	}
 	
+	Consumer<AgentContext> getAgentContextUpdateConsumer() {
+		return agentContextUpdateConsumer;
+	}
+	
+	void setAgentContextUpdateConsumer(final Consumer<AgentContext> agentContextUpdateConsumer) {
+		this.agentContextUpdateConsumer = agentContextUpdateConsumer;
+	}
+	
+	public boolean isStreaming() {
+		return streaming;
+	}
+	
+	public void setStreaming(final boolean streaming) {
+		this.streaming = streaming;
+	}
 }

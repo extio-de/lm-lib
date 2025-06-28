@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,29 +45,42 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 		this.branchExecutorService.close();
 		this.agentExecutorService.close();
 	}
-	
-	public List<AgentContext> walkGraph(final String firstAgent, final AgentContext context) {
+
+	public List<AgentContext> walk(final String firstAgent, final AgentContext context) {
+		return this.walk(firstAgent, context, null);
+	}
+
+	public List<AgentContext> walk(final String firstAgent, final AgentContext context, final Consumer<AgentContext> agentContextUpdateConsumer) {
 		final var agent = context.getAgents().get(firstAgent);
 		if (agent == null) {
 			throw new IllegalArgumentException("Agent not found: " + firstAgent);
 		}
-		LOGGER.debug("Starting agent: {}", agent.name());
-		return this.walkGraph(agent, context);
+
+		return this.walk(agent, context, agentContextUpdateConsumer);
+	}
+
+	public List<AgentContext> walk(final BaseAgent agent, final AgentContext context) {
+		return this.walk(agent, context, null);
 	}
 	
-	public List<AgentContext> walkGraph(final BaseAgent agent, final AgentContext context) {
+	public List<AgentContext> walk(final BaseAgent agent, final AgentContext context, final Consumer<AgentContext> agentContextUpdateConsumer) {
 		LOGGER.debug("Agent: {}", agent.name());
 		
 		Client client = null;
 		if (agent.agentType() != AgentType.PROCESSING_ONLY) {
 			client = this.clientService.getClient(agent.modelCategory());
 		}
-		
+		context.setAgentContextUpdateConsumer(agentContextUpdateConsumer);
+
 		final var branches = agent.execute(client, this.agentExecutorService, context);
 		
 		final var responses = Collections.synchronizedList(new ArrayList<AgentContext>());
 		final var branchTasks = new ArrayList<CompletableFuture<?>>(branches.size());
 		for (final var branchContext : branches) {
+			if (agentContextUpdateConsumer != null) {
+				agentContextUpdateConsumer.accept(branchContext);
+			}
+
 			if (!branchContext.isError() && branchContext.getNextAgent() != null) {
 				final var branchAgent = context.getAgents().get(branchContext.getNextAgent().name());
 				if (branchAgent == null) {
@@ -75,7 +89,7 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 				
 				branchTasks.add(CompletableFuture.runAsync(() -> {
 					try {
-						responses.addAll(this.walkGraph(branchAgent, branchContext));
+						responses.addAll(this.walk(branchAgent, branchContext, agentContextUpdateConsumer));
 					}
 					catch (final Exception e) {
 						LOGGER.error("Error executing agent", e);
