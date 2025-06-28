@@ -280,8 +280,8 @@ Beyond the individual methods, several parameters and flags within the `AgentCon
 
 **3. `conversation` (Conversation Object):**
 
-*   **Purpose:** Stores the ongoing conversation history with the LLM. This is crucial for maintaining context across multiple turns.
-*   **Usage:** Agents should update the `conversation` object with each turn. The `setupConversation()` method handles initial creation and potential merging of system prompts.
+*   **Purpose:** Holds the ongoing conversation history with the LLM.
+*   **Usage:** Agents update the `conversation` object with each turn. You can read or manipulate the conversation as needed (usually for advanced scenarios).
 *   **Impact:** Directly influences the LLM's behavior by providing conversational context.
 
 **4. `requestStatistic` (Object tracking request details - implementation not shown):**
@@ -294,7 +294,7 @@ Beyond the individual methods, several parameters and flags within the `AgentCon
 
 *   **Purpose:** Indicates whether an error occurred during the agent’s execution.
 *   **Usage:** Set to `true` within `postProcess()` or during exception handling in `execute()`.
-*   **Impact:** Used by the `execute()` method to filter out erroneous results and prevent further processing of failed agents.
+*   **Impact:** Used by the `execute()` method to filter out erroneous results and prevent further processing of failed branches.
 
 **6. `graph` (Object representing the execution graph - implementation not shown):**
 
@@ -323,7 +323,7 @@ Beyond the individual methods, several parameters and flags within the `AgentCon
 *   **Purpose:** This placeholder type expects the value associated with the given `key` in the `AgentContext` to be a *List* of objects. It joins the elements of this list into a single string, separated by newline characters (`\n\n`).
 *   **How it works:** The code checks if `context.getContext().get(key)` returns a List. If so, it uses `entry.getValue().stream().map(Object::toString).collect(Collectors.joining("\n\n"))` to convert each element of the list to its string representation and concatenate them with double newlines.
 *   **Example:**
-    *   If `context.getContext().get("item")` returns `["apple"]`, then `{{items}}` would be replaced with:
+    *   If `context.getContext().get("item")` returns `["apple"]`, then `{{item}}` would be replaced with:
         ```
         apple
         ```
@@ -343,6 +343,7 @@ Beyond the individual methods, several parameters and flags within the `AgentCon
     *   For each index from 0 up to the minimum size, it creates a new `Split` object. Each split has:
         *   A modified version of the template where `[[key]]` is replaced with the element at that index from each corresponding list.
         *   A new `AgentContext` containing only the selected elements from the branched lists.
+    * Branched flows are executed separately and in parallel from this moment on. However, these flows can be combined again using the `AgentContext`'s `merge()` method. merge() only supports depth 1, this means that the merge() method can only combine the results of the immediate splits, not the results of the splits of those splits.
 *   **Example:**
     *   If `context.getContext().get("[[cities]]")` returns `["London", "Paris", "Tokyo"]` and `context.getContext().get("[[countries]]")` returns `["UK", "France", "Japan"]`, then two splits will be created (because the minimum size is 2).
         *   **Split 1:** `text` will have `[[cities]]` replaced with `"London"` and `[[countries]]` replaced with `"UK"`. The context will contain only `{"cities": ["London"], "countries": ["UK"]}`.
