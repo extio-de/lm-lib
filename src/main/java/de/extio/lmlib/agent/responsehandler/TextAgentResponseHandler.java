@@ -1,6 +1,7 @@
 package de.extio.lmlib.agent.responsehandler;
 
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
@@ -22,16 +23,19 @@ public class TextAgentResponseHandler implements StreamedAgentResponseHandler {
 	private final Function<String, String> transformer;
 	
 	private final Function<String, String> chunkTransformer;
+
+	private final Consumer<AgentContext> afterChunkUpdate;
 	
 	public TextAgentResponseHandler(final String key) {
-		this(key, null, null);
+		this(key, null, null, null);
 	}
 	
-	public TextAgentResponseHandler(final String key, final Function<String, String> transformer, final Function<String, String> chunkTransformer) {
+	public TextAgentResponseHandler(final String key, final Function<String, String> transformer, final Function<String, String> chunkTransformer, final Consumer<AgentContext> afterChunkUpdate) {
 		this.key = key;
 		this.chunkKey = key.concat("_chunk");
 		this.transformer = transformer;
 		this.chunkTransformer = chunkTransformer;
+		this.afterChunkUpdate = afterChunkUpdate;
 	}
 	
 	@Override
@@ -57,8 +61,11 @@ public class TextAgentResponseHandler implements StreamedAgentResponseHandler {
 			chunk = this.chunkTransformer.apply(chunk);
 		}
 		context.setStringValue(this.chunkKey, chunk);
-		context.setStringValue(this.key, Objects.requireNonNullElse(context.getStringValue(this.key), "".concat(chunk)));
+		context.setStringValue(this.key, Objects.requireNonNullElse(context.getStringValue(this.key), "").concat(chunk));
 		context.setStringValue(UPDATE_KEY, this.key);
+		if (afterChunkUpdate != null) {
+			afterChunkUpdate.accept(context);
+		}
 		return true;
 	}
 	
