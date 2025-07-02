@@ -142,6 +142,9 @@ public interface BaseAgent {
 					}
 					
 					this.postProcess(split.context());
+					if (split.context().getAgentContextUpdateConsumer() != null) {
+						split.context().getAgentContextUpdateConsumer().accept(split.context());
+					}
 					
 					finishedSplits.add(split);
 				}
