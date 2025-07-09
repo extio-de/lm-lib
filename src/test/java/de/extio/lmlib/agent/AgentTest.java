@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -126,6 +125,7 @@ public class AgentTest {
 
 	@Test
 	void streamedAgenticFlow() throws IOException {
+		final var lastStreamedSummary = new AtomicReference<String>();
 		final var agents = Map.of(
 				"CodeSummarizer",
 				new Agent("CodeSummarizer",
@@ -133,7 +133,17 @@ public class AgentTest {
 						ModelCategory.MEDIUM,
 						"Generate a summary of the following Java source code.",
 						"The source code is:\n{{code}}",
-						new TextAgentResponseHandler("summary"),
+						new TextAgentResponseHandler("summary",
+								null,
+								null,
+								null,
+								context -> {
+									if ("summary".equals(context.getStringValue(TextAgentResponseHandler.UPDATE_KEY))) { // UPDATE_KEY helps you to identify the streamed chunk
+										System.out.print(context.getStringValue("summary_chunk")); // Single chunks can be accessed via _chunk suffix, depends on the StreamedAgentResponseHandler implementation
+										lastStreamedSummary.set(context.getStringValue("summary")); // The current key value can also be accessed (e.g. concatenated, depends on the StreamedAgentResponseHandler implementation)
+									}									
+								}
+						),
 						null,
 						context -> {
 							context.setStringValue("summary", context.getStringValue("summary") + "\npostprocessed");
@@ -145,16 +155,12 @@ public class AgentTest {
 		context.setStreaming(true);
 		context.getContext().put("code", List.of(Files.readString(Path.of("src/main/java/de/extio/lmlib/agent/BaseAgent.java"))));
 		
-		final var lastStreamedSummary = new AtomicReference<String>();
 		final var resultContexts = this.agentExecutor.walk(agents.get("CodeSummarizer"), context, contextUpdate -> {
-			if ("summary".equals(contextUpdate.getStringValue(TextAgentResponseHandler.UPDATE_KEY))) { // UPDATE_KEY helps you to identify the streamed chunk
-				System.out.print(contextUpdate.getStringValue("summary_chunk")); // Single chunks can be accessed via _chunk suffix, depends on the StreamedAgentResponseHandler implementation
-				lastStreamedSummary.set(contextUpdate.getStringValue("summary")); // The current key value can also be accessed (e.g. concatenated, depends on the StreamedAgentResponseHandler implementation)
-			}
+			// This is an optional consumer that can be used to receive updates from the agent context
 		});
 		
 		assertEquals(1, resultContexts.size());
-		assertEquals(lastStreamedSummary.get(), resultContexts.getFirst().getStringValue("summary"));
+		assertEquals(lastStreamedSummary.get() + "\npostprocessed", resultContexts.getFirst().getStringValue("summary"));
 		assertTrue(resultContexts.getFirst().getStringValue("summary").endsWith("postprocessed"));
 		
 		System.out.println();

@@ -67,7 +67,7 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 		LOGGER.debug("Agent: {}", agent.name());
 		
 		Client client = null;
-		if (agent.agentType() != AgentType.PROCESSING_ONLY) {
+		if (agent.agentType(context) != AgentType.PROCESSING_ONLY) {
 			client = this.clientService.getClient(agent.modelCategory());
 		}
 		context.setAgentContextUpdateConsumer(agentContextUpdateConsumer);

@@ -34,10 +34,6 @@ public interface BaseAgent {
 		throw new UnsupportedOperationException("Name must be implemented in the agent");
 	}
 	
-	default AgentType agentType() {
-		throw new UnsupportedOperationException("Agent type must be implemented in the agent");
-	}
-	
 	default ModelCategory modelCategory() {
 		return ModelCategory.MEDIUM;
 	}
@@ -52,6 +48,10 @@ public interface BaseAgent {
 	
 	default AgentResponseHandler responseHandler() {
 		return new TextAgentResponseHandler("response");
+	}
+
+	default AgentType agentType(final AgentContext context) {
+		throw new UnsupportedOperationException("Agent type must be implemented in the agent");
 	}
 	
 	default void preProcess(final AgentContext context) {
@@ -82,7 +82,7 @@ public interface BaseAgent {
 		for (final var split : splits) {
 			tasks.add(CompletableFuture.runAsync(() -> {
 				try {
-					final boolean skipCompletion = split.context().isSkipNextCompletion() || this.agentType() == AgentType.PROCESSING_ONLY;
+					final boolean skipCompletion = split.context().isSkipNextCompletion() || this.agentType(split.context()) == AgentType.PROCESSING_ONLY;
 					if (skipCompletion) {
 						split.context().setSkipNextCompletion(false);
 						split.context().getGraph().add("○");
@@ -263,13 +263,23 @@ public interface BaseAgent {
 			conversation = Conversation.create(this.systemPrompt(), split.text());
 			split.context().setConversation(conversation);
 		}
-		else if (this.agentType() == AgentType.START_CONVERSATION) {
-			conversation = Conversation.create(this.systemPrompt() + "\n" + split.text());
+		else if (this.agentType(split.context()) == AgentType.START_CONVERSATION) {
+			if (this.systemPrompt() == null || this.systemPrompt().isEmpty()) {
+				conversation = Conversation.create(split.text());
+			}
+			else {
+				conversation = Conversation.create(this.systemPrompt() + "\n" + split.text());
+			}
 			split.context().setConversation(conversation);
 		}
 		else {
-			if (conversation.getConversation().get(0).type() == TurnType.SYSTEM && this.agentType() != AgentType.CONVERSATION_WITH_SYSTEM_PROMPT) {
-				final var mergedSysAndUser = conversation.getConversation().get(0).text() + "\n" + conversation.getConversation().get(1).text();
+			if (conversation.getConversation().get(0).type() == TurnType.SYSTEM && this.agentType(split.context()) != AgentType.CONVERSATION_WITH_SYSTEM_PROMPT) {
+				final String mergedSysAndUser;
+				if (conversation.getConversation().size() > 1) {
+					mergedSysAndUser = conversation.getConversation().get(0).text() + "\n" + conversation.getConversation().get(1).text();
+				} else {
+					mergedSysAndUser = conversation.getConversation().get(0).text();
+				}
 				
 				final var newConversation = Conversation.create(mergedSysAndUser);
 				for (int n = 2; n < conversation.getConversation().size(); n++) {
@@ -280,7 +290,12 @@ public interface BaseAgent {
 				conversation = newConversation;
 			}
 			if (conversation.getConversation().get(conversation.getConversation().size() - 1).type() == TurnType.ASSISTANT) {
-				conversation.addTurn(new Conversation.Turn(TurnType.USER, String.join("\n", this.systemPrompt(), split.text())));
+				if (this.systemPrompt() == null || this.systemPrompt().isEmpty() ||conversation.getConversation().size() > 1) {
+					conversation.addTurn(new Conversation.Turn(TurnType.USER, split.text()));
+				}
+				else {
+					conversation.addTurn(new Conversation.Turn(TurnType.USER, String.join("\n", this.systemPrompt(), split.text())));
+				}
 			}
 		}
 		return conversation;
@@ -312,30 +327,30 @@ public interface BaseAgent {
 					context.setNextAgent(null);
 				}
 				
-				case final BaseAgent a when a.agentType() == AgentType.COMPLETION -> {
+				case final BaseAgent a when a.agentType(context) == AgentType.COMPLETION -> {
 					context.getGraph().add("→");
 					context.setConversation(null);
 				}
 				
-				case final BaseAgent a when a.agentType() == AgentType.START_CONVERSATION -> {
+				case final BaseAgent a when a.agentType(context) == AgentType.START_CONVERSATION -> {
 					context.getGraph().add("🗨");
 					context.setConversation(null);
 				}
 				
-				case final BaseAgent a when a.agentType() == AgentType.CONVERSATION || a.agentType() == AgentType.CONVERSATION_WITH_SYSTEM_PROMPT -> {
+				case final BaseAgent a when a.agentType(context) == AgentType.CONVERSATION || a.agentType(context) == AgentType.CONVERSATION_WITH_SYSTEM_PROMPT -> {
 					context.getGraph().add("↴");
 					if (context.getConversation().getConversation().getLast().type() != TurnType.ASSISTANT) {
 						context.getConversation().addTurn(new Conversation.Turn(TurnType.ASSISTANT, context.getLastCompletion().response()));
 					}
 				}
 				
-				case final BaseAgent a when a.agentType() == AgentType.PROCESSING_ONLY -> {
-					
+				case final BaseAgent a when a.agentType(context) == AgentType.PROCESSING_ONLY -> {
+
 				}
 				
 				default -> {
 					context.getGraph().add("☢");
-					LOGGER.error("Unknown agent type: {}", nextAgent.agentType());
+					LOGGER.error("Unknown agent type: {}", nextAgent.agentType(context));
 					context.setNextAgent(null);
 				}
 			}

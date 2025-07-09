@@ -27,6 +27,14 @@ public record Agent(String name,
             throw new IllegalArgumentException("Agent type cannot be null");
         }
     }
+
+    @Override
+    public AgentType agentType(final AgentContext context) {
+        if (agentType != null) {
+            return agentType;
+        }
+        return BaseAgent.super.agentType(context);
+    }
     
     @Override
     public void preProcess(final AgentContext context) {
