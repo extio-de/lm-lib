@@ -37,6 +37,14 @@ public record Agent(String name,
     }
     
     @Override
+    public ModelCategory modelCategory(final AgentContext context) {
+        if (modelCategory != null) {
+            return modelCategory;
+        }
+        return BaseAgent.super.modelCategory(context);
+    }
+
+    @Override
     public void preProcess(final AgentContext context) {
         if (preProcessor != null) {
             preProcessor.accept(context);

@@ -34,7 +34,11 @@ public interface BaseAgent {
 		throw new UnsupportedOperationException("Name must be implemented in the agent");
 	}
 	
-	default ModelCategory modelCategory() {
+	default AgentType agentType(final AgentContext context) {
+		throw new UnsupportedOperationException("Agent type must be implemented in the agent");
+	}
+	
+	default ModelCategory modelCategory(final AgentContext context) {
 		return ModelCategory.MEDIUM;
 	}
 	
@@ -48,10 +52,6 @@ public interface BaseAgent {
 	
 	default AgentResponseHandler responseHandler() {
 		return new TextAgentResponseHandler("response");
-	}
-
-	default AgentType agentType(final AgentContext context) {
-		throw new UnsupportedOperationException("Agent type must be implemented in the agent");
 	}
 	
 	default void preProcess(final AgentContext context) {
@@ -88,7 +88,7 @@ public interface BaseAgent {
 						split.context().getGraph().add("○");
 					}
 					else {
-						split.context().getGraph().add(this.modelCategory().getShortName());
+						split.context().getGraph().add(this.modelCategory(split.context()).getShortName());
 					}
 					split.context().getGraph().add(this.name());
 					
@@ -102,8 +102,8 @@ public interface BaseAgent {
 							if (split.context().isStreaming()) {
 								if (this.responseHandler() instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
 									streamedResponseHandler.beforeStream(split.context());
-								}								
-								completion = client.streamConversation(this.modelCategory(), conversation, chunk -> {
+								}
+								completion = client.streamConversation(this.modelCategory(split.context()), conversation, chunk -> {
 									if (this.responseHandler() instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
 										if (streamedResponseHandler.handleChunk(chunk, split.context()) && split.context().getAgentContextUpdateConsumer() != null) {
 											split.context().getAgentContextUpdateConsumer().accept(split.context());
@@ -112,7 +112,7 @@ public interface BaseAgent {
 								});
 							}
 							else {
-								completion = client.conversation(this.modelCategory(), conversation);
+								completion = client.conversation(this.modelCategory(split.context()), conversation);
 							}
 							split.context().setLastCompletion(completion);
 							split.context().getRequestStatistic().add(completion);
