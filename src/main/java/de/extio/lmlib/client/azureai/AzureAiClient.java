@@ -1,8 +1,6 @@
 package de.extio.lmlib.client.azureai;
 
 import java.math.BigDecimal;
-import java.net.InetSocketAddress;
-import java.net.Proxy;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
@@ -11,6 +9,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -28,7 +27,7 @@ import com.azure.ai.inference.models.ChatRequestUserMessage;
 import com.azure.ai.inference.models.CompletionsFinishReason;
 import com.azure.core.credential.AzureKeyCredential;
 import com.azure.core.http.HttpClient;
-import com.azure.core.http.okhttp.OkHttpAsyncHttpClientBuilder;
+import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 import com.azure.core.http.policy.ExponentialBackoffOptions;
 import com.azure.core.http.policy.RetryOptions;
 
@@ -43,13 +42,9 @@ import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.profile.ModelProfileService;
 import de.extio.lmlib.token.Tokenizer;
-import okhttp3.Authenticator;
-import okhttp3.Challenge;
-import okhttp3.Credentials;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
-import okhttp3.Route;
+import io.netty.channel.ChannelOption;
+import io.netty.handler.timeout.ReadTimeoutHandler;
+import io.netty.handler.timeout.WriteTimeoutHandler;
 
 public final class AzureAiClient implements Client {
 	
@@ -65,24 +60,9 @@ public final class AzureAiClient implements Client {
 	
 	private final Tokenizer tokenizer;
 	
-	private final boolean proxyEnabled;
-	
-	private final String proxyHost;
-	
-	private final int proxyPort;
-	
-	private final String proxyUser;
-	
-	private final String proxyPassword;
-	
-	AzureAiClient(final ModelProfileService modelProfileService, final Tokenizer tokenizer, final boolean proxyEnabled, final String proxyHost, final int proxyPort, final String proxyUser, final String proxyPassword) {
+	AzureAiClient(final ModelProfileService modelProfileService, final Tokenizer tokenizer) {
 		this.modelProfileService = modelProfileService;
 		this.tokenizer = tokenizer;
-		this.proxyEnabled = proxyEnabled;
-		this.proxyHost = proxyHost;
-		this.proxyPort = proxyPort;
-		this.proxyUser = proxyUser;
-		this.proxyPassword = proxyPassword;
 	}
 	
 	@Override
@@ -109,7 +89,7 @@ public final class AzureAiClient implements Client {
 		
 		return this.requestCompletions(chat, modelCategory, modelProfile);
 	}
-
+	
 	@Override
 	public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation, final Consumer<String> chunkConsumer) {
 		throw new UnsupportedOperationException("Not implemented yet");
@@ -242,44 +222,13 @@ public final class AzureAiClient implements Client {
 						return false;
 					});
 					
-			final OkHttpClient.Builder nativeOkHttpClientBuilder = new OkHttpClient.Builder();
+			final reactor.netty.http.client.HttpClient httpClient = reactor.netty.http.client.HttpClient.create()
+					.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT)
+					.responseTimeout(Duration.ofMillis(TIMEOUT))
+					.doOnConnected(conn -> conn.addHandlerLast(new ReadTimeoutHandler(TIMEOUT, TimeUnit.MILLISECONDS)).addHandlerLast(new WriteTimeoutHandler(TIMEOUT, TimeUnit.MILLISECONDS)));
 			
-			if (this.proxyEnabled) {
-				LOGGER.info("Proxy is enabled. Configuring proxy settings for host: {} port: {} user: {}", this.proxyHost, this.proxyPort, this.proxyUser);
-				
-				final Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(this.proxyHost, this.proxyPort));
-				nativeOkHttpClientBuilder.proxy(proxy);
-				
-				if (this.proxyUser != null && this.proxyPassword != null) {
-					final Authenticator proxyAuthenticator = new Authenticator() {
-						
-						@Override
-						public Request authenticate(final Route route, final Response response) {
-							for (final Challenge challenge : response.challenges()) {
-								if (challenge.scheme().equalsIgnoreCase("OkHttp-Preemptive")) {
-									final String credential = Credentials.basic(proxyUser, proxyPassword);
-									return response.request().newBuilder()
-											.header("Proxy-Authorization", credential)
-											.build();
-								}
-							}
-							return null;
-						}
-					};
-					nativeOkHttpClientBuilder.proxyAuthenticator(proxyAuthenticator);
-				}
-				else {
-					LOGGER.warn("Proxy user or password is not set. Skipping proxy authentication.");
-				}
-			}
-			else {
-				LOGGER.info("Proxy is not enabled. Skipping proxy configuration.");
-			}
-			
-			final OkHttpClient nativeOkHttpClient = nativeOkHttpClientBuilder.build();
-			final OkHttpAsyncHttpClientBuilder okHttpClientBuilder = new OkHttpAsyncHttpClientBuilder(nativeOkHttpClient);
-			final HttpClient okHttpClient = okHttpClientBuilder
-					.connectionTimeout(Duration.ofMillis(CONNECT_TIMEOUT))
+			final NettyAsyncHttpClientBuilder azureHttpClientBuilder = new NettyAsyncHttpClientBuilder(httpClient);
+			final HttpClient azureHttpClient = azureHttpClientBuilder
 					.readTimeout(Duration.ofMillis(TIMEOUT))
 					.responseTimeout(Duration.ofMillis(TIMEOUT))
 					.writeTimeout(Duration.ofMillis(TIMEOUT))
@@ -289,7 +238,7 @@ public final class AzureAiClient implements Client {
 					.credential(new AzureKeyCredential(modelProfile.apiKey()))
 					.endpoint(modelProfile.url())
 					.retryOptions(retryOptions)
-					.httpClient(okHttpClient)
+					.httpClient(azureHttpClient)
 					.buildClient();
 			return chatCompletionsClient;
 		});

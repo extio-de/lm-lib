@@ -110,10 +110,6 @@ Example profile: src/test/resources/llama3.3-70b-azure.properties
     	<artifactId>azure-ai-inference</artifactId>
     </dependency>
     <dependency>
-    	<groupId>com.squareup.okhttp3</groupId>
-    	<artifactId>okhttp</artifactId>
-    </dependency>    
-    <dependency>
     	<groupId>com.knuddels</groupId>
     	<artifactId>jtokkit</artifactId>
     </dependency>
