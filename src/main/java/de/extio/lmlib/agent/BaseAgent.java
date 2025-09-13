@@ -272,6 +272,10 @@ public interface BaseAgent {
 			}
 			split.context().setConversation(conversation);
 		}
+		else if (this.agentType(split.context()) == AgentType.START_CONVERSATION_WITH_SYSTEM_PROMPT) {
+			conversation = Conversation.create(this.systemPrompt(), split.text());
+			split.context().setConversation(conversation);
+		}
 		else {
 			if (conversation.getConversation().get(0).type() == TurnType.SYSTEM && this.agentType(split.context()) != AgentType.CONVERSATION_WITH_SYSTEM_PROMPT) {
 				final String mergedSysAndUser;
@@ -332,7 +336,7 @@ public interface BaseAgent {
 					context.setConversation(null);
 				}
 				
-				case final BaseAgent a when a.agentType(context) == AgentType.START_CONVERSATION -> {
+				case final BaseAgent a when a.agentType(context) == AgentType.START_CONVERSATION || a.agentType(context) == AgentType.START_CONVERSATION_WITH_SYSTEM_PROMPT -> {
 					context.getGraph().add("🗨");
 					context.setConversation(null);
 				}
