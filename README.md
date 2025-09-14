@@ -167,6 +167,8 @@ The agentic flow is started with an AgentContext and an initial agent.
 Example:
 
     final var context = new AgentContext(List.of(new Agent1(), new Agent2()));
+    // Passing an explicit agent list is optional. If you omit the list, the framework will autowire all Agent beans from the Spring context:
+    // final var context = new AgentContext();
     context.getContext().setStringValue("key", "Payload here");
     context.getContext().setStringValues("key2", List.of("All context keys", "support collections", "for aggregation purposes"));
     context.getContext().setValue("key3", new RandomDatatype());

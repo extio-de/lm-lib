@@ -3,6 +3,7 @@ package de.extio.lmlib.agent;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -40,6 +41,12 @@ public final class AgentContext {
 	private volatile Completion lastCompletion;
 	
 	private Consumer<AgentContext> agentContextUpdateConsumer;
+	
+	public AgentContext() {
+		this.agents = new HashMap<>();
+		this.context = new ConcurrentHashMap<>();
+		this.requestStatistic = new AgentRequestStatistic();
+	}
 	
 	public AgentContext(final Collection<? extends BaseAgent> agents) {
 		this.agents = agents.stream().collect(Collectors.toMap(BaseAgent::name, agent -> agent));

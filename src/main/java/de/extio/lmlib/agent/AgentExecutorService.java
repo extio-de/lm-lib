@@ -3,6 +3,7 @@ package de.extio.lmlib.agent;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -30,6 +31,9 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 	@Autowired
 	private ClientService clientService;
 	
+	@Autowired(required = false)
+	private List<BaseAgent> allAgents;
+	
 	private ExecutorService branchExecutorService;
 	
 	private ExecutorService agentExecutorService;
@@ -45,20 +49,21 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 		this.branchExecutorService.close();
 		this.agentExecutorService.close();
 	}
-
+	
 	public List<AgentContext> walk(final String firstAgent, final AgentContext context) {
 		return this.walk(firstAgent, context, null);
 	}
-
+	
 	public List<AgentContext> walk(final String firstAgent, final AgentContext context, final Consumer<AgentContext> agentContextUpdateConsumer) {
+		this.discoverAgents(context);
 		final var agent = context.getAgents().get(firstAgent);
 		if (agent == null) {
 			throw new IllegalArgumentException("Agent not found: " + firstAgent);
 		}
-
+		
 		return this.walk(agent, context, agentContextUpdateConsumer);
 	}
-
+	
 	public List<AgentContext> walk(final BaseAgent agent, final AgentContext context) {
 		return this.walk(agent, context, null);
 	}
@@ -66,12 +71,14 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 	public List<AgentContext> walk(final BaseAgent agent, final AgentContext context, final Consumer<AgentContext> agentContextUpdateConsumer) {
 		LOGGER.debug("Agent: {}", agent.name());
 		
+		this.discoverAgents(context);
+		
 		Client client = null;
 		if (agent.agentType(context) != AgentType.PROCESSING_ONLY) {
 			client = this.clientService.getClient(agent.modelCategory(context));
 		}
 		context.setAgentContextUpdateConsumer(agentContextUpdateConsumer);
-
+		
 		final var branches = agent.execute(client, this.agentExecutorService, context);
 		
 		final var responses = Collections.synchronizedList(new ArrayList<AgentContext>());
@@ -80,7 +87,7 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 			if (agentContextUpdateConsumer != null) {
 				agentContextUpdateConsumer.accept(branchContext);
 			}
-
+			
 			if (!branchContext.isError() && branchContext.getNextAgent() != null) {
 				final var branchAgent = context.getAgents().get(branchContext.getNextAgent().name());
 				if (branchAgent == null) {
@@ -106,6 +113,16 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 		}
 		
 		return responses;
+	}
+	
+	private void discoverAgents(final AgentContext context) {
+		if (context.getAgents().isEmpty() && this.allAgents != null) {
+			for (final var agent : this.allAgents) {
+				@SuppressWarnings("unchecked")
+				final var agentsMap = (Map<String, BaseAgent>) context.getAgents();
+				agentsMap.put(agent.name(), agent);
+			}
+		}
 	}
 	
 }
