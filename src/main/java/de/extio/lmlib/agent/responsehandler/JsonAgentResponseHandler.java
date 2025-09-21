@@ -73,17 +73,21 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 		final Iterator<Map.Entry<String, JsonNode>> fields = jsonNode.properties().iterator();
 		while (fields.hasNext()) {
 			final var entry = fields.next();
-			if (entry.getValue().isArray()) {
-				entry.getValue().elements().forEachRemaining(nestedArray -> nestedArray.properties().forEach(nestedProperty -> this.parseProperty(items, nestedProperty)));
-			}
-			else {
-				this.parseProperty(items, entry);
-			}
+			parseEntry(items, entry);
 		}
 		LOGGER.debug("Response: {} {}", items.size(), items);
 		context.getContext().putAll(items);
 		
 		return true;
+	}
+	
+	private void parseEntry(final LinkedHashMap<String, List<String>> items, final Entry<String, JsonNode> entry) {
+		if (entry.getValue().isArray()) {
+			entry.getValue().elements().forEachRemaining(nestedArray -> nestedArray.properties().forEach(nestedProperty -> this.parseEntry(items, nestedProperty)));
+		}
+		else {
+			this.parseProperty(items, entry);
+		}
 	}
 	
 	private void parseProperty(final LinkedHashMap<String, List<String>> items, final Entry<String, JsonNode> nestedProperty) {
