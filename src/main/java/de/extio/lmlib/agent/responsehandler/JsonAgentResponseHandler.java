@@ -58,9 +58,9 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 	public boolean handle(final Completion completion, final AgentContext context) {
 		final int firstCurly = completion.response().indexOf("{");
 		final int lastCurly = completion.response().lastIndexOf("}");
-		final var response = completion.response().substring(firstCurly, lastCurly + 1);
 		JsonNode jsonNode;
 		try {
+			final var response = completion.response().substring(firstCurly, lastCurly + 1);
 			jsonNode = this.objectMapper.readTree(response);
 		}
 		catch (final Exception e) {
