@@ -71,13 +71,13 @@ public interface BaseAgent {
 	}
 	
 	default List<AgentContext> execute(final Client client, final ExecutorService agentExecutorService, final AgentContext context) {
-		final var finishedSplits = Collections.synchronizedList(new ArrayList<Split>());
+		final var splits = new ArrayList<Split>();
 		
 		context.setNextAgent(null);
 		
 		this.preProcess(context);
 		
-		final var splits = this.applyTemplate(context);
+		splits.addAll(this.applyTemplate(context));
 		final var tasks = new ArrayList<CompletableFuture<?>>(splits.size());
 		for (final var split : splits) {
 			tasks.add(CompletableFuture.runAsync(() -> {
@@ -145,8 +145,6 @@ public interface BaseAgent {
 					if (split.context().getAgentContextUpdateConsumer() != null) {
 						split.context().getAgentContextUpdateConsumer().accept(split.context());
 					}
-					
-					finishedSplits.add(split);
 				}
 				catch (final Exception ex) {
 					LOGGER.error("Error during agent execution", ex);
@@ -157,13 +155,12 @@ public interface BaseAgent {
 		
 		CompletableFuture.allOf(tasks.toArray(new CompletableFuture[0])).join();
 		
-		var retContexts = finishedSplits
+		var retContexts = splits
 				.stream()
 				.filter(s -> !s.context().isError())
 				.sorted((s0, s1) -> Integer.compare(s0.index(), s1.index()))
 				.map(Split::context)
 				.collect(Collectors.toCollection(ArrayList::new));
-		
 		if (!retContexts.isEmpty()) {
 			final var merged = this.merge(List.copyOf(retContexts));
 			if (merged != null) {
@@ -177,7 +174,7 @@ public interface BaseAgent {
 			retContexts.forEach(this::nextAgent);
 		}
 		
-		retContexts.addAll(finishedSplits.stream().filter(s -> s.context().isError()).map(s -> s.context()).toList());
+		retContexts.addAll(splits.stream().filter(s -> s.context().isError()).map(s -> s.context()).toList());
 		
 		return retContexts;
 	}
