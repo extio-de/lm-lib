@@ -83,7 +83,16 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 	
 	private void parseEntry(final LinkedHashMap<String, List<String>> items, final Entry<String, JsonNode> entry) {
 		if (entry.getValue().isArray()) {
-			entry.getValue().elements().forEachRemaining(nestedArray -> nestedArray.properties().forEach(nestedProperty -> this.parseEntry(items, nestedProperty)));
+			entry.getValue().elements().forEachRemaining(nestedArrayValue -> {
+				if (nestedArrayValue.properties().isEmpty()) {
+					items.computeIfAbsent(this.prefixFields + entry.getKey(), k -> new ArrayList<>()).add(nestedArrayValue.asText());
+				}
+				else {
+					for (final var nestedProperty : nestedArrayValue.properties()) {
+						this.parseEntry(items, nestedProperty);
+					}
+				}
+			});
 		}
 		else {
 			this.parseProperty(items, entry);
