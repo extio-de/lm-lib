@@ -124,6 +124,15 @@ public final class AgentContext {
 			this.context.put(key, List.of(value));
 		}
 	}
+
+	public <T> void setValues(final String key, final Collection<T> values) {
+		if (values == null) {
+			this.context.remove(key);
+		}
+		else {
+			this.context.put(key, List.copyOf(values));
+		}
+	}
 	
 	public Map<String, List<? extends Object>> getContext() {
 		return this.context;
