@@ -96,7 +96,7 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 			}
 			
 			if (!branchContext.isError() && branchContext.getNextAgent() != null) {
-				final var branchAgent = context.getAgents().get(branchContext.getNextAgent().name());
+				final var branchAgent = branchContext.getAgents().get(branchContext.getNextAgent().name());
 				if (branchAgent == null) {
 					throw new IllegalArgumentException("Agent not found: " + branchContext.getNextAgent().name());
 				}
