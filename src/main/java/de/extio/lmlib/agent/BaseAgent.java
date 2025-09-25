@@ -76,7 +76,10 @@ public interface BaseAgent {
 		context.setNextAgent(null);
 		
 		this.preProcess(context);
-		
+		if (context.getAgentContextUpdateConsumer() != null) {
+			context.getAgentContextUpdateConsumer().accept(context);
+		}
+
 		splits.addAll(this.applyTemplate(context));
 		final var tasks = new ArrayList<CompletableFuture<?>>(splits.size());
 		for (final var split : splits) {
