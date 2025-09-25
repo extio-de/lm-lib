@@ -69,6 +69,13 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 	}
 	
 	public List<AgentContext> walk(final BaseAgent agent, final AgentContext context, final Consumer<AgentContext> agentContextUpdateConsumer) {
+		if (!context.getGraph().isEmpty()) {
+			context.getGraph().add("‖");
+		}
+		return this.walkRecursive(agent, context, agentContextUpdateConsumer);
+	}
+	
+	private List<AgentContext> walkRecursive(final BaseAgent agent, final AgentContext context, final Consumer<AgentContext> agentContextUpdateConsumer) {
 		LOGGER.debug("Agent: {}", agent.name());
 		
 		this.discoverAgents(context);
@@ -96,7 +103,7 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 				
 				branchTasks.add(CompletableFuture.runAsync(() -> {
 					try {
-						responses.addAll(this.walk(branchAgent, branchContext, agentContextUpdateConsumer));
+						responses.addAll(this.walkRecursive(branchAgent, branchContext, agentContextUpdateConsumer));
 					}
 					catch (final Exception e) {
 						LOGGER.error("Error executing agent", e);
