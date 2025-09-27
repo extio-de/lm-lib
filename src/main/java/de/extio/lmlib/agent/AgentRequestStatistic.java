@@ -11,6 +11,20 @@ import de.extio.lmlib.client.Completion;
 
 public final class AgentRequestStatistic {
 	
+	public static AgentRequestStatistic create() {
+		return new AgentRequestStatistic(true);
+	}
+	
+	public static AgentRequestStatistic createWithoutEffectiveDuration() {
+		return new AgentRequestStatistic(false);
+	}
+	
+	private AgentRequestStatistic(final boolean withEffectiveDuration) {
+		if (withEffectiveDuration) {
+			this.start = Instant.now();
+		}
+	}
+	
 	private final AtomicInteger requests = new AtomicInteger();
 	
 	private final AtomicInteger cachedPrompts = new AtomicInteger();
@@ -19,7 +33,7 @@ public final class AgentRequestStatistic {
 	
 	private final AtomicLong outTokens = new AtomicLong();
 	
-	private volatile Instant start = Instant.now();
+	private volatile Instant start;
 	
 	private volatile Duration requestDuration = Duration.ofMillis(0L);
 	
@@ -46,15 +60,20 @@ public final class AgentRequestStatistic {
 	}
 	
 	public Duration getEffectiveDuration() {
+		if (this.start == null) {
+			return null;
+		}
 		return Duration.between(this.start, Instant.now());
 	}
 	
 	public String getTps() {
-		return new DecimalFormat("#.##").format((double) (this.inTokens.get() + this.outTokens.get()) / (double) this.getEffectiveDuration().toMillis() * 1000.0);
+		final var duration = this.start == null ? this.getRequestDuration() : this.getEffectiveDuration();
+		return new DecimalFormat("#.##").format((double) (this.inTokens.get() + this.outTokens.get()) / (double) duration.toMillis() * 1000.0);
 	}
 	
 	public String getOutTps() {
-		return new DecimalFormat("#.##").format((double) this.outTokens.get() / (double) this.getEffectiveDuration().toMillis() * 1000.0);
+		final var duration = this.start == null ? this.getRequestDuration() : this.getEffectiveDuration();
+		return new DecimalFormat("#.##").format((double) this.outTokens.get() / (double) duration.toMillis() * 1000.0);
 	}
 	
 	public BigDecimal getCost() {
@@ -82,7 +101,7 @@ public final class AgentRequestStatistic {
 		this.getInTokens().addAndGet(other.getInTokens().get());
 		this.getOutTokens().addAndGet(other.getOutTokens().get());
 		synchronized (this) {
-			if (other.start.isBefore(this.start)) {
+			if (this.start != null && other.start.isBefore(this.start)) {
 				this.start = other.start;
 			}
 			this.requestDuration = this.requestDuration.plus(other.getRequestDuration());
@@ -104,8 +123,10 @@ public final class AgentRequestStatistic {
 		builder.append(", requestDuration=");
 		builder.append(this.requestDuration);
 		builder.append(", getEffectiveDuration()=");
-		builder.append(this.getEffectiveDuration());
-		builder.append(", getTps()=");
+		if (this.start != null) {
+			builder.append(this.getEffectiveDuration());
+			builder.append(", getTps()=");
+		}
 		builder.append(this.getTps());
 		builder.append(", getOutTps()=");
 		builder.append(this.getOutTps());
