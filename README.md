@@ -7,6 +7,8 @@ The libraries's key features include:
 - Unified API for multiple LLM providers (OpenAI, Azure, local models, etc.)  
 - Streaming and non-streaming completions  
 - Agentic flow execution
+    - Branching & merging (depth-1 parallel splits) with contextual graph tracing
+    - Retry & parse validation loop per agent response
 - Model profile configuration and switching  
 - Prompt and conversation management utilities  
 - Request caching and statistics tracking  
@@ -180,6 +182,189 @@ Streaming is also supported.
 
 See class AgentTest for examples.
 
+## Quick Agent Implementation (Example)
+
+```java
+public class BlogPostAgent implements BaseAgent {
+    @Override public String name() { return "BlogPostAgent"; }
+    @Override public AgentType agentType(final AgentContext ctx) { return AgentType.START_CONVERSATION_WITH_SYSTEM_PROMPT; }
+    @Override public ModelCategory modelCategory(final AgentContext ctx) { return ModelCategory.MEDIUM; }
+    @Override public String systemPrompt() { return "You are a concise technical blog writer."; }
+    @Override public String textTemplate() { return "Write a blog post about {{topic}} using these bullets:\n\n{{points}}"; }
+    @Override public AgentResponseHandler responseHandler() { return new TextAgentResponseHandler("blogPost"); }
+    @Override public void preProcess(final AgentContext ctx) {
+        // Optionally skip LLM call for pure processing steps:
+        // ctx.setSkipNextCompletion(true);
+    }
+    @Override public AgentNext chooseNextAgent(final AgentContext ctx) { return AgentNext.END; }
+}
+```
+
+Invoke via an `AgentContext` and `AgentExecutorService` as shown earlier; the parsed response is stored under key `blogPost`.
+
+## Agent Types & Lifecycle
+
+`AgentType` drives how the conversation is (re)constructed before a request and how the next agent chaining behaves:
+
+| Type | Conversation Behavior | Typical Use |
+|------|-----------------------|-------------|
+| `START_CONVERSATION` | Starts a fresh conversation (user-only first turn, merges prior system if present) | New thread without system prompt reuse |
+| `START_CONVERSATION_WITH_SYSTEM_PROMPT` | Starts fresh with `systemPrompt()` + first user turn | Strict instruction resets |
+| `CONVERSATION` | Continues existing conversation (adds user turn) | Multi-turn iterative refinement |
+| `CONVERSATION_WITH_SYSTEM_PROMPT` | Keeps a distinct system turn at index 0 | When persistent system role required |
+| `COMPLETION` | Stateless single shot (conversation nulled before call) | One-off transformation / generation |
+| `PROCESSING_ONLY` | No LLM call (graph marks circle) | Data shaping, filtering, grading, enrichment |
+
+Lifecycle per split:
+1. `preProcess()` (can mutate context, set `skipNextCompletion`)
+2. Template expansion (may create N parallel splits)
+3. (Optional) LLM request unless skipped or processing-only
+4. Response handling with up to 2 parse attempts (retry if handler returns `false` / throws)
+5. `postProcess()`
+6. Merge (single depth) via `merge()` if provided
+7. Next agent selection via `chooseNextAgent()`
+
+## Branching & Merging
+
+Use `[[key]]` placeholders to branch; each placeholder must map to a list. The minimum list size across all branched keys defines the number of splits. Each split receives only the single element for those keys (facilitating isolation for later merging). Branching depth currently supported: only the immediate level (depth 1) created by one template application is eligible for a single merge phase—splits of splits are treated independently; you can implement higher-level aggregation manually in later agents.
+
+Custom merging strategies:
+* Return `null` => keep individual split contexts
+* Return list with 1 element => many-to-one consolidation
+* Return bigger list => one-to-many expansion (e.g., combinatorial synthesis)
+
+Utility helper supplied: `BaseAgent.mergeContexts(keys, contexts)` merges list-valued keys into the first context by concatenating.
+
+## Execution Graph Legend
+
+The `graph` in `AgentContext` accumulates symbols documenting flow:
+
+| Symbol | Meaning |
+|--------|---------|
+| `M` / `S` / `L` / ... | Model category short name |
+| Agent name | Executed agent identifier |
+| `○` | Completion skipped (`skipNextCompletion` or processing-only) |
+| `⇉ x/n` | Branch split index x of n |
+| `size↣merged` | Result of merge phase (e.g., `5↣1`) |
+| `→` | Next agent of type COMPLETION |
+| `🗨` | Next agent starts new conversation |
+| `↴` | Continue conversation (assistant turn appended if missing) |
+| `✓` / `✗` | Grading pass/fail (if `AgentNext.gradingPassed()` present) |
+| `⚠` | Parse attempt failed (retry followed) |
+| `☢` | Fatal parse failure / unknown agent / not found |
+
+## Retry & Parse Handling
+
+Each agent completion is parsed by a fresh `responseHandler()` instance (created per attempt). If `handle()` returns `false` or throws, the framework retries once (total 2 attempts). After the final failure the context is marked error (`setError(true)`), receives `☢`, and is excluded from merges / next-agent chaining.
+
+## Built-in Response Handlers
+
+Response handlers implement `AgentResponseHandler` (or `StreamedAgentResponseHandler`) and transform raw model output into structured context keys. A handler returning `false` triggers a retry (up to one additional attempt).
+
+### TextAgentResponseHandler
+Purpose: Capture the full response (optionally transformed) under a single key. Implements streaming.
+Constructor variants:
+* `new TextAgentResponseHandler(key)`
+* `new TextAgentResponseHandler(key, transformer, beforeStream, chunkTransformer, afterChunkUpdate)`
+
+Streaming lifecycle:
+1. `beforeStream()` sets the target key to empty string and invokes optional `beforeStream` callback.
+2. For each chunk: `handleChunk()` optionally transforms chunk, sets `UPDATE_KEY` (= `chunkUpdateKey`) to the logical key, sets `<key>_chunk` to the last chunk, appends chunk to aggregated key, invokes `afterChunkUpdate`, then cleans temporary keys.
+3. After stream completion the final `Completion` is passed to `handle()` (allowing a final transformer pass / overwrite).
+
+Context keys during streaming (transient):
+* `<key>`: aggregated content so far
+* `<key>_chunk`: last received chunk (removed after callback)
+* `chunkUpdateKey`: signals which key received an update (removed post-callback)
+
+Use cases: plain text generation, incremental UI updates, progressive summarization.
+
+### AccumulateTextAgentResponseHandler
+Purpose: Append each response to a list under the provided key (e.g. collecting multiple answers or iterative drafts).
+Behavior: On every `handle()` call, transforms (optional) then `add()`s the response string to an ArrayList stored at the key. Always returns `true` (no retry).
+Use cases: multi-pass refinement pipelines, collecting alternatives, voting ensembles.
+
+### JsonAgentResponseHandler
+Purpose: Parse loosely formatted JSON from the model response and flatten into list-valued context keys (optionally with a field name prefix).
+Behavior:
+1. Locates first '{' and last '}' substring segment.
+2. Attempts to parse with permissive Jackson settings (allows trailing commas, single quotes, comments, unquoted field names, etc.).
+3. Flattens arrays / nested objects: scalar primitives become entries; arrays of objects are traversed recursively; complex object properties yield all textual/primitive leaf values.
+4. On success: Inserts (or appends to) `List<String>` values keyed by `[prefix]fieldName`.
+5. On failure: Returns `false` to trigger retry and augments the last user turn with an instruction requesting valid JSON.
+
+Customization: Provide `new JsonAgentResponseHandler("myPrefix_")` to namespace parsed fields.
+
+Use cases: structured extraction, slot filling, multi-field generation, classification outputs.
+
+### Choosing a Handler
+| Scenario | Recommended Handler | Notes |
+|----------|---------------------|-------|
+| Streamed narrative / article | TextAgentResponseHandler | Use chunk callbacks for live UI |
+| Collect multiple alternatives | AccumulateTextAgentResponseHandler | Pair with downstream ranking/grader |
+| Extract structured fields | JsonAgentResponseHandler | Ensure prompt asks for strict JSON |
+| Hybrid (JSON + plain text) | Separate agents or custom composite | You can chain: JSON parse then text refine |
+
+### Writing a Custom Handler
+Implement `AgentResponseHandler` (and optionally `StreamedAgentResponseHandler` for chunk support). Guidelines:
+* Keep parsing deterministic; return `false` only on recoverable format issues.
+* Avoid long-running logic; heavy processing should go into a `PROCESSING_ONLY` agent after data capture.
+* Use distinct context keys; never overwrite model trace keys unless intentional.
+
+## Streaming Considerations
+
+If `context.isStreaming()` is `true` and the handler implements `StreamedAgentResponseHandler`, chunk callbacks occur during the request. After streaming completes the full `Completion` object is still assigned and final parse is executed (allowing hybrid incremental + final processing). Ensure idempotency in `handleChunk()`—it may be called many times.
+
+## Skipping LLM Calls
+
+Set `context.setSkipNextCompletion(true)` in `preProcess()` (or earlier) to mark a single upcoming step as processing-only. The flag auto-resets. The graph will show `○` for that node; no tokens are consumed and no retry loop runs.
+
+## Error Handling
+
+Exceptions inside an agent split mark only that split as errored; others continue. Post-merge, errored contexts are appended to the returned list (after successful ones) so callers can inspect failures without losing success results.
+
+## Template Placeholders
+
+| Placeholder | Expects | Behavior |
+|-------------|---------|----------|
+| `{{{key}}}` | Any JSON-serializable value (list, map, scalar) | JSON serialization inserted verbatim |
+| `{{key}}` | List | Joins list elements with double newlines |
+| `[[key]]` | List | Branching: visible replacement with ith element |
+| `[[key|hidden]]` | List | Branching: element participates (context narrowed) but prompt text omitted |
+
+Hidden variant example:
+
+Template: `Analyze these items. Visible: [[name]] Hidden id used for internal scoring. [[id|hidden]]`
+
+For lists `name=[Alpha, Beta]`, `id=[42, 43]` two splits are produced:
+1. Prompt contains `Visible: Alpha Hidden id used ...` (id removed) and context key `id` = `[42]`
+2. Prompt contains `Visible: Beta Hidden id used ...` (id removed) and context key `id` = `[43]`
+
+Use hidden placeholders when you need parallelization keyed by an internal identifier you do not want to expose to the model (e.g. database id, sensitive tag) but still require for later merging or grading.
+
+## Helper Patterns
+
+Pattern: Processing + generation pipeline
+1. Processing agent (`PROCESSING_ONLY`) enriches context keys
+2. Generation agent (`START_CONVERSATION_WITH_SYSTEM_PROMPT`) creates initial draft
+3. Refinement agent (`CONVERSATION`) iterates until quality threshold (grading-based branching)
+
+Pattern: Fan-out / Fan-in
+1. Branch agent uses template with multiple `[[item]]` placeholders
+2. Analysis agents run in parallel per branch
+3. Merge via custom `merge()` consolidating lists / selecting best result
+
+## Best Practices
+
+* Keep `responseHandler()` pure per attempt—avoid retaining mutable internal state between attempts.
+* Use distinct context keys for raw response vs. parsed fields (`response`, `blogPost`, `scores`, etc.).
+* Employ `skipNextCompletion` for cheap structural steps (classification using already available data, etc.).
+* When merging, explicitly document transformation size with graph annotation already produced automatically (`size↣merged`).
+* Prefer smaller model categories (`S`,`M`) for early filtering agents; escalate to larger (`L`) only when necessary.
+* Use grading to gate expensive downstream calls (`✓` / `✗`).
+
+---
+
 ## Documentation for `BaseAgent` Interface Methods
 
 This document details the public methods of the `BaseAgent` interface, providing developers with information on their purpose and usage within agentic LLM flows.  These methods allow customization of agent behavior, pre/post processing of contexts, merging of results, and choosing the next agent in a flow.
@@ -312,55 +497,6 @@ Beyond the individual methods, several parameters and flags within the `AgentCon
 *   **Purpose:** The `AgentContext` allows storing arbitrary data in its `context` map (a `HashMap`).
 *   **Usage:** Developers can add custom keys and values to the context to share information between agents or track application-specific state.  This is heavily leveraged by the template system.
 *   **Impact:** Enables highly flexible communication and data sharing within the agentic flow.
-
-## Text Template Placeholders
-
-**1. `{{{key}}}` - JSON String Replacement**
-
-*   **Purpose:** This placeholder type expects the value associated with the given `key` in the `AgentContext` to be a valid JSON-serializable object (e.g., a string, number, boolean, list, or map).  The entire object will be converted into a JSON string using an `ObjectMapper` and inserted into the template.
-*   **How it works:** The code iterates through the entries in the `AgentContext`'s context map (`context.getContext()`). If it finds a key matching the placeholder (e.g., `{{{myObject}}}`), it attempts to serialize the corresponding value into a JSON string using `objectMapper.writeValueAsString(entry.getValue())`.
-*   **Example:**
-    *   If `context.getContext().get("myObject")` returns `[1, 2, 3]`, then `{{{myObject}}}` would be replaced with `"[1, 2, 3]"`.
-    *   If `context.getContext().get("userName")` returns `"Alice"`, then `{{{userName}}}` would be replaced with `"Alice"`.
-
-**2. `{{key}}` - Text / List-to-String Conversion**
-
-*   **Purpose:** This placeholder type expects the value associated with the given `key` in the `AgentContext` to be a *List* of objects. It joins the elements of this list into a single string, separated by newline characters (`\n\n`).
-*   **How it works:** The code checks if `context.getContext().get(key)` returns a List. If so, it uses `entry.getValue().stream().map(Object::toString).collect(Collectors.joining("\n\n"))` to convert each element of the list to its string representation and concatenate them with double newlines.
-*   **Example:**
-    *   If `context.getContext().get("item")` returns `["apple"]`, then `{{item}}` would be replaced with:
-        ```
-        apple
-        ```
-    *   If `context.getContext().get("names")` returns `[1, 2, 3]`, then `{{names}}` would be replaced with:
-        ```
-        1
-        2
-        3
-        ```
-
-**3. `[[key]]` - Branched Template Expansion (Advanced)**
-
-*   **Purpose:** This placeholder enables branching or looping within the template based on the size of a list stored in the `AgentContext`.  It's used to create multiple variations of the template, one for each element in the list.
-*   **How it works:**
-    *   The code identifies all keys using the `[[key]]` pattern.
-    *   It determines the minimum size of all lists associated with these branched keys. This minimum size dictates how many "splits" are created.
-    *   For each index from 0 up to the minimum size, it creates a new `Split` object. Each split has:
-        *   A modified version of the template where `[[key]]` is replaced with the element at that index from each corresponding list.
-        *   A new `AgentContext` containing only the selected elements from the branched lists.
-    * Branched flows are executed separately and in parallel from this moment on. However, these flows can be combined again using the `AgentContext`'s `merge()` method. merge() only supports depth 1, this means that the merge() method can only combine the results of the immediate splits, not the results of the splits of those splits.
-*   **Example:**
-    *   If `context.getContext().get("cities")` returns `["London", "Paris", "Tokyo"]` and `context.getContext().get("countries")` returns `["UK", "France"]`, then two splits will be created (because the minimum size is 2).
-        *   **Split 1:** `text` will have `[[cities]]` replaced with `"London"` and `[[countries]]` replaced with `"UK"`. The context will contain only `{"cities": ["London"], "countries": ["UK"]}`.
-        *   **Split 2:** `text` will have `[[cities]]` replaced with `"Paris"` and `[[countries]]` replaced with `"France"`. The context will contain only `{"cities": ["Paris"], "countries": ["France"]}`.
-
-**In Summary:**
-
-| Placeholder | Value Type Expected | Replacement Behavior                                      |
-|-------------|---------------------|-----------------------------------------------------------|
-| `{{{key}}}` | Any JSON-serializable | Serializes the entire value to a JSON string.           |
-| `{{key}}}`  | List                | Joins list elements into a string with newlines. |
-| `[[key]]`   | List                | Creates multiple template variations based on list size. |
 
 # Announcement generated by AgentTest#agenticFlow
 

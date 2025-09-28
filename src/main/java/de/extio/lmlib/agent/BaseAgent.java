@@ -226,8 +226,9 @@ public interface BaseAgent {
 		var branchedEntriesMinCntValues = 0;
 		final var branchedEntries = new ArrayList<Entry<String, List<? extends Object>>>();
 		for (final var entry : context.getContext().entrySet()) {
-			final var k = "[[" + entry.getKey() + "]]";
-			if (text.contains(k)) {
+			final var k0 = "[[" + entry.getKey() + "]]";
+			final var k1 = "[[" + entry.getKey() + "|hidden]]";
+			if (text.contains(k0) || text.contains(k1)) {
 				branchedEntries.add(entry);
 				branchedEntriesMinCntValues = branchedEntriesMinCntValues == 0 ? entry.getValue().size() : Math.min(branchedEntriesMinCntValues, entry.getValue().size());
 			}
@@ -239,8 +240,15 @@ public interface BaseAgent {
 				String nextText = text;
 				final var nextContext = new HashMap<>(context.getContext());
 				for (final var entry : branchedEntries) {
-					final var k = "[[" + entry.getKey() + "]]";
-					nextText = nextText.replace(k, entry.getValue().get(i).toString());
+					final var kVisible = "[[" + entry.getKey() + "]]";
+					if (nextText.contains(kVisible)) {
+						nextText = nextText.replace(kVisible, entry.getValue().get(i).toString());
+					}
+					final var kHidden = "[[" + entry.getKey() + "|hidden]]";
+					if (nextText.contains(kHidden)) {
+						// hidden variant participates in branching, but does not reveal the token value in the prompt
+						nextText = nextText.replace(kHidden, "");
+					}
 					nextContext.put(entry.getKey(), List.of(entry.getValue().get(i)));
 				}
 				
