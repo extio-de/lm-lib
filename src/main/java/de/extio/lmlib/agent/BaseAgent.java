@@ -100,13 +100,15 @@ public interface BaseAgent {
 						
 						boolean parseable = false;
 						for (int i = 0; i < 2; i++) {
+							final var responseHandler = this.responseHandler();
+							
 							Completion completion = null;
 							if (split.context().isStreaming()) {
-								if (this.responseHandler() instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
+								if (responseHandler instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
 									streamedResponseHandler.beforeStream(split.context());
 								}
 								completion = client.streamConversation(this.modelCategory(split.context()), conversation, chunk -> {
-									if (this.responseHandler() instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
+									if (responseHandler instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
 										if (streamedResponseHandler.handleChunk(chunk, split.context()) && split.context().getAgentContextUpdateConsumer() != null) {
 											split.context().getAgentContextUpdateConsumer().accept(split.context());
 										}
@@ -120,7 +122,7 @@ public interface BaseAgent {
 							split.context().getRequestStatistic().add(completion);
 							
 							try {
-								if (!this.responseHandler().handle(completion, split.context())) {
+								if (!responseHandler.handle(completion, split.context())) {
 									split.context().getGraph().add("⚠");
 									LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response());
 									continue;
