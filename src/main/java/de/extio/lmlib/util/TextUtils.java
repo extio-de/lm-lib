@@ -53,6 +53,10 @@ public class TextUtils {
 	}
 	
 	public static String normalizeModelResponse(final String response, final boolean removePreamble) {
+		if (response == null) {	
+			return null;
+		}
+
 		var result = StringUtils.replace(response, "\r", "");
 		
 		if (removePreamble) {
