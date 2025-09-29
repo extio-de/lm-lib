@@ -351,9 +351,15 @@ public interface BaseAgent {
 				}
 				
 				case final BaseAgent a when a.agentType(context) == AgentType.CONVERSATION || a.agentType(context) == AgentType.CONVERSATION_WITH_SYSTEM_PROMPT -> {
-					context.getGraph().add("↴");
-					if (context.getConversation().getConversation().getLast().type() != TurnType.ASSISTANT) {
-						context.getConversation().addTurn(new Conversation.Turn(TurnType.ASSISTANT, context.getLastCompletion().response()));
+					if (context.getConversation() == null) {
+						context.getGraph().add("🗨");
+						context.setConversation(null);
+					}
+					else {
+						context.getGraph().add("↴");
+						if (context.getConversation().getConversation().getLast().type() != TurnType.ASSISTANT) {
+							context.getConversation().addTurn(new Conversation.Turn(TurnType.ASSISTANT, context.getLastCompletion().response()));
+						}
 					}
 				}
 				
