@@ -96,12 +96,12 @@ public interface BaseAgent {
 					
 					if (!skipCompletion) {
 						final var conversation = this.setupConversation(split);
-						LOGGER.debug("Conversation: {}", conversation);
 						
 						boolean parseable = false;
 						for (int i = 0; i < 2; i++) {
-							final var responseHandler = this.responseHandler();
+							LOGGER.debug("Conversation: {}", conversation);
 							
+							final var responseHandler = this.responseHandler();
 							Completion completion = null;
 							if (split.context().isStreaming()) {
 								if (responseHandler instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
