@@ -271,25 +271,170 @@ Streaming is also supported.
 
 See class AgentTest for examples.
 
-## Quick Agent Implementation (Example)
+## Quick Agent Implementation Examples
+
+### Example 1: BaseAgent Implementation (Comprehensive)
+
+This example shows all methods that can be overridden in a `BaseAgent` implementation:
 
 ```java
 public class BlogPostAgent implements BaseAgent {
-    @Override public String name() { return "BlogPostAgent"; }
-    @Override public AgentType agentType(final AgentContext ctx) { return AgentType.START_CONVERSATION_WITH_SYSTEM_PROMPT; }
-    @Override public ModelCategory modelCategory(final AgentContext ctx) { return ModelCategory.MEDIUM; }
-    @Override public String systemPrompt() { return "You are a concise technical blog writer."; }
-    @Override public String textTemplate() { return "Write a blog post about {{topic}} using these bullets:\n\n{{points}}"; }
-    @Override public AgentResponseHandler responseHandler() { return new TextAgentResponseHandler("blogPost"); }
-    @Override public void preProcess(final AgentContext ctx) {
-        // Optionally skip LLM call for pure processing steps:
-        // ctx.setSkipNextCompletion(true);
+    
+    // REQUIRED: Unique identifier for this agent
+    @Override 
+    public String name() { 
+        return "BlogPostAgent"; 
     }
-    @Override public AgentNext chooseNextAgent(final AgentContext ctx) { return AgentNext.END; }
+    
+    // REQUIRED: Determines how conversation is managed
+    @Override 
+    public AgentType agentType(final AgentContext ctx) { 
+        return AgentType.START_CONVERSATION_WITH_SYSTEM_PROMPT; 
+    }
+    
+    // OPTIONAL: Model size/capability (default: MEDIUM)
+    @Override 
+    public ModelCategory modelCategory(final AgentContext ctx) { 
+        return ModelCategory.MEDIUM; 
+    }
+    
+    // OPTIONAL: System-level instruction for the LLM (default: null)
+    @Override 
+    public String systemPrompt() { 
+        return "You are a concise technical blog writer."; 
+    }
+    
+    // OPTIONAL: Template for user input with placeholders (default: null)
+    @Override 
+    public String textTemplate() { 
+        return "Write a blog post about {{topic}} using these bullets:\n\n{{points}}"; 
+    }
+    
+    // OPTIONAL: How to parse/store the response (default: TextAgentResponseHandler("response"))
+    @Override 
+    public AgentResponseHandler responseHandler() { 
+        return new TextAgentResponseHandler("blogPost"); 
+    }
+    
+    // OPTIONAL: Execute before LLM call (default: no-op)
+    @Override 
+    public void preProcess(final AgentContext ctx) {
+        // Example: Skip LLM call for pure processing steps
+        // ctx.setSkipNextCompletion(true);
+        
+        // Example: Manipulate context data
+        // ctx.getContext().setStringValue("processedTopic", 
+        //     ctx.getContext().getStringValue("topic").toUpperCase());
+    }
+    
+    // OPTIONAL: Execute after LLM call (default: no-op)
+    @Override 
+    public void postProcess(final AgentContext ctx) {
+        // Example: Clean up or transform results
+        // String post = ctx.getContext().getStringValue("blogPost");
+        // ctx.getContext().setStringValue("wordCount", String.valueOf(post.split("\\s+").length));
+    }
+    
+    // OPTIONAL: Merge multiple contexts after branching (default: null = no merge)
+    @Override 
+    public List<AgentContext> merge(final List<AgentContext> contexts) {
+        // Example: Many-to-one merge using helper
+        // return BaseAgent.mergeContexts(List.of("blogPost", "ideas"), contexts);
+        
+        // Return null to keep contexts separate (no merge)
+        return null;
+    }
+    
+    // OPTIONAL: Select next agent in the flow (default: AgentNext.END)
+    @Override 
+    public AgentNext chooseNextAgent(final AgentContext ctx) {
+        // Example: Conditional branching
+        // if (ctx.getContext().getStringValue("blogPost").length() < 100) {
+        //     return new AgentNext("ExpandAgent");
+        // }
+        
+        // End the flow
+        return AgentNext.END;
+    }
 }
 ```
 
-Invoke via an `AgentContext` and `AgentExecutorService` as shown earlier; the parsed response is stored under key `blogPost`.
+**Usage:**
+```java
+final var context = new AgentContext(List.of(new BlogPostAgent()));
+context.getContext().setStringValue("topic", "Java Concurrency");
+context.getContext().setStringValues("points", List.of("Thread safety", "CompletableFuture", "Virtual threads"));
+final var results = agentExecutorService.walk("BlogPostAgent", context);
+final var blogPost = results.getFirst().getContext().getStringValue("blogPost");
+```
+
+### Example 2: Agent Record Implementation (Minimal)
+
+The `Agent` record provides a concise alternative when you prefer composition over inheritance:
+
+```java
+// Simple agent using record constructor
+final var blogPostAgent = new Agent(
+    "BlogPostAgent",                                    // name
+    AgentType.START_CONVERSATION_WITH_SYSTEM_PROMPT,   // agentType
+    ModelCategory.MEDIUM,                               // modelCategory
+    "You are a concise technical blog writer.",        // systemPrompt
+    "Write a blog post about {{topic}} using these bullets:\n\n{{points}}", // textTemplate
+    new TextAgentResponseHandler("blogPost"),           // responseHandler
+    null,                                               // preProcessor (optional)
+    null,                                               // postProcessor (optional)
+    null,                                               // merger (optional)
+    ctx -> AgentNext.END                                // chooseNext
+);
+
+// Agent with processing hooks
+final var processingAgent = new Agent(
+    "DataProcessor",
+    AgentType.PROCESSING_ONLY,
+    ModelCategory.MEDIUM,
+    null,
+    null,
+    new TextAgentResponseHandler("result"),
+    ctx -> {
+        // preProcessor: prepare data
+        var input = ctx.getContext().getStringValue("rawData");
+        ctx.getContext().setStringValue("cleaned", input.trim().toLowerCase());
+        ctx.setSkipNextCompletion(true); // No LLM needed
+    },
+    ctx -> {
+        // postProcessor: finalize
+        ctx.getContext().setStringValue("processed", "true");
+    },
+    null,
+    ctx -> new AgentNext("NextAgent")
+);
+
+// Agent with branching and merging
+final var analyzerAgent = new Agent(
+    "FeatureAnalyzer",
+    AgentType.START_CONVERSATION,
+    ModelCategory.SMALL,
+    null,
+    "Analyze this feature: [[feature]]",  // Branches per feature
+    new JsonAgentResponseHandler("analysis_"),
+    null,
+    null,
+    contexts -> BaseAgent.mergeContexts(List.of("analysis_score", "analysis_summary"), contexts), // Many-to-one merge
+    ctx -> new AgentNext("ReportGenerator")
+);
+```
+
+**Usage:**
+```java
+final var context = new AgentContext(List.of(blogPostAgent, processingAgent, analyzerAgent));
+context.getContext().setStringValue("topic", "Microservices");
+context.getContext().setStringValues("points", List.of("Scalability", "Independence", "Resilience"));
+final var results = agentExecutorService.walk("BlogPostAgent", context);
+```
+
+**Choosing Between BaseAgent and Agent Record:**
+- **BaseAgent class**: Better for complex agents with substantial logic in lifecycle methods, better IDE support for method overrides
+- **Agent record**: Better for simple agents, more concise, easier to create dynamically or configure from data
 
 ## Agent Types & Lifecycle
 
@@ -312,6 +457,26 @@ Lifecycle per split:
 5. `postProcess()`
 6. Merge (single depth) via `merge()` if provided
 7. Next agent selection via `chooseNextAgent()`
+
+
+## Template Placeholders
+
+| Placeholder | Expects | Behavior |
+|-------------|---------|----------|
+| `{{{key}}}` | Any JSON-serializable value (list, map, scalar) | JSON serialization inserted verbatim |
+| `{{key}}` | List | Joins list elements with double newlines |
+| `[[key]]` | List | Branching: visible replacement with ith element |
+| `[[key|hidden]]` | List | Branching: element participates (context narrowed) but prompt text omitted |
+
+Hidden variant example:
+
+Template: `Analyze these items. Visible: [[name]] Hidden id used for internal scoring. [[id|hidden]]`
+
+For lists `name=[Alpha, Beta]`, `id=[42, 43]` two splits are produced:
+1. Prompt contains `Visible: Alpha Hidden id used ...` (id removed) and context key `id` = `[42]`
+2. Prompt contains `Visible: Beta Hidden id used ...` (id removed) and context key `id` = `[43]`
+
+Use hidden placeholders when you need parallelization keyed by an internal identifier you do not want to expose to the model (e.g. database id, sensitive tag) but still require for later merging or grading.
 
 ## Branching & Merging
 
@@ -421,25 +586,6 @@ Set `context.setSkipNextCompletion(true)` in `preProcess()` (or earlier) to mark
 ## Error Handling
 
 Exceptions inside an agent split mark only that split as errored; others continue. Post-merge, errored contexts are appended to the returned list (after successful ones) so callers can inspect failures without losing success results.
-
-## Template Placeholders
-
-| Placeholder | Expects | Behavior |
-|-------------|---------|----------|
-| `{{{key}}}` | Any JSON-serializable value (list, map, scalar) | JSON serialization inserted verbatim |
-| `{{key}}` | List | Joins list elements with double newlines |
-| `[[key]]` | List | Branching: visible replacement with ith element |
-| `[[key|hidden]]` | List | Branching: element participates (context narrowed) but prompt text omitted |
-
-Hidden variant example:
-
-Template: `Analyze these items. Visible: [[name]] Hidden id used for internal scoring. [[id|hidden]]`
-
-For lists `name=[Alpha, Beta]`, `id=[42, 43]` two splits are produced:
-1. Prompt contains `Visible: Alpha Hidden id used ...` (id removed) and context key `id` = `[42]`
-2. Prompt contains `Visible: Beta Hidden id used ...` (id removed) and context key `id` = `[43]`
-
-Use hidden placeholders when you need parallelization keyed by an internal identifier you do not want to expose to the model (e.g. database id, sensitive tag) but still require for later merging or grading.
 
 ## Helper Patterns
 
