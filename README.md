@@ -4,15 +4,15 @@ The purpose of lm-lib is to provide a modular, extensible Java framework for int
 
 The libraries's key features include:
 
-- Unified API for multiple LLM providers (OpenAI, Azure, local models, etc.)  
-- Streaming and non-streaming completions  
 - Agentic flow execution
+    - Dynamic prompt templates with placeholder substitution for injecting agent context data
     - Branching & merging (depth-1 parallel splits) with contextual graph tracing
-    - Retry & parse validation loop per agent response
-- Model profile configuration and switching  
-- Prompt and conversation management utilities  
-- Request caching and statistics tracking  
-- Pluggable interceptors, e.g. for rate limiting
+- Streaming and non-streaming chat and text completions with reasoning support
+- Unified API for multiple LLM providers (OpenAI, Azure, local models, etc.)  
+    - Model profile configuration and switching  
+    - Prompt and conversation management utilities  
+    - Request caching and statistics tracking  
+    - Pluggable interceptors, e.g. for rate limiting
 - Modular architecture for easy extension and customization  
 - Spring integration for dependency injection and configuration  
 
@@ -69,6 +69,15 @@ Agent and completion requests will be invoked with these categories and will loa
 Profiles must be located in the classpath resources location (e.g. src/main/resources).
 
 Examples can be found in test resources.
+
+### Reasoning Models
+
+For models that support reasoning (e.g., OpenAI's o1 series), you can configure reasoning parameters in the model profile:
+
+    reasoningEffort=low|medium|high
+    reasoningSummaryDetails=auto|concise|detailed
+
+These settings control how the model generates and presents its reasoning process. The reasoning content is captured separately from the main response and can be accessed via the `reasoning` field in `Completion` objects or the `<key>_reasoning` context key in agents.
 
 ## OpenAi compatible client
 
@@ -138,9 +147,9 @@ Example profile: src/test/resources/llama3.3-70b-azure.properties
 
 The library supports both streaming and non-streaming completions.
 
-Streaming methods accept a Consumer to receive the next chunk (direct Client usage) or a callback on the next AgentContext update (Agents). They also return a full Completion object or the final AgentContext at the end of the execution that also contains the statistics.
+Streaming methods accept a `Consumer<Chunk>` to receive streaming updates. Each `Chunk` contains both `content()` and `reasoningContent()` fields, allowing models that support reasoning to stream their thought process separately from the final response. They also return a full `Completion` object or the final `AgentContext` at the end of the execution that also contains the statistics.
 
-Non-streaming methods only return the final objects at the end of the execution. This approach is much more resource-friendly and therefore recommended if you don't need to display or process the results in real-time.
+Non-streaming methods only return the final objects at the end of the execution. This approach is much more resource-friendly and therefore recommended if you don't need to display or process the results in real-time. The `Completion` record includes both `response()` and `reasoning()` fields.
 
 # Completions Cache
 
@@ -262,22 +271,25 @@ Each agent completion is parsed by a fresh `responseHandler()` instance (created
 Response handlers implement `AgentResponseHandler` (or `StreamedAgentResponseHandler`) and transform raw model output into structured context keys. A handler returning `false` triggers a retry (up to one additional attempt).
 
 ### TextAgentResponseHandler
-Purpose: Capture the full response (optionally transformed) under a single key. Implements streaming.
+Purpose: Capture the full response (optionally transformed) under a single key. Implements streaming with support for reasoning content.
 Constructor variants:
 * `new TextAgentResponseHandler(key)`
 * `new TextAgentResponseHandler(key, transformer, beforeStream, chunkTransformer, afterChunkUpdate)`
 
+Note: `chunkTransformer` signature is `Function<Chunk, Chunk>` and `afterChunkUpdate` signature is `BiConsumer<AgentContext, Chunk>`.
+
 Streaming lifecycle:
 1. `beforeStream()` sets the target key to empty string and invokes optional `beforeStream` callback.
-2. For each chunk: `handleChunk()` optionally transforms chunk, sets `UPDATE_KEY` (= `chunkUpdateKey`) to the logical key, sets `<key>_chunk` to the last chunk, appends chunk to aggregated key, invokes `afterChunkUpdate`, then cleans temporary keys.
+2. For each chunk: `handleChunk()` receives a `Chunk` object, optionally transforms it, appends `content()` to the aggregated key and `reasoningContent()` to `<key>_reasoning`, then invokes `afterChunkUpdate` with both context and chunk.
 3. After stream completion the final `Completion` is passed to `handle()` (allowing a final transformer pass / overwrite).
 
-Context keys during streaming (transient):
+Context keys during streaming:
 * `<key>`: aggregated content so far
-* `<key>_chunk`: last received chunk (removed after callback)
-* `chunkUpdateKey`: signals which key received an update (removed post-callback)
+* `<key>_reasoning`: aggregated reasoning content (if model provides it)
 
-Use cases: plain text generation, incremental UI updates, progressive summarization.
+Both reasoning and response content are logged when available.
+
+Use cases: plain text generation, incremental UI updates, progressive summarization, observing model reasoning process.
 
 ### AccumulateTextAgentResponseHandler
 Purpose: Append each response to a list under the provided key (e.g. collecting multiple answers or iterative drafts).
