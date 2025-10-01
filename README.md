@@ -59,6 +59,7 @@ These profiles must be mapped to fixed categories with the following application
     profile.model.s=
     profile.model.m=
     profile.model.l=
+    profile.model.xl=
     profile.model.hot=
     profile.model.cold=
 
@@ -70,6 +71,33 @@ Profiles must be located in the classpath resources location (e.g. src/main/reso
 
 Examples can be found in test resources.
 
+### Model Profile Properties
+
+Each model profile is a `.properties` file that configures how the library interacts with a specific LLM. All properties are loaded from the classpath resources.
+
+| Property | Type | Required | Description | Example Values |
+|----------|------|----------|-------------|----------------|
+| `prompts` | String | Yes | Prompt template strategy name for text completions. Use empty string for chat completions or if no special formatting is needed. | `llama4`, `gpt-oss`, `no`, `` (empty) |
+| `tokenEncoding` | String | Yes | Token encoding scheme used by the model for counting tokens. | `cl100k_base`, `none` |
+| `maxTokens` | Integer | Yes | Maximum number of tokens to generate in the model response. | `1500`, `2500` |
+| `maxContextLength` | Integer | Yes | Maximum total context length (prompt + response) supported by the model. | `16000`, `32767`, `128000` |
+| `temperature` | Double | Yes | Controls randomness in responses. Lower values (0.0-0.5) are more deterministic, higher values (0.5-1.0+) more creative. | `0.2`, `0.4`, `0.7` |
+| `topP` | Double | Yes | Nucleus sampling parameter. Controls diversity via cumulative probability. Typically kept at 1.0. | `1.0`, `0.9` |
+| `modelProvider` | Enum | Yes | The LLM provider/client type to use. | `OAI_CHAT_COMPLETION`, `OAI_TEXT_COMPLETION`, `AZURE_AI` |
+| `modelName` | String | Yes | The specific model identifier or deployment name. Can be empty for local models where it's auto-detected. | `Llama-3.3-70B-Instruct`, `gpt-4`, `` (empty for auto-detect) |
+| `url` | String | Yes | Base URL endpoint for the model API. | `https://api.openai.com/v1`, `http://localhost:5001` |
+| `apiKey` | String | Yes | Authentication key for the API. Can use Spring property placeholders like `${apikey}`. Can be empty for local models. | `sk-...`, `${apikey}`, `` (empty) |
+| `cost1MInTokens` | Double | Yes | Cost per 1 million input tokens in your currency. Use `0` for free/local models. | `0.71`, `0`, `5.00` |
+| `cost1MOutTokens` | Double | Yes | Cost per 1 million output tokens in your currency. Use `0` for free/local models. | `0.71`, `0`, `15.00` |
+| `reasoningEffort` | String | No | For reasoning models (e.g., OpenAI o1): controls depth of reasoning process. | `low`, `medium`, `high` |
+| `reasoningSummaryDetails` | String | No | For reasoning models: controls how reasoning content is summarized in the response. | `auto`, `concise`, `detailed` |
+
+**Notes:**
+- Properties marked "Yes" in the Required column must be present in every profile; missing required properties will cause runtime errors.
+- The `prompts` property determines the prompt formatting strategy. For text completions, specify a strategy name (e.g., `llama3`, `gpt-oss`) or `no` for no formatting. For chat completions, use an empty string.
+- Cost properties are used for statistics tracking and have no impact on API calls. They help you monitor expenses.
+- Reasoning properties are only applicable to models that support separate reasoning output (like OpenAI's o1 series).
+
 ### Reasoning Models
 
 For models that support reasoning (e.g., OpenAI's o1 series), you can configure reasoning parameters in the model profile:
@@ -78,6 +106,58 @@ For models that support reasoning (e.g., OpenAI's o1 series), you can configure 
     reasoningSummaryDetails=auto|concise|detailed
 
 These settings control how the model generates and presents its reasoning process. The reasoning content is captured separately from the main response and can be accessed via the `reasoning` field in `Completion` objects or the `<key>_reasoning` context key in agents.
+
+### Example Profile Files
+
+**Azure AI Chat Completion (llama3.3-70b-azure.properties):**
+```properties
+prompts=
+tokenEncoding=cl100k_base
+maxTokens=1500
+maxContextLength=32767
+temperature=0.2
+topP=1.0
+modelProvider=AZURE_AI
+modelName=Llama-3.3-70B-Instruct
+url=https://your-endpoint.inference.ai.azure.com
+apiKey=${apikey}
+cost1MInTokens=0.71
+cost1MOutTokens=0.71
+```
+
+**Local Chat Completion (local-chatcompletion.properties):**
+```properties
+prompts=
+tokenEncoding=cl100k_base
+maxTokens=2500
+maxContextLength=16000
+temperature=0.4
+topP=1.0
+modelProvider=OAI_CHAT_COMPLETION
+modelName=
+url=http://localhost:5001
+apiKey=
+cost1MInTokens=0
+cost1MOutTokens=0
+reasoningEffort=medium
+reasoningSummaryDetails=auto
+```
+
+**Local Text Completion (local-completion.properties):**
+```properties
+prompts=gpt-oss
+tokenEncoding=cl100k_base
+maxTokens=2500
+maxContextLength=16000
+temperature=0.4
+topP=1.0
+modelProvider=OAI_TEXT_COMPLETION
+modelName=
+url=http://localhost:5001
+apiKey=
+cost1MInTokens=0
+cost1MOutTokens=0
+```
 
 ## OpenAi compatible client
 
