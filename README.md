@@ -466,7 +466,7 @@ Lifecycle per split:
 | `{{{key}}}` | Any JSON-serializable value (list, map, scalar) | JSON serialization inserted verbatim |
 | `{{key}}` | List | Joins list elements with double newlines |
 | `[[key]]` | List | Branching: visible replacement with ith element |
-| `[[key|hidden]]` | List | Branching: element participates (context narrowed) but prompt text omitted |
+| `[[key\|hidden]]` | List | Branching: element participates (context narrowed) but prompt text omitted |
 
 Hidden variant example:
 
