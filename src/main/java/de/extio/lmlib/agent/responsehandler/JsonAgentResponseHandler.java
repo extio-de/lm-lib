@@ -10,10 +10,11 @@ import java.util.Map.Entry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 
 import de.extio.lmlib.agent.AgentContext;
 import de.extio.lmlib.client.Completion;
@@ -34,24 +35,25 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 	public JsonAgentResponseHandler(final String prefixFields) {
 		this.prefixFields = prefixFields == null ? "" : prefixFields;
 		
-		this.objectMapper = new ObjectMapper();
-		this.objectMapper.configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false);
-		this.objectMapper.configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false);
-		this.objectMapper.configure(DeserializationFeature.FAIL_ON_MISSING_EXTERNAL_TYPE_ID_PROPERTY, false);
-		this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-		this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNRESOLVED_OBJECT_IDS, false);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_MISSING_VALUES, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_NON_NUMERIC_NUMBERS, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_TRAILING_COMMA, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_CONTROL_CHARS, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_YAML_COMMENTS, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_LEADING_DECIMAL_POINT_FOR_NUMBERS, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_LEADING_PLUS_SIGN_FOR_NUMBERS, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_TRAILING_DECIMAL_POINT_FOR_NUMBERS, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+		this.objectMapper = JsonMapper.builder()
+				.configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false)
+				.configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
+				.configure(DeserializationFeature.FAIL_ON_MISSING_EXTERNAL_TYPE_ID_PROPERTY, false)
+				.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+				.configure(DeserializationFeature.FAIL_ON_UNRESOLVED_OBJECT_IDS, false)
+				.enable(JsonReadFeature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER)
+				.enable(JsonReadFeature.ALLOW_JAVA_COMMENTS)
+				.enable(JsonReadFeature.ALLOW_MISSING_VALUES)
+				.enable(JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS)
+				.enable(JsonReadFeature.ALLOW_SINGLE_QUOTES)
+				.enable(JsonReadFeature.ALLOW_TRAILING_COMMA)
+				.enable(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS)
+				.enable(JsonReadFeature.ALLOW_YAML_COMMENTS)
+				.enable(JsonReadFeature.ALLOW_LEADING_DECIMAL_POINT_FOR_NUMBERS)
+				.enable(JsonReadFeature.ALLOW_LEADING_PLUS_SIGN_FOR_NUMBERS)
+				.enable(JsonReadFeature.ALLOW_TRAILING_DECIMAL_POINT_FOR_NUMBERS)
+				.enable(JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES)
+				.build();
 	}
 	
 	@Override

@@ -12,4 +12,12 @@ public interface PromptStrategy {
 		return prompt.strip();
 	}
 	
+	default String getResponse(final String prompt) {
+		return prompt;
+	}
+
+	default String getReasoning(final String prompt) {
+		return null;
+	}
+	
 }

@@ -2,36 +2,17 @@ package de.extio.lmlib.client.oai.completion.chat;
 
 import java.util.List;
 
-import java.util.List;
-
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-final class ChatCompletionRequest {
-	
-	private String model;
+import de.extio.lmlib.client.oai.completion.AbstractCompletionRequest;
+
+final class ChatCompletionRequest extends AbstractCompletionRequest {
 	
 	private List<ChatMessage> messages;
 	
-	private Integer maxTokens;
-	
 	private Integer maxCompletionTokens;
-	
-	private Double temperature;
-	
-	private Double topP;
-	
-	private Boolean stream;
-	
-	private ChatCompletionStreamOptions streamOptions;
-	
-	@JsonProperty("model")
-	public String getModel() {
-		return this.model;
-	}
-	
-	public void setModel(final String model) {
-		this.model = model;
-	}
+
+	private ChatCompletionsRequestReasoning reasoning;
 	
 	@JsonProperty("messages")
 	public List<ChatMessage> getMessages() {
@@ -40,15 +21,6 @@ final class ChatCompletionRequest {
 	
 	public void setMessages(final List<ChatMessage> messages) {
 		this.messages = messages;
-	}
-	
-	@JsonProperty("max_tokens")
-	public Integer getMaxTokens() {
-		return this.maxTokens;
-	}
-	
-	public void setMaxTokens(final Integer maxTokens) {
-		this.maxTokens = maxTokens;
 	}
 	
 	@JsonProperty("max_completion_tokens")
@@ -60,40 +32,47 @@ final class ChatCompletionRequest {
 		this.maxCompletionTokens = maxCompletionTokens;
 	}
 	
-	@JsonProperty("temperature")
-	public Double getTemperature() {
-		return this.temperature;
+	@JsonProperty("reasoning")
+	public ChatCompletionsRequestReasoning getReasoning() {
+		return this.reasoning;
 	}
-	
-	public void setTemperature(final Double temperature) {
-		this.temperature = temperature;
+
+	public void setReasoning(final ChatCompletionsRequestReasoning reasoning) {
+		this.reasoning = reasoning;
 	}
-	
-	@JsonProperty("top_p")
-	public Double getTopP() {
-		return this.topP;
+
+	final static class ChatCompletionsRequestReasoning {
+
+		private ChatCompletionsRequestReasoningEffort effort;
+
+		private String summary;
+
+		@JsonProperty("effort")
+		public ChatCompletionsRequestReasoningEffort getEffort() {
+			return this.effort;
+		}
+
+		public void setEffort(final ChatCompletionsRequestReasoningEffort effort) {
+			this.effort = effort;
+		}
+
+		@JsonProperty("summary")
+		public String getSummary() {
+			return this.summary;
+		}
+
+		public void setSummary(final String summary) {
+			this.summary = summary;
+		}
+
 	}
-	
-	public void setTopP(final Double topP) {
-		this.topP = topP;
+
+	static enum ChatCompletionsRequestReasoningEffort {
+		minimal, low, medium, high
 	}
-	
-	@JsonProperty("stream")
-	public Boolean isStream() {
-		return this.stream;
+
+	static enum ChatCompletionsRequestReasoningSummaryDetails {
+		auto, concise, detailed
 	}
-	
-	public void setStream(final Boolean stream) {
-		this.stream = stream;
-	}
-	
-	@JsonProperty("stream_options")
-	public ChatCompletionStreamOptions getStreamOptions() {
-		return streamOptions;
-	}
-	
-	public void setStreamOptions(ChatCompletionStreamOptions streamOptions) {
-		this.streamOptions = streamOptions;
-	}
-	
+
 }

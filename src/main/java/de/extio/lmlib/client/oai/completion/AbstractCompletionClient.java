@@ -15,12 +15,17 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 
+import de.extio.lmlib.client.Chunk;
+import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
+import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.oai.ModelNameSupplier;
 import de.extio.lmlib.profile.ModelCategory;
@@ -28,6 +33,7 @@ import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.profile.ModelProfileService;
 import de.extio.lmlib.token.Tokenizer;
+import reactor.util.retry.Retry;
 
 public abstract class AbstractCompletionClient implements Client, DisposableBean {
 	
@@ -52,28 +58,30 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 	protected final CompletionStatistics totalStatistics = new CompletionStatistics();
 	
 	protected final ObjectMapper objectMapper;
-
+	
 	public AbstractCompletionClient() {
-		this.objectMapper = new ObjectMapper();
-		this.objectMapper.configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false);
-		this.objectMapper.configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false);
-		this.objectMapper.configure(DeserializationFeature.FAIL_ON_MISSING_EXTERNAL_TYPE_ID_PROPERTY, false);
-		this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-		this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNRESOLVED_OBJECT_IDS, false);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_MISSING_VALUES, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_NON_NUMERIC_NUMBERS, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_TRAILING_COMMA, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_CONTROL_CHARS, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_YAML_COMMENTS, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_LEADING_DECIMAL_POINT_FOR_NUMBERS, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_LEADING_PLUS_SIGN_FOR_NUMBERS, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_TRAILING_DECIMAL_POINT_FOR_NUMBERS, true);
-		this.objectMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+		this.objectMapper = JsonMapper.builder()
+				.configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false)
+				.configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
+				.configure(DeserializationFeature.FAIL_ON_MISSING_EXTERNAL_TYPE_ID_PROPERTY, false)
+				.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+				.configure(DeserializationFeature.FAIL_ON_UNRESOLVED_OBJECT_IDS, false)
+				.serializationInclusion(JsonInclude.Include.NON_NULL)
+				.enable(JsonReadFeature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER)
+				.enable(JsonReadFeature.ALLOW_JAVA_COMMENTS)
+				.enable(JsonReadFeature.ALLOW_MISSING_VALUES)
+				.enable(JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS)
+				.enable(JsonReadFeature.ALLOW_SINGLE_QUOTES)
+				.enable(JsonReadFeature.ALLOW_TRAILING_COMMA)
+				.enable(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS)
+				.enable(JsonReadFeature.ALLOW_YAML_COMMENTS)
+				.enable(JsonReadFeature.ALLOW_LEADING_DECIMAL_POINT_FOR_NUMBERS)
+				.enable(JsonReadFeature.ALLOW_LEADING_PLUS_SIGN_FOR_NUMBERS)
+				.enable(JsonReadFeature.ALLOW_TRAILING_DECIMAL_POINT_FOR_NUMBERS)
+				.enable(JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES)
+				.build();
 	}
-
+	
 	@Override
 	public Completion completion(final ModelCategory modelCategory, final String system, final String text) {
 		return this.conversation(modelCategory, Conversation.create(system, text));
@@ -85,7 +93,7 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 	}
 	
 	@Override
-	public Completion streamConversation(final ModelCategory modelCategory_, final Conversation conversation, final Consumer<String> chunkConsumer) {
+	public Completion streamConversation(final ModelCategory modelCategory_, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
 		final ModelCategory modelCategory = (modelCategory_ == null) ? ModelCategory.MEDIUM : modelCategory_;
 		final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile());
 		if (modelProfile == null || (modelProfile.modelProvider() != ModelProvider.OAI_TEXT_COMPLETION && modelProfile.modelProvider() != ModelProvider.OAI_CHAT_COMPLETION)) {
@@ -95,7 +103,33 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 		return this.requestCompletion(conversation, modelCategory, modelProfile, chunkConsumer);
 	}
 	
-	protected abstract Completion requestCompletion(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final Consumer<String> chunkConsumer);
+	protected abstract Completion requestCompletion(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer);
+	
+	protected CompletionFinishReason mapFinishReason(final String finishReason) {
+		return switch (finishReason) {
+			case FinishReasons.FINISH_REASON_CONTENT_FILTER -> CompletionFinishReason.CONTENT_FILTERED;
+			case FinishReasons.FINISH_REASON_LENGTH -> CompletionFinishReason.TOKEN_LIMIT_REACHED;
+			default -> CompletionFinishReason.DONE;
+		};
+	}
+	
+	protected Retry createRetrySpec() {
+		return Retry.backoff(99, Duration.ofSeconds(1))
+				.maxBackoff(Duration.ofSeconds(10))
+				.jitter(0.25d)
+				.filter(throwable -> {
+					return throwable instanceof java.io.IOException || throwable instanceof java.net.ConnectException || throwable instanceof java.net.http.HttpTimeoutException;
+				})
+				.doAfterRetry(rs -> LOGGER.warn("Retrying failed request: " + rs.failure().getClass().getName() + " " + rs.failure().getMessage()));
+	}
+	
+	protected void configureStreamOptions(final boolean enableStreaming, final Consumer<StreamOptions> streamOptionsConsumer) {
+		if (enableStreaming) {
+			final var streamOptions = new StreamOptions();
+			streamOptions.setIncludeUsage(true);
+			streamOptionsConsumer.accept(streamOptions);
+		}
+	}
 	
 	protected de.extio.lmlib.client.CompletionStatistics createCompletionStatistics(final ModelProfile modelProfile, final LocalDateTime start, final Usage usage, final String prompt, final String response) {
 		int inTokens = 0;

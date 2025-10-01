@@ -1,6 +1,5 @@
 package de.extio.lmlib.client.oai.completion.chat;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -16,17 +15,15 @@ import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 
+import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Completion;
-import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.oai.completion.AbstractCompletionClient;
-import de.extio.lmlib.client.oai.completion.FinishReasons;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import reactor.core.publisher.Mono;
-import reactor.util.retry.Retry;
 
 @Component
 public class ChatCompletionClient extends AbstractCompletionClient {
@@ -43,7 +40,7 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 	}
 	
 	@Override
-	protected Completion requestCompletion(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final Consumer<String> chunkConsumer) {
+	protected Completion requestCompletion(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer) {
 		final var chat = createChats(conversation, modelProfile);
 		
 		final var request = new ChatCompletionRequest();
@@ -53,13 +50,37 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		request.setMaxCompletionTokens(modelProfile.maxTokens());
 		request.setTemperature(modelProfile.temperature());
 		request.setTopP(modelProfile.topP());
-		if (chunkConsumer == null) {
-			request.setStream(false);
+		request.setStream(chunkConsumer != null);
+		if (chunkConsumer != null) {
+			this.configureStreamOptions(true, request::setStreamOptions);
 		}
-		else {
-			request.setStream(true);
-			request.setStreamOptions(new ChatCompletionStreamOptions());
-			request.getStreamOptions().setIncludeUsage(true);
+		if (modelProfile.reasoningEffort() != null && !modelProfile.reasoningEffort().isBlank()) {
+			request.setReasoning(new ChatCompletionRequest.ChatCompletionsRequestReasoning());
+			try {
+				request.getReasoning().setEffort(ChatCompletionRequest.ChatCompletionsRequestReasoningEffort.valueOf(modelProfile.reasoningEffort()));
+			}
+			catch (final IllegalArgumentException e) {
+				throw new IllegalArgumentException("Invalid reasoning effort in the model profile: " + modelProfile.reasoningEffort(), e);
+			}
+		}
+		if (modelProfile.reasoningSummaryDetails() != null && !modelProfile.reasoningSummaryDetails().isBlank()) {
+			if (request.getReasoning() == null) {
+				request.setReasoning(new ChatCompletionRequest.ChatCompletionsRequestReasoning());
+			}
+			try {
+				request.getReasoning().setSummary(ChatCompletionRequest.ChatCompletionsRequestReasoningSummaryDetails.valueOf(modelProfile.reasoningSummaryDetails()).name());
+			}
+			catch (final IllegalArgumentException e) {
+				throw new IllegalArgumentException("Invalid reasoning summary details in the model profile: " + modelProfile.reasoningSummaryDetails(), e);
+			}
+		}
+		
+		String requestBody;
+		try {
+			requestBody = this.objectMapper.writeValueAsString(request);
+		}
+		catch (final JsonProcessingException e) {
+			throw new IllegalStateException("Cannot serialize request body", e);
 		}
 		
 		LOGGER.debug("Requesting chat completion at {}", modelProfile.url());
@@ -70,19 +91,25 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 				.method(HttpMethod.POST)
 				.uri(uriBuilder -> uriBuilder.path("/v1/chat/completions").build())
 				.header("Content-Type", "application/json")
-				.bodyValue(request)
+				.bodyValue(requestBody)
 				.exchangeToMono(clientResponse -> {
+					if (clientResponse.statusCode().isError()) {
+						return clientResponse.bodyToMono(String.class)
+								.flatMap(errorBody -> Mono.error(new IllegalStateException("Error response from server: " + clientResponse.statusCode() + " - " + errorBody)));
+					}
+					
 					if (chunkConsumer == null) {
 						return clientResponse.bodyToMono(ChatCompletionResponse.class);
 					}
 					else {
 						final var chatCompletionResponse = new ChatCompletionResponse();
 						chatCompletionResponse.setChoices(List.of(new ChatChoice()));
-						final StringBuilder contenStringBuilder = new StringBuilder();
+						final StringBuilder contentStringBuilder = new StringBuilder();
+						final StringBuilder reasoningStringBuilder = new StringBuilder();
 						return clientResponse.bodyToFlux(String.class)
 								.doOnNext(buffer -> {
 									try {
-										if (! "[DONE]".equals(buffer)) {
+										if (!"[DONE]".equals(buffer)) {
 											final var streamResponse = this.objectMapper.readValue(buffer, ChatCompletionResponse.class);
 											
 											if (streamResponse.getId() != null && !streamResponse.getId().isEmpty()) {
@@ -101,9 +128,20 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 												if (streamResponse.getChoices().getFirst().getFinishReason() != null) {
 													chatCompletionResponse.getChoices().getFirst().setFinishReason(streamResponse.getChoices().getFirst().getFinishReason());
 												}
-												if (streamResponse.getChoices().getFirst().getMessage() != null && streamResponse.getChoices().getFirst().getMessage().getContent() != null && !streamResponse.getChoices().getFirst().getMessage().getContent().isEmpty()) {
-													contenStringBuilder.append(streamResponse.getChoices().getFirst().getMessage().getContent());
-													chunkConsumer.accept(streamResponse.getChoices().getFirst().getMessage().getContent());
+												if (streamResponse.getChoices().getFirst().getMessage() != null) {
+													String content = null;
+													String reasoning = null;
+													if (streamResponse.getChoices().getFirst().getMessage().getContent() != null && !streamResponse.getChoices().getFirst().getMessage().getContent().isEmpty()) {
+														content = streamResponse.getChoices().getFirst().getMessage().getContent();
+														contentStringBuilder.append(content);
+													}
+													if (streamResponse.getChoices().getFirst().getMessage().getReasoningContent() != null && !streamResponse.getChoices().getFirst().getMessage().getReasoningContent().isEmpty()) {
+														reasoning = streamResponse.getChoices().getFirst().getMessage().getReasoningContent();
+														reasoningStringBuilder.append(reasoning);
+													}
+													if (content != null || reasoning != null) {
+														chunkConsumer.accept(new Chunk(content, reasoning));
+													}
 												}
 											}
 										}
@@ -113,27 +151,23 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 									}
 								})
 								.then(Mono.<ChatCompletionResponse> fromSupplier(() -> {
-									chatCompletionResponse.getChoices().getFirst().setMessage(new ChatMessage("assistant", contenStringBuilder.toString()));
+									chatCompletionResponse.getChoices().getFirst().setMessage(new ChatMessage("assistant", contentStringBuilder.toString(), reasoningStringBuilder.toString()));
 									return chatCompletionResponse;
 								}));
 					}
 				})
-				.retryWhen(Retry.backoff(99, Duration.ofSeconds(1)).maxBackoff(Duration.ofSeconds(10)).jitter(0.25d).doAfterRetry(rs -> LOGGER.warn("Request failed " + rs.failure().getMessage())))
+				.retryWhen(this.createRetrySpec())
 				.block();
 		
 		if (response.getChoices() == null || response.getChoices().isEmpty() || response.getChoices().getFirst().getMessage() == null) {
 			throw new IllegalStateException("No parseable response content from server");
 		}
-		
 		final var choice = response.getChoices().getFirst();
 		final var content = response.getChoices().getFirst().getMessage().getContent();
-		final var finishReason = switch (choice.getFinishReason()) {
-			case FinishReasons.FINISH_REASON_CONTENT_FILTER -> CompletionFinishReason.CONTENT_FILTERED;
-			case FinishReasons.FINISH_REASON_LENGTH -> CompletionFinishReason.TOKEN_LIMIT_REACHED;
-			default -> CompletionFinishReason.DONE;
-		};
+		final var reasoning = response.getChoices().getFirst().getMessage().getReasoningContent();
+		final var finishReason = this.mapFinishReason(choice.getFinishReason());
 		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), null, content);
-		return new Completion(content, finishReason, statistics);
+		return new Completion(content, reasoning, finishReason, statistics);
 	}
 	
 	private List<ChatMessage> createChats(final Conversation conversation, final ModelProfile modelProfile) {
@@ -165,7 +199,7 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 			
 			if (first && userTurn != null) {
 				if (systemTurn != null) {
-					chat.add(new ChatMessage("system", systemTurn.text()));
+					chat.add(new ChatMessage("system", systemTurn.text(), null));
 				}
 				if (this.addChatRequestMessage("user", userTurn.text(), tokens, chat, modelProfile)) {
 					break;
@@ -202,7 +236,7 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 			trimmed = true;
 		}
 		
-		chat.add(new ChatMessage(role, prompt));
+		chat.add(new ChatMessage(role, prompt, null));
 		
 		return trimmed;
 	}

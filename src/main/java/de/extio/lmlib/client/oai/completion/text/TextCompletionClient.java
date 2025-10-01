@@ -1,6 +1,5 @@
 package de.extio.lmlib.client.oai.completion.text;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -13,22 +12,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 
-import com.azure.ai.inference.models.ChatChoice;
 import com.fasterxml.jackson.core.JsonProcessingException;
 
+import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.oai.completion.AbstractCompletionClient;
-import de.extio.lmlib.client.oai.completion.FinishReasons;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.prompt.PromptStrategy;
 import de.extio.lmlib.prompt.PromptStrategyFactory;
 import reactor.core.publisher.Mono;
-import reactor.util.retry.Retry;
 
 @Component
 public class TextCompletionClient extends AbstractCompletionClient {
@@ -44,7 +41,7 @@ public class TextCompletionClient extends AbstractCompletionClient {
 	}
 	
 	@Override
-	protected Completion requestCompletion(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final Consumer<String> chunkConsumer) {
+	protected Completion requestCompletion(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer) {
 		final var promptStrategy = this.promptStrategyFactory.getStrategy(modelProfile.prompt());
 		if (promptStrategy == null) {
 			throw new IllegalArgumentException("Prompt strategy not found: " + modelProfile.prompt());
@@ -58,13 +55,17 @@ public class TextCompletionClient extends AbstractCompletionClient {
 		request.setMaxTokens(modelProfile.maxTokens());
 		request.setTemperature(modelProfile.temperature());
 		request.setTopP(modelProfile.topP());
-		if (chunkConsumer == null) {
-			request.setStream(false);
+		request.setStream(chunkConsumer != null);
+		if (chunkConsumer != null) {
+			this.configureStreamOptions(true, request::setStreamOptions);
 		}
-		else {
-			request.setStream(true);
-			request.setStreamOptions(new CompletionStreamOptions());
-			request.getStreamOptions().setIncludeUsage(true);
+		
+		String requestBody;
+		try {
+			requestBody = this.objectMapper.writeValueAsString(request);
+		}
+		catch (final JsonProcessingException e) {
+			throw new IllegalStateException("Cannot serialize request body", e);
 		}
 		
 		LOGGER.debug("Requesting completion at {}", modelProfile.url());
@@ -74,8 +75,13 @@ public class TextCompletionClient extends AbstractCompletionClient {
 				.method(HttpMethod.POST)
 				.uri(uriBuilder -> uriBuilder.path("/v1/completions").build())
 				.header("Content-Type", "application/json")
-				.bodyValue(request)
+				.bodyValue(requestBody)
 				.exchangeToMono(clientResponse -> {
+					if (clientResponse.statusCode().isError()) {
+						return clientResponse.bodyToMono(String.class)
+								.flatMap(errorBody -> Mono.error(new IllegalStateException("Error response from server: " + clientResponse.statusCode() + " - " + errorBody)));
+					}
+					
 					if (chunkConsumer == null) {
 						return clientResponse.bodyToMono(CompletionResponse.class);
 					}
@@ -116,7 +122,7 @@ public class TextCompletionClient extends AbstractCompletionClient {
 												}
 												if (streamResponse.getChoices().getFirst().getText() != null && !streamResponse.getChoices().getFirst().getText().isEmpty()) {
 													contentStringBuilder.append(streamResponse.getChoices().getFirst().getText());
-													chunkConsumer.accept(streamResponse.getChoices().getFirst().getText());
+													chunkConsumer.accept(new Chunk(streamResponse.getChoices().getFirst().getText(), null));
 												}
 											}
 										}
@@ -131,29 +137,32 @@ public class TextCompletionClient extends AbstractCompletionClient {
 								}));
 					}
 				})
-				.retryWhen(Retry.backoff(99, Duration.ofSeconds(1)).maxBackoff(Duration.ofSeconds(10)).jitter(0.25d).doAfterRetry(rs -> LOGGER.warn("Request failed " + rs.failure().getMessage())))
+				.retryWhen(this.createRetrySpec())
 				.block();
 		
 		String content = null;
+		String reasoning = null;
 		CompletionFinishReason finishReason = null;
 		if (response.getChoices() != null && !response.getChoices().isEmpty()) {
 			final var choice = response.getChoices().getFirst();
 			if (response.getChoices().getFirst().getText() != null) {
-				content = promptStrategy.removeEOT(choice.getText());
+				content = promptStrategy.getResponse(choice.getText());
+				reasoning = promptStrategy.getReasoning(choice.getText());
 			}
 			if (response.getChoices().getFirst().getFinishReason() != null) {
-				finishReason = switch (choice.getFinishReason()) {
-					case FinishReasons.FINISH_REASON_CONTENT_FILTER -> CompletionFinishReason.CONTENT_FILTERED;
-					case FinishReasons.FINISH_REASON_LENGTH -> CompletionFinishReason.TOKEN_LIMIT_REACHED;
-					default -> CompletionFinishReason.DONE;
-				};
+				finishReason = this.mapFinishReason(choice.getFinishReason());
 			}
 		}
 		if (content == null && response.getContent() != null) {
-			content = promptStrategy.removeEOT(response.getContent());
+			content = promptStrategy.getResponse(response.getContent());
+			reasoning = promptStrategy.getReasoning(response.getContent());
 		}
 		if (content == null) {
 			throw new IllegalStateException("No parseable response content from server");
+		}
+		content = promptStrategy.removeEOT(content);
+		if (reasoning != null) {
+			reasoning = promptStrategy.removeEOT(reasoning);
 		}
 		if (finishReason == null) {
 			if (response.isStoppedEos() != null) {
@@ -165,7 +174,7 @@ public class TextCompletionClient extends AbstractCompletionClient {
 		}
 		
 		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), prompt, response.getContent());
-		return new Completion(content, finishReason, statistics);
+		return new Completion(content, reasoning, finishReason, statistics);
 	}
 	
 	private String createPrompt(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final PromptStrategy promptStrategy) {

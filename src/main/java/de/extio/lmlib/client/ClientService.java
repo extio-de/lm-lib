@@ -69,7 +69,7 @@ public class ClientService {
 		}
 
 		@Override
-		public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation_, final Consumer<String> chunkConsumer) {
+		public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation_, final Consumer<Chunk> chunkConsumer) {
 			Conversation conversation = conversation_;
 			for (final var interceptor : this.completionInterceptors) {
 				conversation = interceptor.before(modelCategory, conversation);

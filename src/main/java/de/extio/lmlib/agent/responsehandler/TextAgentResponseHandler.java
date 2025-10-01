@@ -1,6 +1,7 @@
 package de.extio.lmlib.agent.responsehandler;
 
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -8,33 +9,32 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import de.extio.lmlib.agent.AgentContext;
+import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Completion;
 
 public class TextAgentResponseHandler implements StreamedAgentResponseHandler {
 	
-	public static final String UPDATE_KEY = "chunkUpdateKey";
-	
 	private static final Logger LOGGER = LoggerFactory.getLogger(TextAgentResponseHandler.class);
-
+	
 	private final String key;
 	
-	private final String chunkKey;
+	private final String reasoningKey;
 	
 	private final Function<String, String> transformer;
 	
 	private final Consumer<AgentContext> beforeStream;
-
-	private final Function<String, String> chunkTransformer;
-
-	private final Consumer<AgentContext> afterChunkUpdate;
+	
+	private final Function<Chunk, Chunk> chunkTransformer;
+	
+	private final BiConsumer<AgentContext, Chunk> afterChunkUpdate;
 	
 	public TextAgentResponseHandler(final String key) {
 		this(key, null, null, null, null);
 	}
 	
-	public TextAgentResponseHandler(final String key, final Function<String, String> transformer, final Consumer<AgentContext> beforeStream, final Function<String, String> chunkTransformer, final Consumer<AgentContext> afterChunkUpdate) {
+	public TextAgentResponseHandler(final String key, final Function<String, String> transformer, final Consumer<AgentContext> beforeStream, final Function<Chunk, Chunk> chunkTransformer, final BiConsumer<AgentContext, Chunk> afterChunkUpdate) {
 		this.key = key;
-		this.chunkKey = key.concat("_chunk");
+		this.reasoningKey = key.concat("_reasoning");
 		this.transformer = transformer;
 		this.beforeStream = beforeStream;
 		this.chunkTransformer = chunkTransformer;
@@ -44,7 +44,14 @@ public class TextAgentResponseHandler implements StreamedAgentResponseHandler {
 	@Override
 	public boolean handle(final Completion completion, final AgentContext context) {
 		var response = completion.response();
-		LOGGER.debug("Response: {}", response);
+		final var reasoning = completion.reasoning();
+		if (reasoning != null && !reasoning.isBlank()) {
+			context.setStringValue(this.reasoningKey, reasoning);
+			LOGGER.debug("Reasoning: {}; Response: {}", reasoning, response);
+		}
+		else {
+			LOGGER.debug("Response: {}", response);
+		}
 		if (this.transformer != null) {
 			response = this.transformer.apply(response);
 		}
@@ -55,24 +62,27 @@ public class TextAgentResponseHandler implements StreamedAgentResponseHandler {
 	@Override
 	public void beforeStream(final AgentContext context) {
 		context.setStringValue(this.key, "");
+		context.getContext().remove(this.reasoningKey);
 		if (this.beforeStream != null) {
 			this.beforeStream.accept(context);
 		}
 	}
 	
 	@Override
-	public boolean handleChunk(final String chunk_, final AgentContext context) {
+	public boolean handleChunk(final Chunk chunk_, final AgentContext context) {
 		var chunk = chunk_;
 		if (this.chunkTransformer != null) {
 			chunk = this.chunkTransformer.apply(chunk);
 		}
-		context.setStringValue(UPDATE_KEY, this.key);
 		if (afterChunkUpdate != null) {
-			context.setStringValue(this.chunkKey, chunk);
-			context.setStringValue(this.key, Objects.requireNonNullElse(context.getStringValue(this.key), "").concat(chunk));
-			afterChunkUpdate.accept(context);
-			context.getContext().remove(UPDATE_KEY);
-			context.getContext().remove(this.chunkKey);
+			if (chunk.content() != null) {
+				context.setStringValue(this.key, Objects.requireNonNullElseGet(context.getStringValue(this.key), () -> "").concat(chunk.content()));
+			}
+			if (chunk.reasoningContent() != null) {
+				context.setStringValue(this.reasoningKey, Objects.requireNonNullElseGet(context.getStringValue(this.reasoningKey), () -> "").concat(chunk.reasoningContent()));
+			}
+			
+			afterChunkUpdate.accept(context, chunk);
 		}
 		return true;
 	}

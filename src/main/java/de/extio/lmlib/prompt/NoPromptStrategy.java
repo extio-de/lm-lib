@@ -32,9 +32,4 @@ public class NoPromptStrategy implements PromptStrategy {
         prompt.append(user);
     }
     
-    @Override
-    public String removeEOT(final String prompt) {
-        return prompt;
-    }
-    
 }

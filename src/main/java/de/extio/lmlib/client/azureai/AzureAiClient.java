@@ -31,6 +31,8 @@ import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 import com.azure.core.http.policy.ExponentialBackoffOptions;
 import com.azure.core.http.policy.RetryOptions;
 
+import de.extio.lmlib.client.Chunk;
+import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.CompletionFinishReason;
@@ -91,7 +93,7 @@ public final class AzureAiClient implements Client {
 	}
 	
 	@Override
-	public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation, final Consumer<String> chunkConsumer) {
+	public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
 		throw new UnsupportedOperationException("Not implemented yet");
 	}
 	
@@ -199,7 +201,7 @@ public final class AzureAiClient implements Client {
 				false);
 		LOGGER.debug("{}", statistics);
 		
-		return new Completion(response.getChoice().getMessage().getContent(), finishReason, statistics);
+		return new Completion(response.getChoice().getMessage().getContent(), null, finishReason, statistics);
 	}
 	
 	private ChatCompletionsClient createHttpClient(final ModelCategory modelCategory, final ModelProfile modelProfile) {

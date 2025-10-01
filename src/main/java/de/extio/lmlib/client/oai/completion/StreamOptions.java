@@ -1,10 +1,10 @@
-package de.extio.lmlib.client.oai.completion.chat;
+package de.extio.lmlib.client.oai.completion;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public class ChatCompletionStreamOptions {
+public class StreamOptions {
 
-    private boolean includeUsage;
+    protected boolean includeUsage;
 
     @JsonProperty("include_usage")
     public boolean isIncludeUsage() {

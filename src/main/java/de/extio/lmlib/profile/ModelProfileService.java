@@ -85,8 +85,14 @@ public class ModelProfileService {
 					.map(value -> new BigDecimal(value))
 					.orElse(BigDecimal.ZERO)
 					.divide(new BigDecimal(1000000.0));
+			final var reasoningEffort = Optional.ofNullable(resource.getProperty("reasoningEffort"))
+					.map(Object::toString)
+					.orElse(null);
+			final var reasoningSummaryDetails = Optional.ofNullable(resource.getProperty("reasoningSummaryDetails"))
+					.map(Object::toString)
+					.orElse(null);
 			
-			//To resolve api key placeholder ${exchangeautodocumentation.azure.apikey} in model-name.properties file
+			//To resolve api key placeholder ${apikey} in model-name.properties file
 			String apiKey = null;
 			synchronized (this.environment) {
 				if (this.environment instanceof final ConfigurableEnvironment configurableEnvironment) {
@@ -97,7 +103,7 @@ public class ModelProfileService {
 						.orElseThrow(() -> new IllegalStateException("No model apiKey found for model: " + modelName));
 			}
 			
-			return new ModelProfile(promptTemplate, tokenEncoding, maxTokens, maxContextLength, temperature, topP, modelProvider, modelNameCfg, url, apiKey, costInToken, costOutToken);
+			return new ModelProfile(promptTemplate, tokenEncoding, maxTokens, maxContextLength, temperature, topP, modelProvider, modelNameCfg, url, apiKey, costInToken, costOutToken, reasoningEffort, reasoningSummaryDetails);
 		}
 		catch (final IOException e) {
 			LOGGER.error("Error while reading model profile", e);

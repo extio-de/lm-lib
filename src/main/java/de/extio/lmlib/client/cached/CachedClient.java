@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.CompletionFinishReason;
@@ -44,10 +45,10 @@ public class CachedClient implements Client {
 	}
 
 	@Override
-	public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation, final Consumer<String> chunkConsumer) {
+	public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
 		final var response = this.getCachedResponse(modelCategory, () -> this.client.streamConversation(modelCategory, conversation, chunkConsumer), conversation.getConversation().toString());
 		if (response.statistics().cached()) {
-			chunkConsumer.accept(response.response());
+			chunkConsumer.accept(new Chunk(response.response(), response.reasoning()));
 		}
 		return response;
 	}
@@ -62,12 +63,12 @@ public class CachedClient implements Client {
 		
 		final var cachedCompletion = this.cacheRepository.get(key);
 		if (cachedCompletion != null) {
-			return new Completion(cachedCompletion.response(), CompletionFinishReason.DONE, new CompletionStatistics(0, Duration.ZERO, cachedCompletion.inTokens(), cachedCompletion.outTokens(), BigDecimal.ZERO, true));
+			return new Completion(cachedCompletion.response(), cachedCompletion.reasoning(), CompletionFinishReason.DONE, new CompletionStatistics(0, Duration.ZERO, cachedCompletion.inTokens(), cachedCompletion.outTokens(), BigDecimal.ZERO, true));
 		}
 		
 		final var completion = supplier.get();
 		if (completion != null) {
-			this.cacheRepository.put(key, new CachedCompletion(completion.response(), completion.finishReason(), completion.statistics().inTokens(), completion.statistics().outTokens(), OffsetDateTime.now()));
+			this.cacheRepository.put(key, new CachedCompletion(completion.response(), completion.reasoning(), completion.finishReason(), completion.statistics().inTokens(), completion.statistics().outTokens(), OffsetDateTime.now()));
 		}
 		return completion;
 	}

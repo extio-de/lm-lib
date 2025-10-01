@@ -15,7 +15,7 @@ public interface Client {
 	
 	Completion conversation(ModelCategory modelCategory, Conversation conversation);
 
-	Completion streamConversation(ModelCategory modelCategory, Conversation conversation, Consumer<String> chunkConsumer);
+	Completion streamConversation(ModelCategory modelCategory, Conversation conversation, Consumer<Chunk> chunkConsumer);
 	
 	ModelProvider getModelProvider();
 }

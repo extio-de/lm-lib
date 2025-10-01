@@ -4,46 +4,11 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import de.extio.lmlib.client.oai.completion.Usage;
+import de.extio.lmlib.client.oai.completion.AbstractCompletionResponse;
 
-final class ChatCompletionResponse {
-	
-	private String id;
-	
-	private String object;
-	
-	private Integer created;
+final class ChatCompletionResponse extends AbstractCompletionResponse {
 	
 	private List<ChatChoice> choices;
-	
-	private Usage usage;
-
-	@JsonProperty("id")
-	public String getId() {
-		return this.id;
-	}
-	
-	public void setId(final String id) {
-		this.id = id;
-	}
-	
-	@JsonProperty("object")
-	public String getObject() {
-		return this.object;
-	}
-	
-	public void setObject(final String object) {
-		this.object = object;
-	}
-	
-	@JsonProperty("created")
-	public Integer getCreated() {
-		return this.created;
-	}
-	
-	public void setCreated(final Integer created) {
-		this.created = created;
-	}
 	
 	@JsonProperty("choices")
 	public List<ChatChoice> getChoices() {
@@ -52,15 +17,6 @@ final class ChatCompletionResponse {
 	
 	public void setChoices(final List<ChatChoice> choices) {
 		this.choices = choices;
-	}
-		
-	@JsonProperty("usage")
-	public Usage getUsage() {
-		return usage;
-	}
-
-	public void setUsage(final Usage usage) {
-		this.usage = usage;
 	}
 
 	@Override

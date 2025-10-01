@@ -8,14 +8,17 @@ final class ChatMessage {
     
     private String content;
     
+    private String reasoningContent;
+    
     public ChatMessage() {
     }
     
-    public ChatMessage(final String role, final String content) {
+    public ChatMessage(final String role, final String content, final String reasoningContent) {
         this.role = role;
         this.content = content;
+        this.reasoningContent = reasoningContent;
     }
-
+    
     @JsonProperty("role")
     public String getRole() {
         return role;
@@ -34,4 +37,12 @@ final class ChatMessage {
         this.content = content;
     }
     
+    @JsonProperty("reasoning_content")
+    public String getReasoningContent() {
+        return reasoningContent;
+    }
+    
+    public void setReasoningContent(final String reasoningContent) {
+        this.reasoningContent = reasoningContent;
+    }
 }

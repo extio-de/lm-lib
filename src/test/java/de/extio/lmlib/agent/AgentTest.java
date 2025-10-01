@@ -29,7 +29,7 @@ import de.extio.lmlib.profile.ModelCategory;
 import io.netty.util.internal.ThreadLocalRandom;
 
 /**
- * These tests have been verified with Llama 3.1 8B and Gemma2 27B models
+ * These tests have been verified with Llama 3.1 8B, Gemma2 27B, Gemma3 27B and GPT-OSS models
  */
 @Disabled("This test requires a running Llama server or an Azure subscription (setup azure key in model profile)")
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
@@ -137,11 +137,14 @@ public class AgentTest {
 								null,
 								null,
 								null,
-								context -> {
-									if ("summary".equals(context.getStringValue(TextAgentResponseHandler.UPDATE_KEY))) { // UPDATE_KEY helps you to identify the streamed chunk
-										System.out.print(context.getStringValue("summary_chunk")); // Single chunks can be accessed via _chunk suffix, depends on the StreamedAgentResponseHandler implementation
-										lastStreamedSummary.set(context.getStringValue("summary")); // The current key value can also be accessed (e.g. concatenated, depends on the StreamedAgentResponseHandler implementation)
-									}									
+								(context, chunk) -> {
+									if (chunk.content() != null) { // Since chunk can contain both content and reasoning content, we check for null
+										context.setStringValue("summary_chunk", chunk.content());
+									}
+									if (chunk.reasoningContent() != null) {
+										// System.out.print(chunk.reasoningContent()); // The reasoning can also be accessed if available
+									}
+									lastStreamedSummary.set(context.getStringValue("summary")); // The current key value can also be accessed (e.g. concatenated, depends on the StreamedAgentResponseHandler implementation)
 								}
 						),
 						null,
@@ -157,6 +160,7 @@ public class AgentTest {
 		
 		final var resultContexts = this.agentExecutor.walk(agents.get("CodeSummarizer"), context, contextUpdate -> {
 			// This is an optional consumer that can be used to receive updates from the agent context
+			System.out.print(contextUpdate.getStringValue("summary_chunk"));
 		});
 		
 		assertEquals(1, resultContexts.size());

@@ -2,30 +2,11 @@ package de.extio.lmlib.client.oai.completion.text;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-final class CompletionRequest {
-	
-	private String model;
+import de.extio.lmlib.client.oai.completion.AbstractCompletionRequest;
+
+final class CompletionRequest extends AbstractCompletionRequest {
 	
 	private String prompt;
-	
-	private Integer maxTokens;
-	
-	private Double temperature;
-	
-	private Double topP;
-	
-	private Boolean stream;
-	
-	private CompletionStreamOptions streamOptions;
-	
-	@JsonProperty("model")
-	public String getModel() {
-		return this.model;
-	}
-	
-	public void setModel(final String model) {
-		this.model = model;
-	}
 	
 	@JsonProperty("prompt")
 	public String getPrompt() {
@@ -34,50 +15,5 @@ final class CompletionRequest {
 	
 	public void setPrompt(final String prompt) {
 		this.prompt = prompt;
-	}
-	
-	@JsonProperty("max_tokens")
-	public Integer getMaxTokens() {
-		return this.maxTokens;
-	}
-	
-	public void setMaxTokens(final Integer maxTokens) {
-		this.maxTokens = maxTokens;
-	}
-	
-	@JsonProperty("temperature")
-	public Double getTemperature() {
-		return this.temperature;
-	}
-	
-	public void setTemperature(final Double temperature) {
-		this.temperature = temperature;
-	}
-	
-	@JsonProperty("top_p")
-	public Double getTopP() {
-		return this.topP;
-	}
-	
-	public void setTopP(final Double topP) {
-		this.topP = topP;
-	}
-	
-	@JsonProperty("stream")
-	public Boolean isStream() {
-		return this.stream;
-	}
-	
-	public void setStream(final Boolean stream) {
-		this.stream = stream;
-	}
-	
-	@JsonProperty("stream_options")
-	public CompletionStreamOptions getStreamOptions() {
-		return streamOptions;
-	}
-	
-	public void setStreamOptions(final CompletionStreamOptions streamOptions) {
-		this.streamOptions = streamOptions;
 	}
 }

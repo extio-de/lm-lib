@@ -1,6 +1,7 @@
 package de.extio.lmlib.client.oai;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalDateTime;
@@ -45,10 +46,11 @@ public class CompletionClientTest {
 	@Test
 	void completion() throws Exception {
 		final var completion = this.textCompletionClient.completion(
-				null,
+				ModelCategory.SMALL,
 				"You are a helpful assistant",
 				"Say the color is green");
 		
+		LOGGER.info(completion.reasoning());
 		LOGGER.info(completion.response());
 		
 		assertTrue(Grader.assessScoreBinary("Does the text mention the color green?", completion.response(), this.chatCompletionclient));
@@ -61,6 +63,7 @@ public class CompletionClientTest {
 		conversation.addTurn(new Turn(TurnType.USER, "You choose!"));
 		final var completion = this.textCompletionClient.conversation(ModelCategory.SMALL, conversation);
 		
+		LOGGER.info(completion.reasoning());
 		LOGGER.info(completion.response());
 		
 		assertTrue(Grader.assessScoreBinary("Does the text mention a color?", completion.response(), this.chatCompletionclient));
@@ -73,11 +76,24 @@ public class CompletionClientTest {
 		conversation.addTurn(new Turn(TurnType.USER, "You choose! But I need you to explain the character attributes to me."));
 		final StringBuilder sb = new StringBuilder();
 		final var completion = this.textCompletionClient.streamConversation(ModelCategory.SMALL, conversation, chunk -> {
-			System.out.print(chunk);
-			sb.append(chunk);
+			if (chunk.reasoningContent() != null) {
+				System.out.print(chunk.reasoningContent());
+			}
+			if (chunk.content() != null) {
+				System.out.print(chunk.content());
+				sb.append(chunk.content());
+			}
 		});
 		
-		assertEquals(completion.response(), sb.toString());
+		if (completion.reasoning() != null) {
+			// Prompt template does not separate reasoning and response from the stream at the moment
+			assertTrue(sb.toString().contains(completion.reasoning()));
+			assertTrue(sb.toString().contains(completion.response()));
+			assertFalse(completion.response().contains(completion.reasoning()));
+		}
+		else {
+			assertEquals(completion.response(), sb.toString());
+		}
 		assertTrue(Grader.assessScoreBinary("Does the text mention a role-playing game character?", completion.response(), this.chatCompletionclient));
 	}
 	
@@ -88,6 +104,7 @@ public class CompletionClientTest {
 		conversation.addTurn(new Turn(TurnType.USER, "You choose!"));
 		final var completion = this.chatCompletionclient.conversation(ModelCategory.MEDIUM, conversation);
 		
+		LOGGER.info(completion.reasoning());
 		LOGGER.info(completion.response());
 		
 		assertTrue(Grader.assessScoreBinary("Does the text mention a color?", completion.response(), this.chatCompletionclient));
@@ -100,8 +117,13 @@ public class CompletionClientTest {
 		conversation.addTurn(new Turn(TurnType.USER, "You choose! But I need you to explain the opening to me."));
 		final StringBuilder sb = new StringBuilder();
 		final var completion = this.chatCompletionclient.streamConversation(ModelCategory.MEDIUM, conversation, chunk -> {
-			System.out.print(chunk);
-			sb.append(chunk);
+			if (chunk.reasoningContent() != null) {
+				System.out.print(chunk.reasoningContent());
+			}
+			if (chunk.content() != null) {
+				System.out.print(chunk.content());
+				sb.append(chunk.content());
+			}
 		});
 		
 		assertEquals(completion.response(), sb.toString());

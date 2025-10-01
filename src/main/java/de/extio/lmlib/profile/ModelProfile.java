@@ -14,7 +14,9 @@ public record ModelProfile(
 		String url,
 		String apiKey,
 		BigDecimal costInToken,
-		BigDecimal costOutToken) {
+		BigDecimal costOutToken,
+		String reasoningEffort,
+		String reasoningSummaryDetails) {
 	
 	public static enum ModelProvider {
 		AZURE_AI, OAI_TEXT_COMPLETION, OAI_CHAT_COMPLETION;
