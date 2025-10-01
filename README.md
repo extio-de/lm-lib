@@ -246,21 +246,28 @@ Utility helper supplied: `BaseAgent.mergeContexts(keys, contexts)` merges list-v
 
 ## Execution Graph Legend
 
-The `graph` in `AgentContext` accumulates symbols documenting flow:
+The `graph` in `AgentContext` accumulates symbols documenting the execution flow. These symbols provide a visual trace of the agent pipeline, showing model usage, branching/merging, and any issues encountered:
 
 | Symbol | Meaning |
 |--------|---------|
-| `M` / `S` / `L` / ... | Model category short name |
-| Agent name | Executed agent identifier |
-| `○` | Completion skipped (`skipNextCompletion` or processing-only) |
-| `⇉ x/n` | Branch split index x of n |
-| `size↣merged` | Result of merge phase (e.g., `5↣1`) |
-| `→` | Next agent of type COMPLETION |
-| `🗨` | Next agent starts new conversation |
-| `↴` | Continue conversation (assistant turn appended if missing) |
-| `✓` / `✗` | Grading pass/fail (if `AgentNext.gradingPassed()` present) |
-| `⚠` | Parse attempt failed (retry followed) |
-| `☢` | Fatal parse failure / unknown agent / not found |
+| `M` / `S` / `L` / `HOT` / `COLD` | Model category short name (Medium, Small, Large, Hot, Cold) |
+| Agent name | Name of the executed agent (e.g., `CodeSummarizer`, `BlogPostAgent`) |
+| `○` | Completion skipped (either `skipNextCompletion` flag or `PROCESSING_ONLY` agent type) |
+| `⇉ x/n` | Branch split index x of n (parallel execution from template placeholder branching) |
+| `size↣merged` | Result of merge phase showing input→output count (e.g., `5↣1` means 5 contexts merged into 1) |
+| `→` | Next agent is of type `COMPLETION` (stateless single-shot, conversation cleared) |
+| `🗨` | Next agent starts a new conversation (conversation history cleared) |
+| `↴` | Continue existing conversation (assistant turn appended if missing, maintains context) |
+| `✓` / `✗` | Grading result (pass/fail) when `AgentNext.gradingPassed()` is present |
+| `⚠` | Parse attempt failed (retry will follow, max 2 attempts total) |
+| `☢` | Fatal error: parse failure after all retries, unknown agent, or agent not found |
+| `‖` | Agent execution continuation (appears when calling `walk()` on a non-empty graph) |
+
+**Example graph trace:**
+```
+M, CodeSummarizer, ↴, M, FeatureIdentifier, →, ⇉ 1/5, M, FeatureAnalyzer, 5↣1, →, M, AnswerGenerator
+```
+This shows: Medium model used for CodeSummarizer → conversation continued to FeatureIdentifier → branches into 5 parallel splits → each split analyzed with FeatureAnalyzer → merged back to 1 context → final answer generated.
 
 ## Retry & Parse Handling
 
