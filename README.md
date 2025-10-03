@@ -29,13 +29,6 @@ To keep this library lean and compatible with different dependency trees, all de
 
 ## Optional dependencies
 
-TextUtils require commons-lang3
-
-    <dependency>
-        <groupId>org.apache.commons</groupId>
-        <artifactId>commons-lang3</artifactId>
-    </dependency>
-
 Some services benefit from Spring cache framework, e.g. the model profile service:
 
     <dependency>

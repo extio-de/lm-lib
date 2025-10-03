@@ -3,10 +3,13 @@ package de.extio.lmlib.util;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
 
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 
 public class TextUtils {
 	
@@ -53,24 +56,53 @@ public class TextUtils {
 	}
 	
 	public static String normalizeModelResponse(final String response, final boolean removePreamble) {
-		if (response == null) {	
+		if (response == null) {
 			return null;
 		}
-
-		var result = StringUtils.replace(response, "\r", "");
+		
+		String result = response.replace("\r", "");
 		
 		if (removePreamble) {
 			final int colon = result.indexOf(':');
-			if (colon > -1 && colon < result.length() - 2 && (colon < 50 || result.charAt(colon + 1) == '\n')) {
+			final int dot = result.indexOf('.');
+			int firstLineEnd = result.indexOf('\n');
+			final boolean colonInFirstLine = firstLineEnd == -1 || colon != -1 && colon < firstLineEnd;
+			final boolean dotInFirstLine = firstLineEnd == -1 || dot != -1 && dot < firstLineEnd;
+			
+			if (colon > -1 && colon < result.length() - 2 && (colon < 50 || result.charAt(colon + 1) == '\n') && colonInFirstLine && !dotInFirstLine) {
 				result = result.substring(colon + 1);
+			}
+			firstLineEnd = result.indexOf('\n');
+			if (firstLineEnd != -1) {
+				String firstLine = result.substring(0, firstLineEnd);
+				firstLine = stripChars(firstLine.trim(), "*#´`'“”„‟«»\"\n");
+				result = firstLine + result.substring(firstLineEnd);
+			}
+			else {
+				result = stripChars(result, "*#´`'“”„‟«»\"\n");
 			}
 		}
 		
-		result = StringUtils.trim(result);
-		result = StringUtils.strip(result, "*#´`'“”„‟«»\"\n");
-		result = StringUtils.trim(result);
+		result = result.trim();
+		if (!removePreamble) {
+			result = stripChars(result, "´`'“”„‟«»\"\n");
+		}
+		result = result.trim();
 		
 		return result;
+	}
+	
+	private static String stripChars(final String str, final String chars) {
+		if (str == null || str.isEmpty())
+			return str;
+		int start = 0, end = str.length();
+		
+		while (start < end && chars.indexOf(str.charAt(start)) >= 0)
+			start++;
+		while (end > start && chars.indexOf(str.charAt(end - 1)) >= 0)
+			end--;
+		
+		return str.substring(start, end);
 	}
 	
 	public static List<String> splitParagraphs(final String text, final int chunks_norm, final int chunks_var, final boolean slidingWindows) {
@@ -136,4 +168,27 @@ public class TextUtils {
 		return splits;
 	}
 	
+	public static String capitalizeWords(final String input) {
+		final String[] words = input.split(" ");
+		final StringBuilder capitalizedWords = new StringBuilder();
+		
+		for (final String word : words) {
+			if (!word.isEmpty()) {
+				capitalizedWords.append(Character.toUpperCase(word.charAt(0)))
+						.append(word.substring(1).toLowerCase())
+						.append(" ");
+			}
+		}
+		return capitalizedWords.toString().trim();
+	}
+	
+	private static final LoadingCache<String, Pattern> wholeWordRegexCache = Caffeine.newBuilder()
+			.maximumSize(1000)
+			.build(regex -> Pattern.compile(regex, Pattern.CASE_INSENSITIVE));
+	
+	public static boolean matchWholeWordCaseInsensitive(final String text, final String word) {
+		final String regex = "\\b" + Pattern.quote(word) + "\\b";
+		final Pattern pattern = wholeWordRegexCache.get(regex);
+		return pattern.matcher(text).find();
+	}
 }
