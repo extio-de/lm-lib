@@ -89,7 +89,11 @@ public final class AgentContext {
 	}
 	
 	public void setStringValue(final String key, final String value) {
-		this.context.put(key, List.of(value));
+		if (value == null) {
+			this.context.remove(key);
+		} else {
+			this.context.put(key, List.of(value));
+		}
 	}
 	
 	public List<String> getStringValues(final String key) {
