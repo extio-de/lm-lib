@@ -191,4 +191,52 @@ public class TextUtils {
 		final Pattern pattern = wholeWordRegexCache.get(regex);
 		return pattern.matcher(text).find();
 	}
+	
+	public static int levenshteinDistance(final String s1, final String s2) {
+		if (s1 == null || s2 == null) {
+			throw new IllegalArgumentException("Strings must not be null");
+		}
+		
+		final int len1 = s1.length();
+		final int len2 = s2.length();
+		
+		if (len1 == 0) {
+			return len2;
+		}
+		if (len2 == 0) {
+			return len1;
+		}
+		
+		final int[] prev = new int[len2 + 1];
+		final int[] curr = new int[len2 + 1];
+		
+		for (int j = 0; j <= len2; j++) {
+			prev[j] = j;
+		}
+		
+		for (int i = 1; i <= len1; i++) {
+			curr[0] = i;
+			for (int j = 1; j <= len2; j++) {
+				final int cost = s1.charAt(i - 1) == s2.charAt(j - 1) ? 0 : 1;
+				curr[j] = Math.min(Math.min(curr[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost);
+			}
+			System.arraycopy(curr, 0, prev, 0, len2 + 1);
+		}
+		
+		return prev[len2];
+	}
+	
+	public static double levenshteinSimilarity(final String s1, final String s2) {
+		if (s1 == null || s2 == null) {
+			return 0.0;
+		}
+		
+		final int maxLength = Math.max(s1.length(), s2.length());
+		if (maxLength == 0) {
+			return 1.0;
+		}
+		
+		final int distance = levenshteinDistance(s1, s2);
+		return 1.0 - ((double) distance / maxLength);
+	}
 }

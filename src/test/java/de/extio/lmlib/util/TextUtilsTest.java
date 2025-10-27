@@ -237,6 +237,108 @@ public class TextUtilsTest {
 		}
 	}
 	
+	@ParameterizedTest
+	@CsvSource({
+			"'', '', 0",
+			"'abc', '', 3",
+			"'', 'abc', 3",
+			"'abc', 'abc', 0",
+			"'abc', 'def', 3",
+			"'cursed_sword', 'cursed_blade', 5",
+			"'main_quest', 'main_quests', 1",
+			"'betrayal', 'betrayel', 1",
+			"'dragon', 'wagon', 2",
+			"'kitten', 'sitting', 3",
+			"'saturday', 'sunday', 3",
+			"'prophecy_fulfilled', 'prophecy_fullfilled', 1",
+			"'dark_forest', 'deep_forest', 3"
+	})
+	void levenshteinDistanceTest(final String s1, final String s2, final int expectedDistance) {
+		final int distance = TextUtils.levenshteinDistance(s1, s2);
+		assertEquals(expectedDistance, distance);
+	}
+	
+	@ParameterizedTest
+	@CsvSource({
+			"'', '', 1.0",
+			"'abc', 'abc', 1.0",
+			"'abc', 'def', 0.0",
+			"'cursed_sword', 'cursed_blade', 0.5833333333333334",
+			"'main_quest', 'main_quests', 0.9",
+			"'betrayal', 'betrayel', 0.875",
+			"'dragon', 'wagon', 0.6666666666666667",
+			"'kitten', 'sitting', 0.5714285714285714",
+			"'saturday', 'sunday', 0.625",
+			"'prophecy_fulfilled', 'prophecy_fullfilled', 0.9444444444444444",
+			"'dark_forest', 'deep_forest', 0.72",
+			"'quest', 'quests', 0.8333333333333334",
+			"'npc_merchant', 'npc_merchent', 0.9166666666666666"
+	})
+	void levenshteinSimilarityTest(final String s1, final String s2, final double expectedSimilarity) {
+		final double similarity = TextUtils.levenshteinSimilarity(s1, s2);
+		assertEquals(expectedSimilarity, similarity, 0.01);
+	}
+	
+	@ParameterizedTest
+	@CsvSource({
+			"'main_quest', 'main_quests', 0.85, true",
+			"'betrayal', 'betrayel', 0.85, true",
+			"'dragon', 'wagon', 0.85, false",
+			"'cursed_sword', 'cursed_blade', 0.85, false",
+			"'prophecy_fulfilled', 'prophecy_fullfilled', 0.85, true",
+			"'dark_forest', 'deep_forest', 0.85, false",
+			"'quest', 'quests', 0.80, true",
+			"'npc_merchant', 'npc_merchent', 0.90, true"
+	})
+	void levenshteinSimilarityThresholdTest(final String s1, final String s2, final double threshold, final boolean expectedMatch) {
+		final double similarity = TextUtils.levenshteinSimilarity(s1, s2);
+		final boolean matches = similarity >= threshold;
+		assertEquals(expectedMatch, matches, 
+				String.format("'%s' vs '%s' = %.2f (threshold %.2f)", s1, s2, similarity, threshold));
+	}
+	
+	@Test
+	void levenshteinSimilarityBenchmarkTest() {
+		final String[][] testPairs = {
+				{"cursed_sword", "cursed_blade"},
+				{"main_quest", "main_quests"},
+				{"betrayal_warning", "betrayel_warning"},
+				{"ancient_prophecy_fulfilled", "ancient_prophecy_fullfilled"},
+				{"dark_forest_encounter", "deep_forest_encounter"},
+				{"npc_merchant_guild", "npc_merchent_guild"},
+				{"dragon_slayer_quest", "dragon_slayer_quests"},
+				{"mysterious_artifact", "mysterious_artefact"}
+		};
+		
+		final int warmupIterations = 250000;
+		final int benchmarkIterations = 250000;
+		
+		for (final String[] pair : testPairs) {
+			for (int i = 0; i < warmupIterations; i++) {
+				TextUtils.levenshteinSimilarity(pair[0], pair[1]);
+			}
+		}
+		
+		final long startTime = System.nanoTime();
+		for (int i = 0; i < benchmarkIterations; i++) {
+			for (final String[] pair : testPairs) {
+				TextUtils.levenshteinSimilarity(pair[0], pair[1]);
+			}
+		}
+		final long endTime = System.nanoTime();
+		
+		final long totalComparisons = (long) benchmarkIterations * testPairs.length;
+		final long totalTimeNanos = endTime - startTime;
+		final double avgTimeNanos = (double) totalTimeNanos / totalComparisons;
+		final double avgTimeMicros = avgTimeNanos / 1000.0;
+		
+		System.out.printf("Levenshtein similarity benchmark:%n");
+		System.out.printf("  Total comparisons: %,d%n", totalComparisons);
+		System.out.printf("  Total time: %.2f ms%n", totalTimeNanos / 1_000_000.0);
+		System.out.printf("  Average time per comparison: %.3f µs (%.0f ns)%n", avgTimeMicros, avgTimeNanos);
+		System.out.printf("  Throughput: %,.0f comparisons/second%n", 1_000_000_000.0 / avgTimeNanos);
+	}
+	
 	private static String generateText() {
 		return "The *flow* of the Camel `route` named `outboundConfirmationMessage` from `start` to finish is as `follows`:\r\n"
 				+ "1. The `route` starts with a from *endpoint* that *listens* on a direct *endpoint* named `direct:outboundConfirmationMessage`.\r\n"
