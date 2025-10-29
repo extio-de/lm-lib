@@ -1,11 +1,11 @@
 package de.extio.lmlib.client;
 
-import de.extio.lmlib.profile.ModelCategory;
+import de.extio.lmlib.profile.ModelProfile;
 
 public interface CompletionInterceptor {
 	
-	Conversation before(ModelCategory modelCategory, Conversation conversation);
+	Conversation before(ModelProfile modelProfile, Conversation conversation);
 	
-	Completion after(ModelCategory modelCategory, Completion completion);
+	Completion after(ModelProfile modelProfile, Completion completion);
 	
 }

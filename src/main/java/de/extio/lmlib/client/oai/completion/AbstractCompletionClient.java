@@ -22,7 +22,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 
 import de.extio.lmlib.client.Chunk;
-import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.CompletionFinishReason;
@@ -93,17 +92,27 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 	}
 	
 	@Override
-	public Completion streamConversation(final ModelCategory modelCategory_, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
-		final ModelCategory modelCategory = (modelCategory_ == null) ? ModelCategory.MEDIUM : modelCategory_;
-		final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile());
-		if (modelProfile == null || (modelProfile.modelProvider() != ModelProvider.OAI_TEXT_COMPLETION && modelProfile.modelProvider() != ModelProvider.OAI_CHAT_COMPLETION)) {
-			throw new IllegalArgumentException("ModelProfile " + modelCategory.getModelProfile());
-		}
-		
-		return this.requestCompletion(conversation, modelCategory, modelProfile, chunkConsumer);
+	public Completion conversation(final ModelProfile modelProfile, final Conversation conversation) {
+		return this.streamConversation(modelProfile, conversation, null);
 	}
 	
-	protected abstract Completion requestCompletion(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer);
+	@Override
+	public Completion streamConversation(final ModelCategory modelCategory_, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
+		final ModelCategory modelCategory = (modelCategory_ == null) ? ModelCategory.MEDIUM : modelCategory_;
+		final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile(), modelCategory);
+		return this.streamConversation(modelProfile, conversation, chunkConsumer);
+	}
+	
+	@Override
+	public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
+		if (modelProfile == null || (modelProfile.modelProvider() != ModelProvider.OAI_TEXT_COMPLETION && modelProfile.modelProvider() != ModelProvider.OAI_CHAT_COMPLETION)) {
+			throw new IllegalArgumentException("Invalid ModelProfile");
+		}
+		
+		return this.requestCompletion(conversation, modelProfile, chunkConsumer);
+	}
+	
+	protected abstract Completion requestCompletion(final Conversation conversation, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer);
 	
 	protected CompletionFinishReason mapFinishReason(final String finishReason) {
 		return switch (finishReason) {

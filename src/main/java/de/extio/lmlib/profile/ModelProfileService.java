@@ -33,8 +33,12 @@ public class ModelProfileService {
 		this.environment = environment;
 	}
 	
-	@Cacheable("modelProfiles")
 	public ModelProfile getModelProfile(final String modelProfile) {
+		return this.getModelProfile(modelProfile, null);
+	}
+	
+	@Cacheable("modelProfiles")
+	public ModelProfile getModelProfile(final String modelProfile, final ModelCategory modelCategory) {
 		final var modelName = this.environment.getProperty(modelProfile);
 		if (modelName == null) {
 			throw new IllegalStateException("No model found for profile: " + modelProfile);
@@ -45,7 +49,7 @@ public class ModelProfileService {
 			
 			final var promptTemplate = Optional.ofNullable(resource.getProperty("prompts"))
 					.map(Object::toString)
-					.orElseThrow(() -> new IllegalStateException("No model name found for model: " + modelName));
+					.orElse("");
 			final var tokenEncoding = Optional.ofNullable(resource.getProperty("tokenEncoding"))
 					.map(Object::toString)
 					.orElse("none");
@@ -71,7 +75,7 @@ public class ModelProfileService {
 					.orElseThrow(() -> new IllegalStateException("No model modelProvider found for model: " + modelName));
 			final var modelNameCfg = Optional.ofNullable(resource.getProperty("modelName"))
 					.map(Object::toString)
-					.orElseThrow(() -> new IllegalStateException("No model modelName found for model: " + modelName));
+					.orElse(null);
 			final var url = Optional.ofNullable(resource.getProperty("url"))
 					.map(Object::toString)
 					.orElseThrow(() -> new IllegalStateException("No model url found for model: " + modelName));
@@ -91,6 +95,10 @@ public class ModelProfileService {
 			final var reasoningSummaryDetails = Optional.ofNullable(resource.getProperty("reasoningSummaryDetails"))
 					.map(Object::toString)
 					.orElse(null);
+			final var category = Optional
+					.ofNullable(modelCategory)
+					.map(ModelCategory::getShortName)
+					.orElseGet(() -> (String)resource.getProperty("category"));
 			
 			//To resolve api key placeholder ${apikey} in model-name.properties file
 			String apiKey = null;
@@ -100,15 +108,19 @@ public class ModelProfileService {
 				}
 				apiKey = Optional.ofNullable(this.environment.getProperty("apiKey"))
 						.map(Object::toString)
-						.orElseThrow(() -> new IllegalStateException("No model apiKey found for model: " + modelName));
+						.orElse(null);
 			}
 			
-			return new ModelProfile(promptTemplate, tokenEncoding, maxTokens, maxContextLength, temperature, topP, modelProvider, modelNameCfg, url, apiKey, costInToken, costOutToken, reasoningEffort, reasoningSummaryDetails);
+			return new ModelProfile(promptTemplate, tokenEncoding, maxTokens, maxContextLength, temperature, topP, modelProvider, modelNameCfg, url, apiKey, costInToken, costOutToken, reasoningEffort, reasoningSummaryDetails, category);
 		}
 		catch (final IOException e) {
 			LOGGER.error("Error while reading model profile", e);
 			return null;
 		}
+	}
+	
+	public ModelProfile getModelProfile(final ModelCategory modelCategory) {
+		return this.getModelProfile(modelCategory.getModelProfile(), modelCategory);
 	}
 	
 	public List<String> getModelProfileUrls(final ModelProvider... modelProviders) {

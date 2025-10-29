@@ -40,7 +40,7 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 	}
 	
 	@Override
-	protected Completion requestCompletion(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer) {
+	protected Completion requestCompletion(final Conversation conversation, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer) {
 		final var chat = createChats(conversation, modelProfile);
 		
 		final var request = new ChatCompletionRequest();

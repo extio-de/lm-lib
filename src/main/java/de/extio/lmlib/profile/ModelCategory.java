@@ -1,23 +1,23 @@
 package de.extio.lmlib.profile;
 
-public enum ModelCategory {
+public record ModelCategory(String modelProfile, String shortName) {
+
+	public static final ModelCategory SMALL = new ModelCategory("profile.model.s", "S");
+	public static final ModelCategory MEDIUM = new ModelCategory("profile.model.m", "M");
+	public static final ModelCategory LARGE = new ModelCategory("profile.model.l", "L");
+	public static final ModelCategory XLARGE = new ModelCategory("profile.model.xl", "XL");
+	public static final ModelCategory HOT = new ModelCategory("profile.model.hot", "HOT");
+	public static final ModelCategory COLD = new ModelCategory("profile.model.cold", "COLD");
 	
-	SMALL("profile.model.s", "S"),
-	MEDIUM("profile.model.m", "M"),
-	LARGE("profile.model.l", "L"),
-	XLARGE("profile.model.xl", "XL"),
-	HOT("profile.model.hot", "HOT"),
-	COLD("profile.model.cold", "COLD");
-	
-	private final String modelProfile;
-	
-	private final String shortName;
-	
-	ModelCategory(final String modelProfile, final String shortName) {
-		this.modelProfile = modelProfile;
-		this.shortName = shortName;
+	public ModelCategory {
+		if (modelProfile == null || modelProfile.isEmpty()) {
+			throw new IllegalArgumentException("modelProfile must not be null or empty");
+		}
+		if (shortName == null || shortName.isEmpty()) {
+			throw new IllegalArgumentException("shortName must not be null or empty");
+		}
 	}
-	
+
 	public String getModelProfile() {
 		return this.modelProfile;
 	}

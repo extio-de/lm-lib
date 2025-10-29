@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -17,11 +18,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import de.extio.lmlib.agent.responsehandler.AgentResponseHandler;
 import de.extio.lmlib.agent.responsehandler.StreamedAgentResponseHandler;
 import de.extio.lmlib.agent.responsehandler.TextAgentResponseHandler;
+import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.TurnType;
 import de.extio.lmlib.profile.ModelCategory;
+import de.extio.lmlib.profile.ModelProfile;
 
 public interface BaseAgent {
 	
@@ -39,6 +42,10 @@ public interface BaseAgent {
 	
 	default ModelCategory modelCategory(final AgentContext context) {
 		return ModelCategory.MEDIUM;
+	}
+
+	default ModelProfile modelProfile(final AgentContext context) {
+		return null;
 	}
 	
 	default String systemPrompt() {
@@ -90,7 +97,8 @@ public interface BaseAgent {
 						split.context().getGraph().add("○");
 					}
 					else {
-						split.context().getGraph().add(this.modelCategory(split.context()).getShortName());
+						final var modelProfile = this.modelProfile(split.context());
+						split.context().getGraph().add(modelProfile != null ? modelProfile.category() : this.modelCategory(split.context()).getShortName());
 					}
 					split.context().getGraph().add(this.name());
 					
@@ -102,21 +110,33 @@ public interface BaseAgent {
 							LOGGER.debug("Conversation: {}", conversation);
 							
 							final var responseHandler = this.responseHandler();
+							final var modelProfile = this.modelProfile(split.context());
 							Completion completion = null;
 							if (split.context().isStreaming()) {
 								if (responseHandler instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
 									streamedResponseHandler.beforeStream(split.context());
 								}
-								completion = client.streamConversation(this.modelCategory(split.context()), conversation, chunk -> {
+								final Consumer<Chunk> chunkConsumer = chunk -> {
 									if (responseHandler instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
 										if (streamedResponseHandler.handleChunk(chunk, split.context()) && split.context().getAgentContextUpdateConsumer() != null) {
 											split.context().getAgentContextUpdateConsumer().accept(split.context());
 										}
 									}
-								});
+								};
+								if (modelProfile != null) {
+									completion = client.streamConversation(modelProfile, conversation, chunkConsumer);
+								}
+								else {
+									completion = client.streamConversation(this.modelCategory(split.context()), conversation, chunkConsumer);
+								}
 							}
 							else {
-								completion = client.conversation(this.modelCategory(split.context()), conversation);
+								if (modelProfile != null) {
+									completion = client.conversation(modelProfile, conversation);
+								}
+								else {
+									completion = client.conversation(this.modelCategory(split.context()), conversation);
+								}
 							}
 							split.context().setLastCompletion(completion);
 							split.context().getRequestStatistic().add(completion);

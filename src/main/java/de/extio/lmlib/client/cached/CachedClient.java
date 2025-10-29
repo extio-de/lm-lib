@@ -17,6 +17,7 @@ import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.CompletionStatistics;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.profile.ModelCategory;
+import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.profile.ModelProfileService;
 
@@ -36,17 +37,31 @@ public class CachedClient implements Client {
 	
 	@Override
 	public Completion completion(final ModelCategory modelCategory, final String system, final String text) {
-		return this.getCachedResponse(modelCategory, () -> this.client.completion(modelCategory, system, text), system, text);
+		return this.getCachedResponse(modelCategory, null, () -> this.client.completion(modelCategory, system, text), system, text);
 	}
 	
 	@Override
 	public Completion conversation(final ModelCategory modelCategory, final Conversation conversation) {
-		return this.getCachedResponse(modelCategory, () -> this.client.conversation(modelCategory, conversation), conversation.getConversation().toString());
+		return this.getCachedResponse(modelCategory, null, () -> this.client.conversation(modelCategory, conversation), conversation.getConversation().toString());
+	}
+	
+	@Override
+	public Completion conversation(final ModelProfile modelProfile, final Conversation conversation) {
+		return this.getCachedResponse(null, modelProfile, () -> this.client.conversation(modelProfile, conversation), conversation.getConversation().toString());
 	}
 
 	@Override
 	public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
-		final var response = this.getCachedResponse(modelCategory, () -> this.client.streamConversation(modelCategory, conversation, chunkConsumer), conversation.getConversation().toString());
+		final var response = this.getCachedResponse(modelCategory, null, () -> this.client.streamConversation(modelCategory, conversation, chunkConsumer), conversation.getConversation().toString());
+		if (response.statistics().cached()) {
+			chunkConsumer.accept(new Chunk(response.response(), response.reasoning()));
+		}
+		return response;
+	}
+	
+	@Override
+	public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
+		final var response = this.getCachedResponse(null, modelProfile, () -> this.client.streamConversation(modelProfile, conversation, chunkConsumer), conversation.getConversation().toString());
 		if (response.statistics().cached()) {
 			chunkConsumer.accept(new Chunk(response.response(), response.reasoning()));
 		}
@@ -58,8 +73,8 @@ public class CachedClient implements Client {
 		return this.client.getModelProvider();
 	}
 	
-	private Completion getCachedResponse(final ModelCategory modelCategory, final Supplier<Completion> supplier, final String... keys) {
-		final var key = this.createCacheKey(modelCategory, keys);
+	private Completion getCachedResponse(final ModelCategory modelCategory, final ModelProfile modelProfile, final Supplier<Completion> supplier, final String... keys) {
+		final var key = this.createCacheKey(modelCategory, modelProfile, keys);
 		
 		final var cachedCompletion = this.cacheRepository.get(key);
 		if (cachedCompletion != null) {
@@ -73,23 +88,25 @@ public class CachedClient implements Client {
 		return completion;
 	}
 	
-	private String createCacheKey(ModelCategory modelCategory, final String... keys) {
-		if (modelCategory == null) {
-			modelCategory = ModelCategory.MEDIUM;
-		}
-		final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile());
+	private String createCacheKey(ModelCategory modelCategory, ModelProfile modelProfile, final String... keys) {
 		if (modelProfile == null) {
-			throw new IllegalArgumentException("ModelProfile " + modelCategory.getModelProfile());
+			if (modelCategory == null) {
+				modelCategory = ModelCategory.MEDIUM;
+			}
+			modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile(), modelCategory);
+			if (modelProfile == null) {
+				throw new IllegalArgumentException("ModelProfile " + modelCategory.getModelProfile());
+			}
 		}
 		
 		MessageDigest digest;
 		try {
 			digest = MessageDigest.getInstance("SHA-256");
-			digest.update(Objects.requireNonNullElse(modelProfile.modelName(), modelCategory.name()).getBytes());
+			digest.update(modelProfile.modelName().getBytes());
+			digest.update(modelCategory != null ? modelCategory.getModelProfile().getBytes() : modelProfile.category().getBytes());
 			digest.update(String.valueOf(modelProfile.modelProvider()).getBytes());
 			digest.update(String.valueOf(modelProfile.maxTokens()).getBytes());
 			digest.update(String.valueOf(modelProfile.maxContextLength()).getBytes());
-			digest.update(String.valueOf("1").getBytes());
 			digest.update(String.valueOf(modelProfile.temperature()).getBytes());
 			digest.update(String.valueOf(modelProfile.topP()).getBytes());
 			for (final var k : keys) {

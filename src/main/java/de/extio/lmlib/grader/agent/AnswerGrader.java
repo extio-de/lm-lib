@@ -15,6 +15,7 @@ public class AnswerGrader {
 				"AnswerGrader",
 				AgentType.COMPLETION,
 				ModelCategory.MEDIUM,
+				null,
 				"""
 						You are a grader agent that evaluates the quality of an answer to a support question.
 						Please provide a response on a scale between 0 and 100, where: 100 indicates that the answer directly addresses the question, is accurate, and provides a clear and concise solution or explanation; 90-99 indicates that the answer is mostly accurate and provides a good solution or explanation, but may lack some detail or clarity; 80-89 indicates that the answer is generally accurate but may require some additional information or clarification to fully understand the solution or explanation; 75 indicates that the answer describes how the system behaves to get to the subject of the question, but may not directly answer the question; 50-74 indicates that the answer is partially accurate or relevant, but may lack key information or provide an incomplete solution or explanation; 25-49 indicates that the answer does not directly answer the question or is speculative or it contains mainly instructions for changes or mainly refers to the Enterprise Integration team without providing substantial information, but may provide some relevant information or context; 0-24 indicates that the answer is not related to the question, is inaccurate, or provides no useful information;

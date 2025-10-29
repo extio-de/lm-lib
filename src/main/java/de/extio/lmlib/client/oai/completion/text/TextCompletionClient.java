@@ -20,7 +20,6 @@ import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.oai.completion.AbstractCompletionClient;
-import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.prompt.PromptStrategy;
@@ -41,13 +40,13 @@ public class TextCompletionClient extends AbstractCompletionClient {
 	}
 	
 	@Override
-	protected Completion requestCompletion(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer) {
+	protected Completion requestCompletion(final Conversation conversation, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer) {
 		final var promptStrategy = this.promptStrategyFactory.getStrategy(modelProfile.prompt());
 		if (promptStrategy == null) {
 			throw new IllegalArgumentException("Prompt strategy not found: " + modelProfile.prompt());
 		}
 		
-		final var prompt = this.createPrompt(conversation, modelCategory, modelProfile, promptStrategy);
+		final var prompt = this.createPrompt(conversation, modelProfile, promptStrategy);
 		
 		final var request = new CompletionRequest();
 		request.setModel(this.modelNameSupplier.getModelName(modelProfile.url()));
@@ -177,7 +176,7 @@ public class TextCompletionClient extends AbstractCompletionClient {
 		return new Completion(content, reasoning, finishReason, statistics);
 	}
 	
-	private String createPrompt(final Conversation conversation, final ModelCategory modelCategory, final ModelProfile modelProfile, final PromptStrategy promptStrategy) {
+	private String createPrompt(final Conversation conversation, final ModelProfile modelProfile, final PromptStrategy promptStrategy) {
 		StringBuilder prompt = this.formatConversation(conversation, promptStrategy);
 		
 		List<Long> tokenized = this.tokenizer.tokenize(prompt.toString(), modelProfile);
@@ -188,7 +187,7 @@ public class TextCompletionClient extends AbstractCompletionClient {
 			prompt = new StringBuilder(this.tokenizer.detokenize(tokenized, modelProfile));
 		}
 		
-		LOGGER.debug("Completion request for {}. Input tokens: {}", modelCategory, tokenized.size());
+		LOGGER.debug("Completion request for {}. Input tokens: {}", modelProfile.category(), tokenized.size());
 		
 		return prompt.toString();
 	}

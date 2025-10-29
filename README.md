@@ -47,22 +47,100 @@ Don't forget to activate a CacheManager afterwards:
 
 Models are managed with profiles. You can maintain multiple profiles for different models and parameters such as temperature.
 
-These profiles must be mapped to fixed categories with the following application properties:
+### Managing Model Profiles
 
-    profile.model.s=
-    profile.model.m=
-    profile.model.l=
-    profile.model.xl=
-    profile.model.hot=
-    profile.model.cold=
+lm-lib offers three flexible approaches for managing model profiles:
 
-The value is the name of the model profile .properties file, for example "llama3.3-70b-azure".
+#### 1. Predefined Categories (Recommended for Simple Cases)
 
-Agent and completion requests will be invoked with these categories and will load the corresponding model profile.
+Map model profiles to predefined categories using application properties:
 
-Profiles must be located in the classpath resources location (e.g. src/main/resources).
+    profile.model.s=local-small-model
+    profile.model.m=llama3.3-70b-azure
+    profile.model.l=gpt-4
+    profile.model.xl=gpt-4-turbo
+    profile.model.hot=high-temperature-model
+    profile.model.cold=deterministic-model
 
-Examples can be found in test resources.
+The value is the name of the model profile `.properties` file (without the extension), for example "llama3.3-70b-azure".
+**Note:** Model profile `.properties` files must be located in the classpath resources (e.g., `src/main/resources`). Examples can be found in test resources.
+
+Agent and completion requests use predefined constants like `ModelCategory.MEDIUM` or `ModelCategory.LARGE`, which automatically load the corresponding model profile.
+
+```java
+// Using predefined categories
+final var client = clientService.getClient(ModelCategory.MEDIUM);
+final var completion = client.conversation(ModelCategory.LARGE, conversation);
+```
+
+#### 2. Custom Categories (Dynamic Profile Selection)
+
+Create custom categories at runtime for more flexible profile management:
+
+```java
+// Create a custom category pointing to a specific profile
+final var customCategory = new ModelCategory("profile-name", "CUSTOM");
+
+// Use it just like predefined categories
+final var client = clientService.getClient(customCategory);
+final var completion = client.conversation(customCategory, conversation);
+```
+
+The value is the name of the model profile `.properties` file (without the extension), for example "llama3.3-70b-azure".
+**Note:** Model profile `.properties` files must be located in the classpath resources (e.g., `src/main/resources`). Examples can be found in test resources.
+
+This approach is useful when you need to:
+- Select profiles based on runtime conditions
+- Create multiple variants of the same model with different parameters
+- Implement A/B testing or model experimentation
+
+#### 3. Programmatic ModelProfile Creation (Maximum Control)
+
+Create `ModelProfile` instances directly in code, bypassing the properties file system entirely:
+
+```java
+// Build a ModelProfile programmatically
+final var modelProfile = new ModelProfile(
+    "",                                    // prompts (empty for chat completion)
+    "cl100k_base",                        // tokenEncoding
+    2000,                                 // maxTokens
+    32768,                                // maxContextLength
+    0.7,                                  // temperature
+    1.0,                                  // topP
+    ModelProfile.ModelProvider.OAI_CHAT_COMPLETION,
+    "gpt-4",                              // modelName
+    "https://api.openai.com/v1",         // url
+    System.getenv("OPENAI_API_KEY"),     // apiKey
+    new BigDecimal("0.03"),               // costInToken (per token)
+    new BigDecimal("0.06"),               // costOutToken (per token)
+    null,                                 // reasoningEffort
+    null,                                 // reasoningSummaryDetails
+    "DYNAMIC"                             // category (short name for logging)
+);
+
+// Use the profile directly
+final var client = clientService.getClient(modelProfile);
+final var completion = client.conversation(modelProfile, conversation);
+
+// Or in agents
+final var agent = new Agent(
+    "MyAgent",
+    AgentType.START_CONVERSATION,
+    null,              // modelCategory (not needed when using modelProfile)
+    modelProfile,      // specify the profile directly
+    "You are a helpful assistant.",
+    "{{userInput}}",
+    new TextAgentResponseHandler("response"),
+    null, null, null,
+    AgentNext::end
+);
+```
+
+This approach is ideal for:
+- Runtime model selection based on complex business logic
+- Testing different model configurations without changing properties files
+- Integrating with external configuration systems
+- Per-request model customization
 
 ### Model Profile Properties
 
@@ -70,6 +148,7 @@ Each model profile is a `.properties` file that configures how the library inter
 
 | Property | Type | Required | Description | Example Values |
 |----------|------|----------|-------------|----------------|
+| `category` | String | No | Short name identifier for the profile used in logging and graph visualization. If omitted, will be inferred from the ModelCategory when loading. | `M`, `L`, `CUSTOM`, `PROD` |
 | `prompts` | String | Yes | Prompt template strategy name for text completions. Use empty string for chat completions or if no special formatting is needed. | `llama4`, `gpt-oss`, `no`, `` (empty) |
 | `tokenEncoding` | String | Yes | Token encoding scheme used by the model for counting tokens. | `cl100k_base`, `none` |
 | `maxTokens` | Integer | Yes | Maximum number of tokens to generate in the model response. | `1500`, `2500` |
@@ -77,9 +156,9 @@ Each model profile is a `.properties` file that configures how the library inter
 | `temperature` | Double | Yes | Controls randomness in responses. Lower values (0.0-0.5) are more deterministic, higher values (0.5-1.0+) more creative. | `0.2`, `0.4`, `0.7` |
 | `topP` | Double | Yes | Nucleus sampling parameter. Controls diversity via cumulative probability. Typically kept at 1.0. | `1.0`, `0.9` |
 | `modelProvider` | Enum | Yes | The LLM provider/client type to use. | `OAI_CHAT_COMPLETION`, `OAI_TEXT_COMPLETION`, `AZURE_AI` |
-| `modelName` | String | Yes | The specific model identifier or deployment name. Can be empty for local models where it's auto-detected. | `Llama-3.3-70B-Instruct`, `gpt-4`, `` (empty for auto-detect) |
+| `modelName` | String | No | The specific model identifier or deployment name. Can be empty for local models where it's auto-detected. | `Llama-3.3-70B-Instruct`, `gpt-4`, `` (empty for auto-detect) |
 | `url` | String | Yes | Base URL endpoint for the model API. | `https://api.openai.com/v1`, `http://localhost:5001` |
-| `apiKey` | String | Yes | Authentication key for the API. Can use Spring property placeholders like `${apikey}`. Can be empty for local models. | `sk-...`, `${apikey}`, `` (empty) |
+| `apiKey` | String | No | Authentication key for the API. Can use Spring property placeholders like `${apikey}`. Can be empty for local models. | `sk-...`, `${apikey}`, `` (empty) |
 | `cost1MInTokens` | Double | Yes | Cost per 1 million input tokens in your currency. Use `0` for free/local models. | `0.71`, `0`, `5.00` |
 | `cost1MOutTokens` | Double | Yes | Cost per 1 million output tokens in your currency. Use `0` for free/local models. | `0.71`, `0`, `15.00` |
 | `reasoningEffort` | String | No | For reasoning models (e.g., OpenAI o1): controls depth of reasoning process. | `low`, `medium`, `high` |
@@ -87,7 +166,9 @@ Each model profile is a `.properties` file that configures how the library inter
 
 **Notes:**
 - Properties marked "Yes" in the Required column must be present in every profile; missing required properties will cause runtime errors.
+- The `category` field is optional in profile files. When omitted, the category short name from the `ModelCategory` used to load the profile will be used instead.
 - The `prompts` property determines the prompt formatting strategy. For text completions, specify a strategy name (e.g., `llama3`, `gpt-oss`) or `no` for no formatting. For chat completions, use an empty string.
+- The `modelName` and `apiKey` properties are optional and can be empty for local model deployments.
 - Cost properties are used for statistics tracking and have no impact on API calls. They help you monitor expenses.
 - Reasoning properties are only applicable to models that support separate reasoning output (like OpenAI's o1 series).
 
@@ -104,6 +185,7 @@ These settings control how the model generates and presents its reasoning proces
 
 **Azure AI Chat Completion (llama3.3-70b-azure.properties):**
 ```properties
+category=
 prompts=
 tokenEncoding=cl100k_base
 maxTokens=1500
@@ -120,6 +202,7 @@ cost1MOutTokens=0.71
 
 **Local Chat Completion (local-chatcompletion.properties):**
 ```properties
+category=M
 prompts=
 tokenEncoding=cl100k_base
 maxTokens=2500
@@ -138,6 +221,7 @@ reasoningSummaryDetails=auto
 
 **Local Text Completion (local-completion.properties):**
 ```properties
+category=S
 prompts=gpt-oss
 tokenEncoding=cl100k_base
 maxTokens=2500
@@ -230,9 +314,44 @@ All language model requests will be cached if you add a CachedClientRepository b
 
 # Completion Interceptors
 
-You can intercept every Conversation and Completion by implementing CompletionInterceptor.
-This is for example useful for accounting purposes or to implement a circuit breaker.
-The client will autowire all implementations and intercept requests accordingly.
+You can intercept every Conversation and Completion by implementing `CompletionInterceptor`.
+This is useful for accounting purposes, implementing circuit breakers, rate limiting, or logging.
+
+Interceptor implementations receive the full `ModelProfile` for each request, allowing you to make decisions based on:
+- The specific model being used
+- Model costs and token limits
+- Temperature and other parameters
+- The model provider
+
+Example:
+
+```java
+@Component
+public class MyInterceptor implements CompletionInterceptor {
+    
+    @Override
+    public Conversation before(ModelProfile modelProfile, Conversation conversation) {
+        // Access model details
+        LOGGER.info("Using model: {} at {}", modelProfile.modelName(), modelProfile.url());
+        
+        // Could implement rate limiting based on model category
+        if ("EXPENSIVE".equals(modelProfile.category())) {
+            checkRateLimit();
+        }
+        
+        return conversation;
+    }
+    
+    @Override
+    public Completion after(ModelProfile modelProfile, Completion completion) {
+        // Track costs based on actual model used
+        trackCosts(modelProfile, completion.statistics());
+        return completion;
+    }
+}
+```
+
+The client will autowire all `CompletionInterceptor` implementations and apply them to requests automatically.
 
 # Grader
 
@@ -289,6 +408,14 @@ public class BlogPostAgent implements BaseAgent {
     @Override 
     public ModelCategory modelCategory(final AgentContext ctx) { 
         return ModelCategory.MEDIUM; 
+    }
+    
+    // OPTIONAL: Specific model profile (overrides modelCategory, default: null)
+    @Override 
+    public ModelProfile modelProfile(final AgentContext ctx) { 
+        // Return null to use modelCategory() instead
+        // Or return a specific ModelProfile for direct control
+        return null; 
     }
     
     // OPTIONAL: System-level instruction for the LLM (default: null)
@@ -371,6 +498,7 @@ final var blogPostAgent = new Agent(
     "BlogPostAgent",                                    // name
     AgentType.START_CONVERSATION_WITH_SYSTEM_PROMPT,   // agentType
     ModelCategory.MEDIUM,                               // modelCategory
+    null,                                               // modelProfile (null to use modelCategory)
     "You are a concise technical blog writer.",        // systemPrompt
     "Write a blog post about {{topic}} using these bullets:\n\n{{points}}", // textTemplate
     new TextAgentResponseHandler("blogPost"),           // responseHandler
@@ -385,6 +513,7 @@ final var processingAgent = new Agent(
     "DataProcessor",
     AgentType.PROCESSING_ONLY,
     ModelCategory.MEDIUM,
+    null,                                               // modelProfile
     null,
     null,
     new TextAgentResponseHandler("result"),
@@ -407,6 +536,7 @@ final var analyzerAgent = new Agent(
     "FeatureAnalyzer",
     AgentType.START_CONVERSATION,
     ModelCategory.SMALL,
+    null,                                               // modelProfile
     null,
     "Analyze this feature: [[feature]]",  // Branches per feature
     new JsonAgentResponseHandler("analysis_"),
@@ -414,6 +544,37 @@ final var analyzerAgent = new Agent(
     null,
     contexts -> BaseAgent.mergeContexts(List.of("analysis_score", "analysis_summary"), contexts), // Many-to-one merge
     ctx -> new AgentNext("ReportGenerator")
+);
+
+// Agent using a programmatically created ModelProfile
+final var customProfile = new ModelProfile(
+    "",                                               // prompts
+    "cl100k_base",                                    // tokenEncoding
+    3000,                                             // maxTokens
+    64000,                                            // maxContextLength
+    0.3,                                              // temperature
+    1.0,                                              // topP
+    ModelProfile.ModelProvider.OAI_CHAT_COMPLETION,   // modelProvider
+    "gpt-4-turbo",                                    // modelName
+    "https://api.openai.com/v1",                     // url
+    System.getenv("OPENAI_API_KEY"),                 // apiKey
+    new BigDecimal("0.01"),                           // costInToken
+    new BigDecimal("0.03"),                           // costOutToken
+    null,                                             // reasoningEffort
+    null,                                             // reasoningSummaryDetails
+    "GPT4T"                                           // category
+);
+
+final var customModelAgent = new Agent(
+    "CustomModelAgent",
+    AgentType.COMPLETION,
+    null,                                             // modelCategory (not needed with modelProfile)
+    customProfile,                                    // modelProfile (overrides category)
+    "Expert technical writer",
+    "Summarize: {{text}}",
+    new TextAgentResponseHandler("summary"),
+    null, null, null,
+    AgentNext::end
 );
 ```
 
@@ -621,47 +782,56 @@ This document details the public methods of the `BaseAgent` interface, providing
 *   **Returns:** An `AgentType` enum value.
 *   **Throws:** `UnsupportedOperationException` if not implemented.
 
-**3. `ModelCategory modelCategory()`**
+**3. `ModelCategory modelCategory(final AgentContext context)`**
 
-*   **Purpose:** Specifies the desired size/capability category of the language model to use when interacting with the LLM client.  This allows for cost optimization or performance tuning by selecting models appropriate for the task.
+*   **Purpose:** Specifies the desired size/capability category of the language model to use when interacting with the LLM client. This allows for cost optimization or performance tuning by selecting models appropriate for the task. This method is only consulted if `modelProfile()` returns `null`.
 *   **Usage:** Implementations can optionally override this method to customize the model category. The default implementation returns `ModelCategory.MEDIUM`.
-*   **Returns:** A `ModelCategory` enum value.
+*   **Parameters:** `context`: The `AgentContext` object representing the current state of the agent flow.
+*   **Returns:** A `ModelCategory` value (can be predefined like `ModelCategory.MEDIUM` or a custom instance).
 *   **Default:** `ModelCategory.MEDIUM`
 
-**4. `String systemPrompt()`**
+**4. `ModelProfile modelProfile(final AgentContext context)`**
+
+*   **Purpose:** Directly specifies a `ModelProfile` to use for this agent, bypassing the model category system. When this method returns a non-null value, it takes precedence over `modelCategory()`. This provides maximum control over model selection, allowing runtime-specific profile creation or selection based on context.
+*   **Usage:** Implementations can optionally override this method to return a specific `ModelProfile` instance. This is useful for agents that need to use a specific model configuration that doesn't fit into the predefined categories, or when model selection needs to be dynamic based on the agent context.
+*   **Parameters:** `context`: The `AgentContext` object representing the current state of the agent flow.
+*   **Returns:** A `ModelProfile` instance, or `null` to use `modelCategory()` instead.
+*   **Default:** `null`
+
+**5. `String systemPrompt()`**
 
 *   **Purpose:** Provides a system-level instruction that sets the context and behavior for the LLM. This prompt is prepended to user input when creating a conversation.
 *   **Usage:** Implementations can optionally override this method to provide a custom system prompt tailored to their specific task. If no prompt is needed, it should return `null`.
 *   **Returns:** A `String` containing the system prompt.
 *   **Default:** `null`
 
-**5. `String textTemplate()`**
+**6. `String textTemplate()`**
 
 *   **Purpose:** Defines a template string for generating input text for the LLM.  The template can include placeholders (e.g., `{{key}}`) which are dynamically replaced with values from the `AgentContext`. `[[key]]` style placeholders are a convenient way to branch out / parallelize execution flows. See also the section about text template placeholders below.
 *   **Usage:** Implementations can optionally override this method to define a template. This is useful for constructing prompts based on data in the agent context.
 *   **Returns:** A `String` containing the text template.
 *   **Default:** `null`
 
-**6. `AgentResponseHandler responseHandler()`**
+**7. `AgentResponseHandler responseHandler()`**
 
 *   **Purpose:**  Provides a mechanism for processing the raw LLM response. Different handlers can parse responses into structured data, extract specific information, or perform validation.
 *   **Usage:** Implementations can optionally override this method to return a custom `AgentResponseHandler`. The default implementation returns a `TextAgentResponseHandler` configured to handle responses under the "response" key.
 *   **Returns:** An `AgentResponseHandler` instance.
 *   **Default:** `new TextAgentResponseHandler("response")`
 
-**7. `void preProcess(final AgentContext context)`**
+**8. `void preProcess(final AgentContext context)`**
 
 *   **Purpose:** Allows performing actions *before* the main logic of the agent is executed. This could involve modifying the `AgentContext`, preparing data, or setting up necessary resources.
 *   **Usage:** Implementations can optionally override this method to add pre-processing steps.
 *   **Parameters:** `context`: The `AgentContext` object representing the current state of the agent flow.
 
-**8. `void postProcess(final AgentContext context)`**
+**9. `void postProcess(final AgentContext context)`**
 
 *   **Purpose:** Allows performing actions *after* the main logic of the agent is executed. This could involve cleaning up resources, updating the `AgentContext`, or logging results.
 *   **Usage:** Implementations can optionally override this method to add post-processing steps.
 *   **Parameters:** `context`: The `AgentContext` object representing the current state of the agent flow.
 
-**9. `List<AgentContext> merge(final List<AgentContext> contexts)`**
+**10. `List<AgentContext> merge(final List<AgentContext> contexts)`**
 
 *   **Purpose:** Combines multiple `AgentContext` objects into a collection of potentially new `AgentContext` objects. This method provides flexible context aggregation, supporting scenarios beyond simply reducing many contexts to one. It allows for one-to-one, one-to-many, many-to-one, and many-to-many merging strategies. The merge() step is executed after all branch executions (depth 1) and their postProcess() steps have been completed.
 *   **Usage:** Implementations can optionally override this method to define a custom merging strategy tailored to their specific needs. The default implementation returns `null`, indicating no merging is performed. A non-null return value signifies the merged contexts.
@@ -682,7 +852,7 @@ The flexibility of the `merge()` method allows developers to implement sophistic
 *   Filter or transform contexts during the merging process.
 *   Create new contexts based on relationships between existing ones.
 
-**10. `AgentNext chooseNextAgent(final AgentContext context)`**
+**11. `AgentNext chooseNextAgent(final AgentContext context)`**
 
 *   **Purpose:** Determines which agent should be executed next in the flow based on the current `AgentContext`.
 *   **Usage:** Implementations *must* override this method to implement the logic for selecting the next agent.  It should return an `AgentNext` enum value indicating either the name of the next agent or `AgentNext.END` to signal the end of the flow.

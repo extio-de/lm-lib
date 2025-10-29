@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import de.extio.lmlib.client.cached.CachedClient;
 import de.extio.lmlib.client.cached.CachedClientRepository;
 import de.extio.lmlib.profile.ModelCategory;
+import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.profile.ModelProfileService;
 
@@ -28,25 +29,32 @@ public class ClientService {
 	@Autowired(required = false)
 	private List<CompletionInterceptor> completionInterceptors;
 	
-	@Cacheable("clients")
 	public Client getClient(final ModelCategory category) {
-		final var modelProfile = this.modelProfileService.getModelProfile(category.getModelProfile());
+		final var modelProfile = this.modelProfileService.getModelProfile(category.getModelProfile(), category);
+		return this.getClient(modelProfile);
+	}
+	
+	@Cacheable("clients")
+	public Client getClient(final ModelProfile modelProfile) {
 		return this.clients.stream()
 				.filter(client -> client.getModelProvider() == modelProfile.modelProvider())
 				.findFirst()
 				.map(client -> this.cachedClientRepository == null ? client : new CachedClient(this.cachedClientRepository, this.modelProfileService, client))
-				.map(client -> this.completionInterceptors == null || this.completionInterceptors.isEmpty() ? client : new InterceptingClient(client, this.completionInterceptors))
-				.orElseThrow(() -> new IllegalStateException("No client found for model profile " + category));
+				.map(client -> this.completionInterceptors == null || this.completionInterceptors.isEmpty() ? client : new InterceptingClient(client, this.modelProfileService, this.completionInterceptors))
+				.orElseThrow(() -> new IllegalStateException("No client found for model profile " + modelProfile.modelName()));
 	}
 	
 	private static class InterceptingClient implements Client {
 		
 		private final Client client;
+
+		private final ModelProfileService modelProfileService;
 		
 		private final List<CompletionInterceptor> completionInterceptors;
 		
-		public InterceptingClient(final Client client, final List<CompletionInterceptor> completionInterceptors) {
+		public InterceptingClient(final Client client, final ModelProfileService modelProfileService, final List<CompletionInterceptor> completionInterceptors) {
 			this.client = client;
+			this.modelProfileService = modelProfileService;
 			this.completionInterceptors = completionInterceptors;
 		}
 		
@@ -57,26 +65,38 @@ public class ClientService {
 		
 		@Override
 		public Completion conversation(final ModelCategory modelCategory, final Conversation conversation_) {
-			Conversation conversation = conversation_;
-			for (final var interceptor : this.completionInterceptors) {
-				conversation = interceptor.before(modelCategory, conversation);
-			}
-			var completion = this.client.conversation(modelCategory, conversation);
-			for (final var interceptor : this.completionInterceptors) {
-				completion = interceptor.after(modelCategory, completion);
-			}
-			return completion;
+			final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile(), modelCategory);
+			return this.conversation(modelProfile, conversation_);
+		}
+		
+		@Override
+		public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation_, final Consumer<Chunk> chunkConsumer) {
+			final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile(), modelCategory);
+			return this.streamConversation(modelProfile, conversation_, chunkConsumer);
 		}
 
 		@Override
-		public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation_, final Consumer<Chunk> chunkConsumer) {
+		public Completion conversation(final ModelProfile modelProfile, final Conversation conversation_) {
 			Conversation conversation = conversation_;
 			for (final var interceptor : this.completionInterceptors) {
-				conversation = interceptor.before(modelCategory, conversation);
+				conversation = interceptor.before(modelProfile, conversation);
 			}
-			var completion = this.client.streamConversation(modelCategory, conversation, chunkConsumer);
+			var completion = this.client.conversation(modelProfile, conversation);
 			for (final var interceptor : this.completionInterceptors) {
-				completion = interceptor.after(modelCategory, completion);
+				completion = interceptor.after(modelProfile, completion);
+			}
+			return completion;
+		}
+		
+		@Override
+		public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation_, final Consumer<Chunk> chunkConsumer) {
+			Conversation conversation = conversation_;
+			for (final var interceptor : this.completionInterceptors) {
+				conversation = interceptor.before(modelProfile, conversation);
+			}
+			var completion = this.client.streamConversation(modelProfile, conversation, chunkConsumer);
+			for (final var interceptor : this.completionInterceptors) {
+				completion = interceptor.after(modelProfile, completion);
 			}
 			return completion;
 		}

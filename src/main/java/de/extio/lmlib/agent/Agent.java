@@ -6,10 +6,12 @@ import java.util.function.Function;
 
 import de.extio.lmlib.agent.responsehandler.AgentResponseHandler;
 import de.extio.lmlib.profile.ModelCategory;
+import de.extio.lmlib.profile.ModelProfile;
 
 public record Agent(String name,
         AgentType agentType,
         ModelCategory modelCategory,
+        ModelProfile modelProfile,
         String systemPrompt,
         String textTemplate,
         AgentResponseHandler responseHandler,
@@ -44,6 +46,14 @@ public record Agent(String name,
         return BaseAgent.super.modelCategory(context);
     }
 
+    @Override
+    public ModelProfile modelProfile(final AgentContext context) {
+        if (modelProfile != null) {
+            return modelProfile;
+        }
+        return BaseAgent.super.modelProfile(context);
+    }
+    
     @Override
     public void preProcess(final AgentContext context) {
         if (preProcessor != null) {

@@ -55,7 +55,7 @@ public final class AzureAiClient implements Client {
 	
 	private static final int CONNECT_TIMEOUT = 10000;
 	
-	private final ConcurrentMap<ModelCategory, ChatCompletionsClient> chatCompletionsClients = new ConcurrentHashMap<>();
+	private final ConcurrentMap<String, ChatCompletionsClient> chatCompletionsClients = new ConcurrentHashMap<>();
 	
 	private final ModelProfileService modelProfileService;
 	
@@ -93,12 +93,22 @@ public final class AzureAiClient implements Client {
 	
 	@Override
 	public Completion conversation(final ModelCategory modelCategory, final Conversation conversation) {
-		return this.requestConversation(modelCategory, conversation, null);
+		return this.requestConversation(modelCategory, null, conversation, null);
+	}
+	
+	@Override
+	public Completion conversation(final ModelProfile modelProfile, final Conversation conversation) {
+		return this.requestConversation(null, modelProfile, conversation, null);
 	}
 	
 	@Override
 	public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
-		return this.requestConversation(modelCategory, conversation, chunkConsumer);
+		return this.requestConversation(modelCategory, null, conversation, chunkConsumer);
+	}
+	
+	@Override
+	public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
+		return this.requestConversation(null, modelProfile, conversation, chunkConsumer);
 	}
 	
 	private List<ChatRequestMessage> createChats(final Conversation conversation, final ModelProfile modelProfile) {
@@ -172,31 +182,41 @@ public final class AzureAiClient implements Client {
 		return trimmed;
 	}
 	
-	private Completion requestConversation(ModelCategory modelCategory, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
-		if (modelCategory == null) {
-			modelCategory = ModelCategory.MEDIUM;
-		}
-		final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile());
-		if (modelProfile == null || modelProfile.modelProvider() != ModelProvider.AZURE_AI) {
-			throw new IllegalArgumentException("ModelProfile " + modelCategory.getModelProfile());
-		}
-		
-		final var chat = this.createChats(conversation, modelProfile);
-		
-		if (chunkConsumer == null) {
-			return this.requestCompletions(chat, modelCategory, modelProfile);
+	private Completion requestConversation(ModelCategory modelCategory, final ModelProfile modelProfile, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
+		final ModelProfile profile;
+		if (modelProfile != null) {
+			profile = modelProfile;
+			if (modelCategory == null) {
+				modelCategory = new ModelCategory(modelProfile.modelName(), modelProfile.category());
+			}
 		}
 		else {
-			return this.requestStreamCompletions(chat, modelCategory, modelProfile, chunkConsumer);
+			if (modelCategory == null) {
+				modelCategory = ModelCategory.MEDIUM;
+			}
+			profile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile(), modelCategory);
+		}
+		
+		if (profile == null || profile.modelProvider() != ModelProvider.AZURE_AI) {
+			throw new IllegalArgumentException("Invalid ModelProfile");
+		}
+		
+		final var chat = this.createChats(conversation, profile);
+		
+		if (chunkConsumer == null) {
+			return this.requestCompletions(chat, profile);
+		}
+		else {
+			return this.requestStreamCompletions(chat, profile, chunkConsumer);
 		}
 	}
 
-	private Completion requestCompletions(final List<ChatRequestMessage> chat, final ModelCategory modelCategory, final ModelProfile modelProfile) {
+	private Completion requestCompletions(final List<ChatRequestMessage> chat, final ModelProfile modelProfile) {
 		LOGGER.debug("Requesting ChatCompletion at {}", modelProfile.modelName());
 		final LocalDateTime start = LocalDateTime.now();
 		
 		final var options = this.createChatCompletionsOptions(chat, modelProfile);
-		final var client = this.createHttpClient(modelCategory, modelProfile);
+		final var client = this.createHttpClient(modelProfile);
 		final var response = client.complete(options);
 		
 		final var finishReason = this.mapFinishReason(response.getChoice().getFinishReason());
@@ -205,12 +225,12 @@ public final class AzureAiClient implements Client {
 		return new Completion(response.getChoice().getMessage().getContent(), null, finishReason, statistics);
 	}
 	
-	private Completion requestStreamCompletions(final List<ChatRequestMessage> chat, final ModelCategory modelCategory, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer) {
+	private Completion requestStreamCompletions(final List<ChatRequestMessage> chat, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer) {
 		LOGGER.debug("Requesting Streaming ChatCompletion at {}", modelProfile.modelName());
 		final LocalDateTime start = LocalDateTime.now();
 		
 		final var options = this.createChatCompletionsOptions(chat, modelProfile);
-		final var client = this.createHttpClient(modelCategory, modelProfile);
+		final var client = this.createHttpClient(modelProfile);
 		final var completionsStream = client.completeStream(options);
 		
 		final StringBuilder contentBuilder = new StringBuilder();
@@ -277,8 +297,8 @@ public final class AzureAiClient implements Client {
 		return statistics;
 	}
 	
-	private ChatCompletionsClient createHttpClient(final ModelCategory modelCategory, final ModelProfile modelProfile) {
-		return this.chatCompletionsClients.computeIfAbsent(modelCategory, key -> {
+	private ChatCompletionsClient createHttpClient(final ModelProfile modelProfile) {
+		return this.chatCompletionsClients.computeIfAbsent(modelProfile.category(), key -> {
 			final ExponentialBackoffOptions exponentialOptions = new ExponentialBackoffOptions()
 					.setMaxRetries(99)
 					.setBaseDelay(Duration.ofSeconds(1))
