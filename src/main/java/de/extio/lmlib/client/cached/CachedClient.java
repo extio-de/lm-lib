@@ -103,7 +103,7 @@ public class CachedClient implements Client {
 		try {
 			digest = MessageDigest.getInstance("SHA-256");
 			digest.update(modelProfile.modelName().getBytes());
-			digest.update(modelCategory != null ? modelCategory.getModelProfile().getBytes() : modelProfile.category().getBytes());
+			digest.update(modelCategory != null ? modelCategory.shortName().getBytes() : modelProfile.category().getBytes());
 			digest.update(String.valueOf(modelProfile.modelProvider()).getBytes());
 			digest.update(String.valueOf(modelProfile.maxTokens()).getBytes());
 			digest.update(String.valueOf(modelProfile.maxContextLength()).getBytes());
