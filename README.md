@@ -156,7 +156,7 @@ Each model profile is a `.properties` file that configures how the library inter
 | `temperature` | Double | Yes | Controls randomness in responses. Lower values (0.0-0.5) are more deterministic, higher values (0.5-1.0+) more creative. | `0.2`, `0.4`, `0.7` |
 | `topP` | Double | Yes | Nucleus sampling parameter. Controls diversity via cumulative probability. Typically kept at 1.0. | `1.0`, `0.9` |
 | `modelProvider` | Enum | Yes | The LLM provider/client type to use. | `OAI_CHAT_COMPLETION`, `OAI_TEXT_COMPLETION`, `AZURE_AI` |
-| `modelName` | String | No | The specific model identifier or deployment name. Can be empty for local models where it's auto-detected. | `Llama-3.3-70B-Instruct`, `gpt-4`, `` (empty for auto-detect) |
+| `modelName` | String | No | The specific model identifier or deployment name. Can be empty for local models (e.g. lama-server) where it's auto-detected (use first name). | `Llama-3.3-70B-Instruct`, `gpt-4`, `` (empty for auto-detect) |
 | `url` | String | Yes | Base URL endpoint for the model API. | `https://api.openai.com/v1`, `http://localhost:5001` |
 | `apiKey` | String | No | Authentication key for the API. Can use Spring property placeholders like `${apikey}`. Can be empty for local models. | `sk-...`, `${apikey}`, `` (empty) |
 | `cost1MInTokens` | Double | Yes | Cost per 1 million input tokens in your currency. Use `0` for free/local models. | `0.71`, `0`, `5.00` |

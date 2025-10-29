@@ -20,7 +20,6 @@ import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.oai.completion.AbstractCompletionClient;
-import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import reactor.core.publisher.Mono;
@@ -44,7 +43,7 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		final var chat = createChats(conversation, modelProfile);
 		
 		final var request = new ChatCompletionRequest();
-		request.setModel(this.modelNameSupplier.getModelName(modelProfile.url()));
+		request.setModel(this.modelNameSupplier.getModelName(modelProfile));
 		request.setMessages(chat);
 		request.setMaxTokens(modelProfile.maxTokens());
 		request.setMaxCompletionTokens(modelProfile.maxTokens());

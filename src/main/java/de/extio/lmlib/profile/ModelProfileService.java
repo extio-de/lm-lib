@@ -2,16 +2,10 @@ package de.extio.lmlib.profile;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.context.properties.bind.Bindable;
-import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
@@ -24,8 +18,6 @@ import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 public class ModelProfileService {
 	
 	private final Environment environment;
-	
-	private static final String MODEL_PROFILE_PREFIX = "profile";
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(ModelProfileService.class);
 	
@@ -121,32 +113,5 @@ public class ModelProfileService {
 	
 	public ModelProfile getModelProfile(final ModelCategory modelCategory) {
 		return this.getModelProfile(modelCategory.getModelProfile(), modelCategory);
-	}
-	
-	public List<String> getModelProfileUrls(final ModelProvider... modelProviders) {
-		final var modelProfiles = Binder.get(this.environment)
-				.bind(MODEL_PROFILE_PREFIX, Bindable.mapOf(String.class, String.class))
-				.orElse(Collections.emptyMap());
-		
-		return modelProfiles.values().stream()
-				.filter(model -> model != null && !model.isEmpty())
-				.map(model -> {
-					try {
-						final var resource = new ResourcePropertySource("classpath:" + model + ".properties");
-						for (final ModelProvider modelProvider : modelProviders) {
-							if (modelProvider.name().equals(resource.getProperty("modelProvider"))) {
-								return resource.getProperty("url") != null ? resource.getProperty("url").toString() : null;
-							}
-						}
-						return null;
-					}
-					catch (final IOException e) {
-						LOGGER.error("Error while reading model profile for: " + model, e);
-						return null;
-					}
-				})
-				.filter(Objects::nonNull)
-				.distinct()
-				.collect(Collectors.toList());
 	}
 }

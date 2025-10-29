@@ -1,61 +1,40 @@
 package de.extio.lmlib.client.oai;
 
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 
-import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import de.extio.lmlib.profile.ModelProfileService;
+import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 
 @Component
-public class ModelNameSupplier implements InitializingBean {
+public class ModelNameSupplier {
 	
 	@Autowired
 	@Qualifier("lmLibWebClientBuilder")
 	private WebClient.Builder webClientBuilder;
 	
-	private final Map<String, CompletableFuture<String>> modelNames = new ConcurrentHashMap<>();
+	private final Map<String, String> resolvedModelNames = new ConcurrentHashMap<>();
 	
-	private final Map<String, CountDownLatch> countDownLatches = new ConcurrentHashMap<>();
-	
-	@Autowired
-	private ModelProfileService modelProfileService;
-	
-	@Override
-	public void afterPropertiesSet() throws Exception {
-		final var urls = this.modelProfileService.getModelProfileUrls(ModelProvider.OAI_TEXT_COMPLETION, ModelProvider.OAI_CHAT_COMPLETION);
-		for (final var url : urls) {
-			this.countDownLatches.put(url, new CountDownLatch(1));
-			this.fetchModelName(url);
+	public String getModelName(final ModelProfile modelProfile) {
+		if (modelProfile.modelName() != null && !modelProfile.modelName().isBlank()) {
+			return modelProfile.modelName();
 		}
-	}
-	
-	private void fetchModelName(final String url) {
-		final var webClient = this.webClientBuilder.baseUrl(url).build();
-		CompletableFuture.runAsync(() -> {
-			final var modelNameLoader = new ModelNameLoader(webClient, modelName -> {
-				this.modelNames.put(url, CompletableFuture.completedFuture(modelName));
-				this.countDownLatches.get(url).countDown();
-			});
-			modelNameLoader.run();
+		
+		if (modelProfile.modelProvider() != ModelProvider.OAI_TEXT_COMPLETION && modelProfile.modelProvider() != ModelProvider.OAI_CHAT_COMPLETION) {
+			return "";
+		}
+		
+		final var cacheKey = modelProfile.category() + "|" + modelProfile.url();
+		return this.resolvedModelNames.computeIfAbsent(cacheKey, key -> {
+			final var webClient = this.webClientBuilder.baseUrl(modelProfile.url()).build();
+			final var loader = new ModelNameLoader(webClient);
+			return loader.loadModelName().orElse("");
 		});
-	}
-	
-	public String getModelName(final String url) {
-		try {
-			this.countDownLatches.get(url).await();
-		}
-		catch (final InterruptedException e) {
-			throw new RuntimeException("Interrupted", e);
-		}
-		return this.modelNames.get(url).join();
 	}
 	
 }

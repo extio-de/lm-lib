@@ -49,7 +49,7 @@ public class TextCompletionClient extends AbstractCompletionClient {
 		final var prompt = this.createPrompt(conversation, modelProfile, promptStrategy);
 		
 		final var request = new CompletionRequest();
-		request.setModel(this.modelNameSupplier.getModelName(modelProfile.url()));
+		request.setModel(this.modelNameSupplier.getModelName(modelProfile));
 		request.setPrompt(prompt);
 		request.setMaxTokens(modelProfile.maxTokens());
 		request.setTemperature(modelProfile.temperature());
