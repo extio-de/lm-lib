@@ -291,7 +291,7 @@ public final class AzureAiClient implements Client {
 				Duration.between(start, LocalDateTime.now()),
 				promptTokens,
 				completionTokens,
-				new BigDecimal(promptTokens).multiply(modelProfile.costInToken()).add(new BigDecimal(completionTokens).multiply(modelProfile.costOutToken())),
+				new BigDecimal(promptTokens).multiply(modelProfile.costPerInToken()).add(new BigDecimal(completionTokens).multiply(modelProfile.costPerOutToken())),
 				false);
 		LOGGER.debug("{}", statistics);
 		return statistics;

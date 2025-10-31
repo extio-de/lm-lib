@@ -161,7 +161,7 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 				Duration.between(start, LocalDateTime.now()),
 				inTokens,
 				outTokens,
-				new BigDecimal(inTokens).multiply(modelProfile.costInToken()).add(new BigDecimal(outTokens).multiply(modelProfile.costOutToken())),
+				new BigDecimal(inTokens).multiply(modelProfile.costPerInToken()).add(new BigDecimal(outTokens).multiply(modelProfile.costPerOutToken())),
 				false);
 		LOGGER.debug("{}", statistics);
 		if (this.collectStatistics) {

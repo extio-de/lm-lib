@@ -13,8 +13,8 @@ public record ModelProfile(
 		String modelName,
 		String url,
 		String apiKey,
-		BigDecimal costInToken,
-		BigDecimal costOutToken,
+		BigDecimal costPerInToken,
+		BigDecimal costPerOutToken,
 		String reasoningEffort,
 		String reasoningSummaryDetails,
 		String category) {

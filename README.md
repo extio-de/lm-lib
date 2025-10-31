@@ -111,8 +111,8 @@ final var modelProfile = new ModelProfile(
     "gpt-4",                              // modelName
     "https://api.openai.com/v1",         // url
     System.getenv("OPENAI_API_KEY"),     // apiKey
-    new BigDecimal("0.03"),               // costInToken (per token)
-    new BigDecimal("0.06"),               // costOutToken (per token)
+    new BigDecimal("0.3").divide(1000000), // costPerInToken (per token)
+    new BigDecimal("0.6").divide(1000000), // costPerOutToken (per token)
     null,                                 // reasoningEffort
     null,                                 // reasoningSummaryDetails
     "DYNAMIC"                             // category (short name for logging)
@@ -558,8 +558,8 @@ final var customProfile = new ModelProfile(
     "gpt-4-turbo",                                    // modelName
     "https://api.openai.com/v1",                     // url
     System.getenv("OPENAI_API_KEY"),                 // apiKey
-    new BigDecimal("0.01"),                           // costInToken
-    new BigDecimal("0.03"),                           // costOutToken
+    new BigDecimal("0.3").divide(1000000), // costPerInToken (per token)
+    new BigDecimal("0.6").divide(1000000), // costPerOutToken (per token)
     null,                                             // reasoningEffort
     null,                                             // reasoningSummaryDetails
     "GPT4T"                                           // category

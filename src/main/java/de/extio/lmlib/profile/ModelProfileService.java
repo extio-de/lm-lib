@@ -71,12 +71,12 @@ public class ModelProfileService {
 			final var url = Optional.ofNullable(resource.getProperty("url"))
 					.map(Object::toString)
 					.orElseThrow(() -> new IllegalStateException("No model url found for model: " + modelName));
-			final var costInToken = Optional.ofNullable(resource.getProperty("cost1MInTokens"))
+			final var costPerInToken = Optional.ofNullable(resource.getProperty("cost1MInTokens"))
 					.map(Object::toString)
 					.map(value -> new BigDecimal(value))
 					.orElse(BigDecimal.ZERO)
 					.divide(new BigDecimal(1000000.0));
-			final var costOutToken = Optional.ofNullable(resource.getProperty("cost1MOutTokens"))
+			final var costPerOutToken = Optional.ofNullable(resource.getProperty("cost1MOutTokens"))
 					.map(Object::toString)
 					.map(value -> new BigDecimal(value))
 					.orElse(BigDecimal.ZERO)
@@ -103,7 +103,7 @@ public class ModelProfileService {
 						.orElse(null);
 			}
 			
-			return new ModelProfile(promptTemplate, tokenEncoding, maxTokens, maxContextLength, temperature, topP, modelProvider, modelNameCfg, url, apiKey, costInToken, costOutToken, reasoningEffort, reasoningSummaryDetails, category);
+			return new ModelProfile(promptTemplate, tokenEncoding, maxTokens, maxContextLength, temperature, topP, modelProvider, modelNameCfg, url, apiKey, costPerInToken, costPerOutToken, reasoningEffort, reasoningSummaryDetails, category);
 		}
 		catch (final IOException e) {
 			LOGGER.error("Error while reading model profile", e);
