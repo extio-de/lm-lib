@@ -119,6 +119,14 @@ public final class AgentContext {
 		}
 		throw new IllegalArgumentException("Value for key '" + key + "' is not of type " + type.getName());
 	}
+
+	public <T> List<T> getValues(final String key, final Class<T> type) {
+		final var values = this.context.get(key);
+		if (values == null) {
+			return null;
+		}
+		return values.stream().map(type::cast).collect(Collectors.toCollection(ArrayList::new));
+	}
 	
 	public <T> void setValue(final String key, final T value) {
 		if (value == null) {
