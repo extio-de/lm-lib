@@ -353,13 +353,130 @@ public class MyInterceptor implements CompletionInterceptor {
 
 The client will autowire all `CompletionInterceptor` implementations and apply them to requests automatically.
 
-# Grader
+# Graders
 
-The library includes a grader component that evaluates the correctness of agent responses.
+The library includes multiple grader implementations for evaluating the correctness and quality of responses. Graders can be used either as standalone utilities or integrated into agentic flows. Each grader uses a different evaluation approach and offers trade-offs between accuracy and performance.
 
-Example:
+**Performance Note:** The performance characteristics of agent graders vary significantly depending on the model type. Reasoning models have substantial inherent overhead, which means the additional complexity of agent-based approaches has relatively less impact on total execution time. Non-reasoning models show more pronounced relative differences because they have lower baseline overhead. All performance factors are relative to `Grader2` (baseline) and measured under identical conditions.
 
-    assertTrue(Grader.assessScoreBinary("Does the following blog post mention the feature " + feature, resultContext.getStringValue("blogPost"), this.clientService));
+## Conventional Graders
+
+Standalone graders for use outside agentic flows. These are simple utilities you can call directly from your code without requiring an `AgentContext`.
+
+### Grader2 (Recommended for Conventional Grading)
+
+**Approach:** Majority voting with multiple independent assessments.
+
+Uses the grader logic multiple times and returns the majority result. This approach is slower but more robust and reliable, reducing the impact of individual LLM evaluation errors.
+
+**Performance:** Baseline (1.0x)
+
+**Feedback Loop:** Not supported (conventional grader)
+
+**Use Case:** General-purpose binary evaluation (pass/fail) outside of agentic flows.
+
+**Usage:**
+```java
+final var result = Grader2.assessScoreBinary("Does the text mention feature X?", textToGrade, clientService);
+```
+
+### Grader (Deprecated)
+
+Legacy majority voting grader. Use `Grader2` instead.
+
+## Agent Graders
+
+Specialized graders designed to be integrated into agentic flows as part of an `AgentContext`. These agents can be composed within larger workflows and support feedback loops for iterative improvement.
+
+### AnswerGrader2 (Recommended for Detailed Feedback in Flows)
+
+**Approach:** Agentic evaluation with detailed scoring and feedback loop.
+
+An agent-based grader that provides a detailed rating (0-100) for each answer along with an explanation. Supports optional descriptions via the `qaOutputDescription` context key. Includes a feedback loop mechanism (up to 2 attempts) to improve scoring accuracy when initial ratings are below threshold (≤60).
+
+**Performance:**
+- **With descriptions:** ~1.5x - 7x slower than baseline — provides detailed explanations
+- **Without descriptions:** ~1.2x - 2.3x slower than baseline — faster, ratings only
+
+*Note: Performance varies significantly by model type. Reasoning models show minimal relative overhead (~1.5x/1.2x) due to their substantial baseline processing time, while non-reasoning models show greater relative differences (~7x/2.3x).*
+
+**Feedback Loop:** Supported (retries up to 2 attempts when rating ≤60)
+
+**Use Case:** Quality assessment within agentic flows where detailed feedback and scoring are required, with optional retry logic for borderline cases.
+
+**Context Keys:**
+- `qaQuestion`: The question to evaluate
+- `qaAnswer`: The answer to grade
+- `qaOutputDescription`: Set to `Boolean.TRUE` (default) for detailed explanations or `Boolean.FALSE` for ratings only (required for feedback loop to provide meaningful feedback)
+- `qaFeedbackLoopDestination` (required for feedback loop): Agent name to return to for answer refinement
+
+**Usage:**
+```java
+context.setStringValue("qaQuestion", "Is this a good solution?");
+context.setStringValue("qaAnswer", answerText);
+context.setValue("qaOutputDescription", Boolean.FALSE); // For faster evaluation
+context.setStringValue("qaFeedbackLoopDestination", "AnswerRefiner");
+final var result = agentExecutorService.walk("AnswerGrader2", context);
+```
+
+### AnswerGraderBinary (Recommended for Speed in Flows)
+
+**Approach:** Agentic binary evaluation with feedback loop.
+
+A lightweight agent-based grader that determines if an answer is a successful resolution (true/false) with optional explanations. Includes a feedback loop mechanism (up to 2 attempts) for improved accuracy when evaluations fail.
+
+**Performance:**
+- **With descriptions:** ~1.3x - 6.3x slower than baseline — includes brief explanations
+- **Without descriptions:** ~1.0x - 2.2x slower than baseline — fastest agent grader option
+
+*Note: Performance varies significantly by model type. Reasoning models show minimal relative overhead (~1.3x/1.0x) due to their substantial baseline processing time, while non-reasoning models show greater relative differences (~6x/2x).*
+
+**Feedback Loop:** Supported (retries up to 2 attempts when evaluation fails)
+
+**Use Case:** Quick pass/fail evaluation within agentic flows where speed is prioritized, with optional feedback for failed evaluations.
+
+**Context Keys:**
+- `qaQuestion`: The question to evaluate
+- `qaAnswer`: The answer to evaluate
+- `qaOutputDescription`: Set to `Boolean.TRUE` (default) for explanations or `Boolean.FALSE` for boolean only (required for feedback loop to provide meaningful feedback)
+- `qaFeedbackLoopDestination` (required for feedback loop): Agent name to return to for answer refinement
+
+**Usage:**
+```java
+context.setStringValue("qaQuestion", "Does this answer the question?");
+context.setStringValue("qaAnswer", answerText);
+context.setValue("qaOutputDescription", Boolean.FALSE); // For maximum speed
+context.setStringValue("qaFeedbackLoopDestination", "AnswerRefiner");
+final var result = agentExecutorService.walk("AnswerGraderBinary", context);
+```
+
+### AnswerGrader (Deprecated)
+
+Legacy agent-based grader. Use `AnswerGrader2` instead.
+
+## Feedback Loop Mechanism in Agent Graders
+
+Both `AnswerGrader2` and `AnswerGraderBinary` support an optional feedback loop for iterative improvement within agentic flows. The feedback loop provides actionable feedback to the source agent to refine their answer. When configured:
+
+1. If the evaluation fails and fewer than 2 attempts have been made, the grader:
+   - Constructs feedback from the previous evaluation (using `qaExplanation` from the grader output)
+   - Returns to the specified feedback loop destination (the source agent) with a retry flag
+   - The source agent receives the feedback via the `qaFeedback` context key and can refine the answer
+   - The refined answer is resubmitted for evaluation
+
+2. After 2 attempts or if the evaluation passes, evaluation completes with the final result
+
+**Note:** For the feedback loop to provide meaningful feedback, `qaOutputDescription` should be set to `Boolean.TRUE` to ensure the grader generates explanations that can guide the source agent's refinement.
+
+**Example with Feedback Loop:**
+```java
+// Set up an agentic flow with a feedback loop
+context.setStringValue("qaQuestion", "Explain machine learning");
+context.setStringValue("qaAnswer", initialAnswer);
+context.setStringValue("qaFeedbackLoopDestination", "AnswerEnhancer");
+final var result = agentExecutorService.walk("AnswerGraderBinary", context);
+// If grading fails, will loop back to AnswerEnhancer for one retry
+```
 
 # Agentic Flows
 

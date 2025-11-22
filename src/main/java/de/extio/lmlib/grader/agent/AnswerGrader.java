@@ -8,6 +8,10 @@ import de.extio.lmlib.agent.AgentType;
 import de.extio.lmlib.agent.responsehandler.JsonAgentResponseHandler;
 import de.extio.lmlib.profile.ModelCategory;
 
+/**
+ * @deprecated Use {@link AnswerGrader2} instead.
+ */
+@Deprecated
 public class AnswerGrader {
 	
 	public static Agent createAgent() {

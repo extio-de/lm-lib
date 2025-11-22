@@ -5,15 +5,12 @@ import org.slf4j.LoggerFactory;
 
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.ClientService;
+import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.profile.ModelCategory;
 
-/**
- * @deprecated Use {@link Grader2} instead.
- */
-@Deprecated
-public class Grader {
+public class Grader2 {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(Grader.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(Grader2.class);
 
 	public static boolean assessScoreBinary(final String question, final String text, final ClientService clientService) {
 		final var client = clientService.getClient(ModelCategory.MEDIUM);
@@ -25,15 +22,31 @@ public class Grader {
 		
 		var score = 0;
 		while (Math.abs(score) < 3) {
-			final var completion = client.completion(
+			final var completion = client.conversation(
 					ModelCategory.MEDIUM,
+					Conversation.create(
 					"""
-							You are a grader assessing the truthfulness of a given text to a user question.
-							Please provide a binary response 'true' or 'false' for the following text.
-							'true' means that the text provides a truthful answer to the question, while 'false' means that it does not.
-							Only provide the response as a single word and no preamble and no explanation.""",
-					"Here is the text:\n" + text + "\n\n" +
-					"Here is the user question: " + question);
+					You are an expert grader. Your role is to assess the truthfulness of a given text in response to a user question.
+					""",
+					"""
+					I need you to determine if the provided text is a truthful answer to the question.
+					
+					### Input Data
+					**Question:**
+					%s
+					
+					**Text:**
+					%s
+					
+					### Task
+					Assess whether the text provides a truthful answer to the question.
+					
+					### Output Format
+					Provide a binary response 'true' or 'false'.
+					- 'true': The text provides a truthful answer.
+					- 'false': The text does not provide a truthful answer.
+					Only provide the response as a single word. Do not include any preamble or explanation.
+					""".formatted(question, text)));
 			LOGGER.info(completion.response());
 			score += Boolean.parseBoolean(completion.response().strip()) ? 1 : -1;
 			if (Math.abs(score) == 2) {
