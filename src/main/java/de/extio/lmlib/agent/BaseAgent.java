@@ -112,6 +112,7 @@ public interface BaseAgent {
 							final var responseHandler = this.responseHandler();
 							final var modelProfile = this.modelProfile(split.context());
 							Completion completion = null;
+							final var requestStart = System.currentTimeMillis();
 							if (split.context().isStreaming()) {
 								if (responseHandler instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
 									streamedResponseHandler.beforeStream(split.context());
@@ -138,6 +139,8 @@ public interface BaseAgent {
 									completion = client.conversation(this.modelCategory(split.context()), conversation);
 								}
 							}
+							final var durationMs = System.currentTimeMillis() - requestStart;
+							split.context().getGraph().add("(" + durationMs + " ms)");
 							split.context().setLastCompletion(completion);
 							split.context().getRequestStatistic().add(completion);
 							
