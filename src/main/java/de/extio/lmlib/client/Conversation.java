@@ -54,6 +54,15 @@ public final class Conversation {
 			}
 		}
 	}
+
+	public void rewindTurn() {
+		synchronized (this.conversation) {
+			if (this.conversation.size() > 1) {
+				this.conversation.removeLast();
+				this.conversation.removeLast();
+			}
+		}
+	}
 	
 	public List<Turn> getConversation() {
 		return Collections.unmodifiableList(this.conversation);
