@@ -83,7 +83,7 @@ public class ClientService {
 			}
 			var completion = this.client.conversation(modelProfile, conversation);
 			for (final var interceptor : this.completionInterceptors) {
-				completion = interceptor.after(modelProfile, completion);
+				completion = interceptor.after(modelProfile, conversation, completion);
 			}
 			return completion;
 		}
@@ -96,7 +96,7 @@ public class ClientService {
 			}
 			var completion = this.client.streamConversation(modelProfile, conversation, chunkConsumer);
 			for (final var interceptor : this.completionInterceptors) {
-				completion = interceptor.after(modelProfile, completion);
+				completion = interceptor.after(modelProfile, conversation, completion);
 			}
 			return completion;
 		}

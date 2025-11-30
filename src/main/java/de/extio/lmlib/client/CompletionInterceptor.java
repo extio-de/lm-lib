@@ -6,6 +6,6 @@ public interface CompletionInterceptor {
 	
 	Conversation before(ModelProfile modelProfile, Conversation conversation);
 	
-	Completion after(ModelProfile modelProfile, Completion completion);
+	Completion after(ModelProfile modelProfile, Conversation conversation, Completion completion);
 	
 }
