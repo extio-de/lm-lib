@@ -78,12 +78,12 @@ public class CachedClient implements Client {
 		
 		final var cachedCompletion = this.cacheRepository.get(key);
 		if (cachedCompletion != null) {
-			return new Completion(cachedCompletion.response(), cachedCompletion.reasoning(), CompletionFinishReason.DONE, new CompletionStatistics(0, Duration.ZERO, cachedCompletion.inTokens(), cachedCompletion.outTokens(), BigDecimal.ZERO, true));
+			return new Completion(cachedCompletion.response(), cachedCompletion.reasoning(), CompletionFinishReason.DONE, new CompletionStatistics(0, Duration.ZERO, cachedCompletion.inTokens(), cachedCompletion.cachedInTokens(), cachedCompletion.outTokens(), cachedCompletion.reasoningOutTokens(), BigDecimal.ZERO, true));
 		}
 		
 		final var completion = supplier.get();
 		if (completion != null) {
-			this.cacheRepository.put(key, new CachedCompletion(completion.response(), completion.reasoning(), completion.finishReason(), completion.statistics().inTokens(), completion.statistics().outTokens(), OffsetDateTime.now()));
+			this.cacheRepository.put(key, new CachedCompletion(completion.response(), completion.reasoning(), completion.finishReason(), completion.statistics().inTokens(), completion.statistics().cachedInTokens(), completion.statistics().outTokens(), completion.statistics().reasoningOutTokens(), OffsetDateTime.now()));
 		}
 		return completion;
 	}

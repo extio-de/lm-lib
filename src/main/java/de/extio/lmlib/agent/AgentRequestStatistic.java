@@ -31,7 +31,11 @@ public final class AgentRequestStatistic {
 	
 	private final AtomicLong inTokens = new AtomicLong();
 	
+	private final AtomicLong cachedInTokens = new AtomicLong();
+	
 	private final AtomicLong outTokens = new AtomicLong();
+	
+	private final AtomicLong reasoningOutTokens = new AtomicLong();
 	
 	private volatile Instant start;
 	
@@ -51,8 +55,16 @@ public final class AgentRequestStatistic {
 		return this.inTokens;
 	}
 	
+	public AtomicLong getCachedInTokens() {
+		return this.cachedInTokens;
+	}
+	
 	public AtomicLong getOutTokens() {
 		return this.outTokens;
+	}
+	
+	public AtomicLong getReasoningOutTokens() {
+		return this.reasoningOutTokens;
 	}
 	
 	public Duration getRequestDuration() {
@@ -68,12 +80,12 @@ public final class AgentRequestStatistic {
 	
 	public String getTps() {
 		final var duration = this.start == null ? this.getRequestDuration() : this.getEffectiveDuration();
-		return new DecimalFormat("#.##").format((double) (this.inTokens.get() + this.outTokens.get()) / (double) duration.toMillis() * 1000.0);
+		return new DecimalFormat("#.##").format((double) (this.inTokens.get() + this.outTokens.get() + this.reasoningOutTokens.get()) / (double) duration.toMillis() * 1000.0);
 	}
 	
 	public String getOutTps() {
 		final var duration = this.start == null ? this.getRequestDuration() : this.getEffectiveDuration();
-		return new DecimalFormat("#.##").format((double) this.outTokens.get() / (double) duration.toMillis() * 1000.0);
+		return new DecimalFormat("#.##").format((double) (this.outTokens.get() + this.reasoningOutTokens.get()) / (double) duration.toMillis() * 1000.0);
 	}
 	
 	public BigDecimal getCost() {
@@ -86,9 +98,11 @@ public final class AgentRequestStatistic {
 		}
 		else {
 			this.getRequests().addAndGet(completion.statistics().requests());
+			this.getInTokens().addAndGet(completion.statistics().inTokens());
+			this.getCachedInTokens().addAndGet(completion.statistics().cachedInTokens());
+			this.getOutTokens().addAndGet(completion.statistics().outTokens());
+			this.getReasoningOutTokens().addAndGet(completion.statistics().reasoningOutTokens());
 		}
-		this.getInTokens().addAndGet(completion.statistics().inTokens());
-		this.getOutTokens().addAndGet(completion.statistics().outTokens());
 		synchronized (this) {
 			this.requestDuration = this.requestDuration.plus(completion.statistics().duration());
 			this.cost = this.cost.add(completion.statistics().cost());
@@ -99,7 +113,9 @@ public final class AgentRequestStatistic {
 		this.getRequests().addAndGet(other.getRequests().get());
 		this.getCachedPrompts().addAndGet(other.getCachedPrompts().get());
 		this.getInTokens().addAndGet(other.getInTokens().get());
+		this.getCachedInTokens().addAndGet(other.getCachedInTokens().get());
 		this.getOutTokens().addAndGet(other.getOutTokens().get());
+		this.getReasoningOutTokens().addAndGet(other.getReasoningOutTokens().get());
 		synchronized (this) {
 			if (this.start != null && other.start.isBefore(this.start)) {
 				this.start = other.start;
@@ -118,8 +134,12 @@ public final class AgentRequestStatistic {
 		builder.append(this.cachedPrompts);
 		builder.append(", inTokens=");
 		builder.append(this.inTokens);
+		builder.append(", cachedInTokens=");
+		builder.append(this.cachedInTokens);
 		builder.append(", outTokens=");
 		builder.append(this.outTokens);
+		builder.append(", reasoningOutTokens=");
+		builder.append(this.reasoningOutTokens);
 		builder.append(", requestDuration=");
 		builder.append(this.requestDuration);
 		builder.append(", getEffectiveDuration()=");

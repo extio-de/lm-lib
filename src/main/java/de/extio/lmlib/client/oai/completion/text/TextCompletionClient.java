@@ -57,6 +57,8 @@ public class TextCompletionClient extends AbstractCompletionClient {
 		request.setStream(chunkConsumer != null);
 		if (chunkConsumer != null) {
 			this.configureStreamOptions(true, request::setStreamOptions);
+		} else {
+			request.setUsage(true);
 		}
 		
 		String requestBody;
@@ -70,10 +72,14 @@ public class TextCompletionClient extends AbstractCompletionClient {
 		LOGGER.debug("Requesting completion at {}", modelProfile.url());
 		final LocalDateTime start = LocalDateTime.now();
 		final var webClient = this.webClientBuilder.baseUrl(modelProfile.url()).build();
-		final var response = webClient
+		var requestSpec = webClient
 				.method(HttpMethod.POST)
 				.uri(uriBuilder -> uriBuilder.path("/v1/completions").build())
-				.header("Content-Type", "application/json")
+				.header("Content-Type", "application/json");
+		if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
+			requestSpec = requestSpec.header("Authorization", "Bearer " + modelProfile.apiKey());
+		}
+		final var response = requestSpec
 				.bodyValue(requestBody)
 				.exchangeToMono(clientResponse -> {
 					if (clientResponse.statusCode().isError()) {
@@ -111,6 +117,9 @@ public class TextCompletionClient extends AbstractCompletionClient {
 											}
 											if (streamResponse.getUsage() != null) {
 												CompletionResponse.setUsage(streamResponse.getUsage());
+											}
+											if (streamResponse.getTimings() != null) {
+												CompletionResponse.setTimings(streamResponse.getTimings());
 											}
 											if (streamResponse.getChoices() != null && !streamResponse.getChoices().isEmpty()) {
 												if (streamResponse.getChoices().getFirst().getFinishReason() != null) {
@@ -172,7 +181,7 @@ public class TextCompletionClient extends AbstractCompletionClient {
 			}
 		}
 		
-		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), prompt, response.getContent());
+		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), response.getTimings(), prompt, content, reasoning);
 		return new Completion(content, reasoning, finishReason, statistics);
 	}
 	

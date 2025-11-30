@@ -140,32 +140,64 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 		}
 	}
 	
-	protected de.extio.lmlib.client.CompletionStatistics createCompletionStatistics(final ModelProfile modelProfile, final LocalDateTime start, final Usage usage, final String prompt, final String response) {
+	protected de.extio.lmlib.client.CompletionStatistics createCompletionStatistics(final ModelProfile modelProfile, final LocalDateTime start, final Usage usage, final Timings timings, final String prompt, final String response, final String reasoning) {
 		int inTokens = 0;
+		int cachedInTokens = 0;
 		int outTokens = 0;
+		int reasoningOutTokens = 0;
+		
+		// Usage data has priority (official OAI spec)
 		if (usage != null && usage.getPromptTokens() > 0) {
-			inTokens = usage.getPromptTokens();
-			outTokens = usage.getCompletionTokens();
+			cachedInTokens = usage.getCachedTokens();
+			inTokens = usage.getPromptTokens() - cachedInTokens;
+			reasoningOutTokens = usage.getReasoningTokens();
+			outTokens = usage.getCompletionTokens() - reasoningOutTokens;
 		}
-		else {
-			if (prompt != null) {
-				inTokens = this.tokenizer.count(prompt, modelProfile);
+		// If no usage data, try to get token counts from timings (e.g. llama.cpp, prompt_n does not include cache_n)
+		if (timings != null) {
+			if (inTokens <= 0 && cachedInTokens <= 0 && (timings.getPromptN() > 0 || timings.getCacheN() > 0)) {
+				inTokens = Math.max(0, timings.getPromptN());
+				cachedInTokens = Math.max(0, timings.getCacheN());
 			}
-			if (response != null) {
-				outTokens = this.tokenizer.count(response, modelProfile);
+			else if (cachedInTokens <= 0 && timings.getCacheN() > 0) {
+				cachedInTokens = Math.max(0, timings.getCacheN());
+				inTokens -= cachedInTokens;
+			}
+			if (outTokens <= 0 && timings.getPredictedN() > 0) {
+				outTokens = timings.getPredictedN();
 			}
 		}
+		// Fallback to tokenizer estimation
+		if (inTokens <= 0 && prompt != null && !prompt.isBlank()) {
+			inTokens = this.tokenizer.count(prompt, modelProfile);
+		}
+		if (reasoningOutTokens <= 0 && reasoning != null && !reasoning.isBlank()) {
+			reasoningOutTokens = this.tokenizer.count(reasoning, modelProfile);
+			outTokens -= reasoningOutTokens;
+		}
+		if (outTokens <= 0 && response != null && !response.isBlank()) {
+			outTokens = this.tokenizer.count(response, modelProfile);
+		}
+		
+		// Calculate cost - inTokens and outTokens are already exclusive of cached/reasoning tokens
+		BigDecimal cost = BigDecimal.ZERO;
+		cost = cost.add(new BigDecimal(inTokens).multiply(modelProfile.costPerInToken()));
+		cost = cost.add(new BigDecimal(cachedInTokens).multiply(modelProfile.costPerCachedInToken()));
+		cost = cost.add(new BigDecimal(outTokens).multiply(modelProfile.costPerOutToken()));
+		cost = cost.add(new BigDecimal(reasoningOutTokens).multiply(modelProfile.costPerReasoningOutToken()));
 		
 		final var statistics = new de.extio.lmlib.client.CompletionStatistics(
 				1,
 				Duration.between(start, LocalDateTime.now()),
 				inTokens,
+				cachedInTokens,
 				outTokens,
-				new BigDecimal(inTokens).multiply(modelProfile.costPerInToken()).add(new BigDecimal(outTokens).multiply(modelProfile.costPerOutToken())),
+				reasoningOutTokens,
+				cost,
 				false);
 		LOGGER.debug("{}", statistics);
 		if (this.collectStatistics) {
-			this.totalStatistics.add(statistics.duration(), inTokens, outTokens, statistics.cost());
+			this.totalStatistics.add(statistics.duration(), inTokens, cachedInTokens, outTokens, reasoningOutTokens, statistics.cost());
 		}
 		return statistics;
 	}
@@ -187,15 +219,21 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 		
 		private long inTokens;
 		
+		private long cachedInTokens;
+		
 		private long outTokens;
+		
+		private long reasoningOutTokens;
 		
 		private BigDecimal cost = BigDecimal.ZERO;
 		
-		synchronized void add(final Duration duration, final int inTokens, final int outTokens, final BigDecimal cost) {
+		synchronized void add(final Duration duration, final int inTokens, final int cachedInTokens, final int outTokens, final int reasoningOutTokens, final BigDecimal cost) {
 			this.requests++;
 			this.duration = this.duration.plus(duration);
 			this.inTokens += inTokens;
+			this.cachedInTokens += cachedInTokens;
 			this.outTokens += outTokens;
+			this.reasoningOutTokens += reasoningOutTokens;
 			this.cost = this.cost.add(cost);
 		}
 		
@@ -208,19 +246,24 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 			builder.append(this.duration);
 			builder.append(", inTokens=");
 			builder.append(this.inTokens);
+			builder.append(", cachedInTokens=");
+			builder.append(this.cachedInTokens);
 			builder.append(", outTokens=");
 			builder.append(this.outTokens);
+			builder.append(", reasoningOutTokens=");
+			builder.append(this.reasoningOutTokens);
 			builder.append(", averageTps=");
-			builder.append(new DecimalFormat("0.##").format(((double) (this.outTokens + this.inTokens) / (double) this.requests) / ((double) this.duration.toMillis() / 1000.0 / (double) this.requests)));
+			final long totalOutTokens = this.outTokens + this.reasoningOutTokens;
+			builder.append(new DecimalFormat("0.##").format(((double) (totalOutTokens + inTokens) / (double) this.requests) / ((double) this.duration.toMillis() / 1000.0 / (double) this.requests)));
 			builder.append(", averageOutTps=");
-			builder.append(new DecimalFormat("0.##").format((double) this.outTokens / ((double) this.duration.toMillis() / 1000.0)));
+			builder.append(new DecimalFormat("0.##").format((double) totalOutTokens / ((double) this.duration.toMillis() / 1000.0)));
 			builder.append(", effectiveDuration=");
 			final var effectiveDuration = Duration.between(this.start, Instant.now());
 			builder.append(effectiveDuration);
 			builder.append(", effectiveTps=");
-			builder.append(new DecimalFormat("0.##").format(((double) (this.outTokens + this.inTokens) / (double) this.requests) / ((double) effectiveDuration.toMillis() / 1000.0 / (double) this.requests)));
+			builder.append(new DecimalFormat("0.##").format(((double) (totalOutTokens + inTokens) / (double) this.requests) / ((double) effectiveDuration.toMillis() / 1000.0 / (double) this.requests)));
 			builder.append(", effectiveOutTps=");
-			builder.append(new DecimalFormat("0.##").format((double) this.outTokens / ((double) effectiveDuration.toMillis() / 1000.0)));
+			builder.append(new DecimalFormat("0.##").format((double) totalOutTokens / ((double) effectiveDuration.toMillis() / 1000.0)));
 			builder.append(", cost=");
 			builder.append(new DecimalFormat("0.###").format(cost.doubleValue()));
 			builder.append("]");

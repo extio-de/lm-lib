@@ -108,11 +108,13 @@ final var modelProfile = new ModelProfile(
     0.7,                                  // temperature
     1.0,                                  // topP
     ModelProfile.ModelProvider.OAI_CHAT_COMPLETION,
-    "gpt-4",                              // modelName
+    "gpt-5.1",                            // modelName
     "https://api.openai.com/v1",         // url
     System.getenv("OPENAI_API_KEY"),     // apiKey
-    new BigDecimal("0.3").divide(1000000), // costPerInToken (per token)
-    new BigDecimal("0.6").divide(1000000), // costPerOutToken (per token)
+    new BigDecimal("1.25").divide(new BigDecimal(1000000)),  // costPerInToken ($1.25/1M)
+    new BigDecimal("0.125").divide(new BigDecimal(1000000)), // costPerCachedInToken ($0.125/1M)
+    new BigDecimal("10.0").divide(new BigDecimal(1000000)),  // costPerOutToken ($10.00/1M)
+    BigDecimal.ZERO,                      // costPerReasoningOutToken
     null,                                 // reasoningEffort
     null,                                 // reasoningSummaryDetails
     "DYNAMIC"                             // category (short name for logging)
@@ -160,7 +162,9 @@ Each model profile is a `.properties` file that configures how the library inter
 | `url` | String | Yes | Base URL endpoint for the model API. | `https://api.openai.com/v1`, `http://localhost:5001` |
 | `apiKey` | String | No | Authentication key for the API. Can use Spring property placeholders like `${apikey}`. Can be empty for local models. | `sk-...`, `${apikey}`, `` (empty) |
 | `cost1MInTokens` | Double | Yes | Cost per 1 million input tokens in your currency. Use `0` for free/local models. | `0.71`, `0`, `5.00` |
+| `cost1MCachedInTokens` | Double | No | Cost per 1 million cached input tokens. Defaults to `cost1MInTokens` if not specified. | `0.35`, `0` |
 | `cost1MOutTokens` | Double | Yes | Cost per 1 million output tokens in your currency. Use `0` for free/local models. | `0.71`, `0`, `15.00` |
+| `cost1MReasoningOutTokens` | Double | No | Cost per 1 million reasoning output tokens. Defaults to `0` if not specified. | `0`, `60.00` |
 | `reasoningEffort` | String | No | For reasoning models (e.g., OpenAI o1): controls depth of reasoning process. | `low`, `medium`, `high` |
 | `reasoningSummaryDetails` | String | No | For reasoning models: controls how reasoning content is summarized in the response. | `auto`, `concise`, `detailed` |
 
@@ -168,8 +172,10 @@ Each model profile is a `.properties` file that configures how the library inter
 - Properties marked "Yes" in the Required column must be present in every profile; missing required properties will cause runtime errors.
 - The `category` field is optional in profile files. When omitted, the category short name from the `ModelCategory` used to load the profile will be used instead.
 - The `prompts` property determines the prompt formatting strategy. For text completions, specify a strategy name (e.g., `llama3`, `gpt-oss`) or `no` for no formatting. For chat completions, use an empty string.
-- The `modelName` and `apiKey` properties are optional and can be empty for local model deployments.
+- The `modelName` and `apiKey` properties are optional and can be empty for local model deployments. When `apiKey` is provided, it is sent as a Bearer token in the Authorization header.
 - Cost properties are used for statistics tracking and have no impact on API calls. They help you monitor expenses.
+- The `cost1MCachedInTokens` property defaults to `cost1MInTokens` if not specified, assuming the provider does not distinguish between cached and non-cached tokens. When the provider does support KV-cache pricing, cached tokens are typically charged at significantly lower rates (e.g., 10-20% of the regular input token cost).
+- The `cost1MReasoningOutTokens` property defaults to `0` if not specified, as most models don't charge separately for reasoning tokens.
 - Reasoning properties are only applicable to models that support separate reasoning output (like OpenAI's o1 series).
 
 ### Reasoning Models
@@ -672,14 +678,16 @@ final var customProfile = new ModelProfile(
     0.3,                                              // temperature
     1.0,                                              // topP
     ModelProfile.ModelProvider.OAI_CHAT_COMPLETION,   // modelProvider
-    "gpt-4-turbo",                                    // modelName
+    "gpt-5.1",                                        // modelName
     "https://api.openai.com/v1",                     // url
     System.getenv("OPENAI_API_KEY"),                 // apiKey
-    new BigDecimal("0.3").divide(1000000), // costPerInToken (per token)
-    new BigDecimal("0.6").divide(1000000), // costPerOutToken (per token)
+    new BigDecimal("1.25").divide(new BigDecimal(1000000)),  // costPerInToken ($1.25/1M)
+    new BigDecimal("0.125").divide(new BigDecimal(1000000)), // costPerCachedInToken ($0.125/1M)
+    new BigDecimal("10.0").divide(new BigDecimal(1000000)),  // costPerOutToken ($10.00/1M)
+    BigDecimal.ZERO,                                  // costPerReasoningOutToken
     null,                                             // reasoningEffort
     null,                                             // reasoningSummaryDetails
-    "GPT4T"                                           // category
+    "GPT51"                                           // category
 );
 
 final var customModelAgent = new Agent(

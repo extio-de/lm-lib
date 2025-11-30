@@ -76,11 +76,19 @@ public class ModelProfileService {
 					.map(value -> new BigDecimal(value))
 					.orElse(BigDecimal.ZERO)
 					.divide(new BigDecimal(1000000.0));
+			final var costPerCachedInToken = Optional.ofNullable(resource.getProperty("cost1MCachedInTokens"))
+					.map(Object::toString)
+					.map(value -> new BigDecimal(value).divide(new BigDecimal(1000000.0)))
+					.orElse(costPerInToken);
 			final var costPerOutToken = Optional.ofNullable(resource.getProperty("cost1MOutTokens"))
 					.map(Object::toString)
 					.map(value -> new BigDecimal(value))
 					.orElse(BigDecimal.ZERO)
 					.divide(new BigDecimal(1000000.0));
+			final var costPerReasoningOutToken = Optional.ofNullable(resource.getProperty("cost1MReasoningOutTokens"))
+					.map(Object::toString)
+					.map(value -> new BigDecimal(value).divide(new BigDecimal(1000000.0)))
+					.orElse(BigDecimal.ZERO);
 			final var reasoningEffort = Optional.ofNullable(resource.getProperty("reasoningEffort"))
 					.map(Object::toString)
 					.orElse(null);
@@ -103,7 +111,7 @@ public class ModelProfileService {
 						.orElse(null);
 			}
 			
-			return new ModelProfile(promptTemplate, tokenEncoding, maxTokens, maxContextLength, temperature, topP, modelProvider, modelNameCfg, url, apiKey, costPerInToken, costPerOutToken, reasoningEffort, reasoningSummaryDetails, category);
+			return new ModelProfile(promptTemplate, tokenEncoding, maxTokens, maxContextLength, temperature, topP, modelProvider, modelNameCfg, url, apiKey, costPerInToken, costPerCachedInToken, costPerOutToken, costPerReasoningOutToken, reasoningEffort, reasoningSummaryDetails, category);
 		}
 		catch (final IOException e) {
 			LOGGER.error("Error while reading model profile", e);

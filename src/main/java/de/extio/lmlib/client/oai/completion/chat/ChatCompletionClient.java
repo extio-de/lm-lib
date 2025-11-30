@@ -52,6 +52,8 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		request.setStream(chunkConsumer != null);
 		if (chunkConsumer != null) {
 			this.configureStreamOptions(true, request::setStreamOptions);
+		} else {
+			request.setUsage(true);
 		}
 		if (modelProfile.reasoningEffort() != null && !modelProfile.reasoningEffort().isBlank()) {
 			request.setReasoning(new ChatCompletionRequest.ChatCompletionsRequestReasoning());
@@ -86,10 +88,14 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		final LocalDateTime start = LocalDateTime.now();
 		final var webClient = this.webClientBuilder.baseUrl(modelProfile.url()).build();
 		
-		final var response = webClient
+		var requestSpec = webClient
 				.method(HttpMethod.POST)
 				.uri(uriBuilder -> uriBuilder.path("/v1/chat/completions").build())
-				.header("Content-Type", "application/json")
+				.header("Content-Type", "application/json");
+		if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
+			requestSpec = requestSpec.header("Authorization", "Bearer " + modelProfile.apiKey());
+		}
+		final var response = requestSpec
 				.bodyValue(requestBody)
 				.exchangeToMono(clientResponse -> {
 					if (clientResponse.statusCode().isError()) {
@@ -122,6 +128,9 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 											}
 											if (streamResponse.getUsage() != null) {
 												chatCompletionResponse.setUsage(streamResponse.getUsage());
+											}
+											if (streamResponse.getTimings() != null) {
+												chatCompletionResponse.setTimings(streamResponse.getTimings());
 											}
 											if (streamResponse.getChoices() != null && !streamResponse.getChoices().isEmpty()) {
 												if (streamResponse.getChoices().getFirst().getFinishReason() != null) {
@@ -165,7 +174,7 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		final var content = response.getChoices().getFirst().getMessage().getContent();
 		final var reasoning = response.getChoices().getFirst().getMessage().getReasoningContent();
 		final var finishReason = this.mapFinishReason(choice.getFinishReason());
-		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), null, content);
+		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), response.getTimings(), null, content, reasoning);
 		return new Completion(content, reasoning, finishReason, statistics);
 	}
 	

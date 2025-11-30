@@ -16,6 +16,8 @@ public abstract class AbstractCompletionRequest {
 	
 	protected StreamOptions streamOptions;
 	
+	protected Boolean usage;
+	
 	@JsonProperty("model")
 	public String getModel() {
 		return this.model;
@@ -68,5 +70,14 @@ public abstract class AbstractCompletionRequest {
 	
 	public void setStreamOptions(final StreamOptions streamOptions) {
 		this.streamOptions = streamOptions;
+	}
+	
+	@JsonProperty("usage")
+	public Boolean getUsage() {
+		return this.usage;
+	}
+	
+	public void setUsage(final Boolean usage) {
+		this.usage = usage;
 	}
 }

@@ -11,6 +11,8 @@ public abstract class AbstractCompletionResponse {
 	protected Integer created;
 	
 	protected Usage usage;
+	
+	protected Timings timings;
 
 	@JsonProperty("id")
 	public String getId() {
@@ -41,10 +43,19 @@ public abstract class AbstractCompletionResponse {
 	
 	@JsonProperty("usage")
 	public Usage getUsage() {
-		return usage;
+		return this.usage;
 	}
 
 	public void setUsage(final Usage usage) {
 		this.usage = usage;
+	}
+	
+	@JsonProperty("timings")
+	public Timings getTimings() {
+		return this.timings;
+	}
+	
+	public void setTimings(final Timings timings) {
+		this.timings = timings;
 	}
 }

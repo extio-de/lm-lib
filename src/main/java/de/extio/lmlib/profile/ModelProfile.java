@@ -14,7 +14,9 @@ public record ModelProfile(
 		String url,
 		String apiKey,
 		BigDecimal costPerInToken,
+		BigDecimal costPerCachedInToken,
 		BigDecimal costPerOutToken,
+		BigDecimal costPerReasoningOutToken,
 		String reasoningEffort,
 		String reasoningSummaryDetails,
 		String category) {
