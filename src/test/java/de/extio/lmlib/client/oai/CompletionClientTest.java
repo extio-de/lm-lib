@@ -20,13 +20,14 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.PropertySource;
 
+import de.extio.lmlib.client.ClientService;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
 import de.extio.lmlib.client.oai.completion.chat.ChatCompletionClient;
 import de.extio.lmlib.client.oai.completion.text.TextCompletionClient;
-import de.extio.lmlib.grader.Grader;
-import de.extio.lmlib.profile.ModelCategory;
+import de.extio.lmlib.grader.Grader2;
+import de.extio.lmlib.profile.ModelProfileService;
 
 @Disabled("This test requires a running Llama server")
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
@@ -43,39 +44,47 @@ public class CompletionClientTest {
 	@Autowired
 	private ChatCompletionClient chatCompletionclient;
 	
+	@Autowired
+	private ModelProfileService modelProfileService;
+	
+	@Autowired
+	private ClientService clientService;
+	
 	@Test
 	void completion() throws Exception {
-		final var completion = this.textCompletionClient.completion(
-				ModelCategory.SMALL,
-				"You are a helpful assistant",
-				"Say the color is green");
+		final var modelProfile = this.modelProfileService.getModelProfile("profile.model.textcompletion");
+		final var completion = this.textCompletionClient.conversation(
+				modelProfile,
+				Conversation.create("You are a helpful assistant", "Say the color is green"));
 		
 		LOGGER.info(completion.reasoning());
 		LOGGER.info(completion.response());
 		
-		assertTrue(Grader.assessScoreBinary("Does the text mention the color green?", completion.response(), this.chatCompletionclient));
+		assertTrue(Grader2.assessScoreBinary("Does the text mention the color green?", completion.response(), modelProfile, this.clientService));
 	}
 	
 	@Test
 	void chatTextCompletion() throws Exception {
+		final var modelProfile = this.modelProfileService.getModelProfile("profile.model.textcompletion");
 		final var conversation = Conversation.create("You are a helpful assistant", "I would like to paint my canvas in a solid color.");
 		conversation.addTurn(new Turn(TurnType.ASSISTANT, "Which color do you want to see?"));
 		conversation.addTurn(new Turn(TurnType.USER, "You choose!"));
-		final var completion = this.textCompletionClient.conversation(ModelCategory.SMALL, conversation);
+		final var completion = this.textCompletionClient.conversation(modelProfile, conversation);
 		
 		LOGGER.info(completion.reasoning());
 		LOGGER.info(completion.response());
 		
-		assertTrue(Grader.assessScoreBinary("Does the text mention a color?", completion.response(), this.chatCompletionclient));
+		assertTrue(Grader2.assessScoreBinary("Does the text mention a color?", completion.response(), modelProfile, this.clientService));
 	}
 	
 	@Test
 	void streamTextCompletion() throws Exception {
+		final var modelProfile = this.modelProfileService.getModelProfile("profile.model.textcompletion");
 		final var conversation = Conversation.create("You are a helpful assistant", "I would like to play a role-playing game with you.");
 		conversation.addTurn(new Turn(TurnType.ASSISTANT, "Which character do you choose?"));
 		conversation.addTurn(new Turn(TurnType.USER, "You choose! But I need you to explain the character attributes to me."));
 		final StringBuilder sb = new StringBuilder();
-		final var completion = this.textCompletionClient.streamConversation(ModelCategory.SMALL, conversation, chunk -> {
+		final var completion = this.textCompletionClient.streamConversation(modelProfile, conversation, chunk -> {
 			if (chunk.reasoningContent() != null) {
 				System.out.print(chunk.reasoningContent());
 			}
@@ -94,29 +103,31 @@ public class CompletionClientTest {
 		else {
 			assertEquals(completion.response(), sb.toString());
 		}
-		assertTrue(Grader.assessScoreBinary("Does the text mention a role-playing game character?", completion.response(), this.chatCompletionclient));
+		assertTrue(Grader2.assessScoreBinary("Does the text mention a role-playing game character?", completion.response(), modelProfile, this.clientService));
 	}
 	
 	@Test
 	void chatCompletion() throws Exception {
+		final var modelProfile = this.modelProfileService.getModelProfile("profile.model.chatcompletion");
 		final var conversation = Conversation.create("You are a helpful assistant", "I would like to paint my canvas in a solid color.");
 		conversation.addTurn(new Turn(TurnType.ASSISTANT, "Which color do you want to see?"));
 		conversation.addTurn(new Turn(TurnType.USER, "You choose!"));
-		final var completion = this.chatCompletionclient.conversation(ModelCategory.MEDIUM, conversation);
+		final var completion = this.chatCompletionclient.conversation(modelProfile, conversation);
 		
 		LOGGER.info(completion.reasoning());
 		LOGGER.info(completion.response());
 		
-		assertTrue(Grader.assessScoreBinary("Does the text mention a color?", completion.response(), this.chatCompletionclient));
+		assertTrue(Grader2.assessScoreBinary("Does the text mention a color?", completion.response(), modelProfile, this.clientService));
 	}
 	
 	@Test
 	void streamChatCompletion() throws Exception {
+		final var modelProfile = this.modelProfileService.getModelProfile("profile.model.chatcompletion");
 		final var conversation = Conversation.create("You are a helpful assistant", "I would like to play a game of chess.");
 		conversation.addTurn(new Turn(TurnType.ASSISTANT, "Which opening do you choose?"));
 		conversation.addTurn(new Turn(TurnType.USER, "You choose! But I need you to explain the opening to me."));
 		final StringBuilder sb = new StringBuilder();
-		final var completion = this.chatCompletionclient.streamConversation(ModelCategory.MEDIUM, conversation, chunk -> {
+		final var completion = this.chatCompletionclient.streamConversation(modelProfile, conversation, chunk -> {
 			if (chunk.reasoningContent() != null) {
 				System.out.print(chunk.reasoningContent());
 			}
@@ -127,7 +138,7 @@ public class CompletionClientTest {
 		});
 		
 		assertEquals(completion.response(), sb.toString());
-		assertTrue(Grader.assessScoreBinary("Does the text explain a chess opening?", completion.response(), this.chatCompletionclient));
+		assertTrue(Grader2.assessScoreBinary("Does the text explain a chess opening?", completion.response(), modelProfile, this.clientService));
 	}
 	
 	@Disabled

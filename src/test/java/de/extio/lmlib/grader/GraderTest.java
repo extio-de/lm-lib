@@ -39,8 +39,9 @@ import de.extio.lmlib.client.ClientService;
 import de.extio.lmlib.grader.agent.AnswerGrader;
 import de.extio.lmlib.grader.agent.AnswerGrader2;
 import de.extio.lmlib.grader.agent.AnswerGraderBinary;
+import de.extio.lmlib.profile.ModelCategory;
 
-@Disabled("This test requires a running Llama server or an Azure subscription (setup azure key in model profile)")
+// @Disabled("This test requires a running Llama server or an Azure subscription (setup azure key in model profile)")
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
 @ComponentScan(basePackages = "de.extio.lmlib")
@@ -55,6 +56,9 @@ public class GraderTest {
 
 	@Autowired
 	private ClientService clientService;
+
+	@Autowired
+	private de.extio.lmlib.profile.ModelProfileService modelProfileService;
 
 	private long testStartNano;
 
@@ -244,10 +248,10 @@ public class GraderTest {
 	@ParameterizedTest
 	@MethodSource("gradingScenarios")
 	void graderCurrent(final String question, final String answer, final boolean expectedPass) {
-		final boolean result = runBinaryGrader("Grader2", question, answer, (q, a) -> Grader2.assessScoreBinary(q, a, this.clientService));
+		final boolean result = runBinaryGrader("Grader2", question, answer, (q, a) -> Grader2.assessScoreBinary(q, a, ModelCategory.MEDIUM, this.modelProfileService, this.clientService));
 		assertEquals(expectedPass, result, "Grader2 result mismatch for question: " + question);
 	}
-
+	
 	private boolean runAnswerGrader(final String label, final BaseAgent agent, final Consumer<AgentContext> contextConfigurer) {
 		final var context = new AgentContext(Map.of("AnswerGrader", agent));
 		contextConfigurer.accept(context);
