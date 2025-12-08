@@ -161,6 +161,7 @@ public class CsvAgentResponseHandler implements AgentResponseHandler {
                 final Object obj = this.parseLine(line);
                 if (obj != null) {
                     result.add(obj);
+                    LOGGER.debug("Parsed CSV object: {}", obj);
                 }
             }
             catch (final Exception ex) {
