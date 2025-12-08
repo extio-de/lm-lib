@@ -555,7 +555,7 @@ public class BlogPostAgent implements BaseAgent {
     
     // OPTIONAL: How to parse/store the response (default: TextAgentResponseHandler("response"))
     @Override 
-    public AgentResponseHandler responseHandler() { 
+    public AgentResponseHandler responseHandler(final AgentContext ctx) { 
         return new TextAgentResponseHandler("blogPost"); 
     }
     

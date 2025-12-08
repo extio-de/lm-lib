@@ -56,7 +56,7 @@ public interface BaseAgent {
 		return null;
 	}
 	
-	default AgentResponseHandler responseHandler() {
+	default AgentResponseHandler responseHandler(final AgentContext context) {
 		return new TextAgentResponseHandler("response");
 	}
 	
@@ -107,12 +107,12 @@ public interface BaseAgent {
 						
 						boolean parseable = false;
 						for (int i = 0; i < 2; i++) {
-							LOGGER.debug("Conversation: {}", conversation);
+							LOGGER.debug("Conversation: {}", conversation);	
 							
-							final var responseHandler = this.responseHandler();
 							final var modelProfile = this.modelProfile(split.context());
+							final var responseHandler = this.responseHandler(split.context());
+							long requestStart = 0;
 							Completion completion = null;
-							final var requestStart = System.currentTimeMillis();
 							if (split.context().isStreaming()) {
 								if (responseHandler instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
 									streamedResponseHandler.beforeStream(split.context());
@@ -125,17 +125,21 @@ public interface BaseAgent {
 									}
 								};
 								if (modelProfile != null) {
+									requestStart = System.currentTimeMillis();
 									completion = client.streamConversation(modelProfile, conversation, chunkConsumer);
 								}
 								else {
+									requestStart = System.currentTimeMillis();
 									completion = client.streamConversation(this.modelCategory(split.context()), conversation, chunkConsumer);
 								}
 							}
 							else {
 								if (modelProfile != null) {
+									requestStart = System.currentTimeMillis();
 									completion = client.conversation(modelProfile, conversation);
 								}
 								else {
+									requestStart = System.currentTimeMillis();
 									completion = client.conversation(this.modelCategory(split.context()), conversation);
 								}
 							}

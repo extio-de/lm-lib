@@ -55,6 +55,14 @@ public record Agent(String name,
     }
     
     @Override
+    public AgentResponseHandler responseHandler(final AgentContext context) {
+        if (responseHandler != null) {
+            return responseHandler;
+        }
+        return BaseAgent.super.responseHandler(context);
+    }
+
+    @Override
     public void preProcess(final AgentContext context) {
         if (preProcessor != null) {
             preProcessor.accept(context);
