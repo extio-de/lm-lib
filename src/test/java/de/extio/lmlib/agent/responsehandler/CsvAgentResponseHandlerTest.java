@@ -1,7 +1,9 @@
 package de.extio.lmlib.agent.responsehandler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -14,19 +16,15 @@ import de.extio.lmlib.client.Conversation;
 
 public class CsvAgentResponseHandlerTest {
     
-    public static record TestObject(String name, List<String> tags, Integer value) {
-    }
-    
     @Test
     public void testSimpleCsvParsing() {
-        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(TestObject.class, "_test_");
+        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("a", "b", "c"), "xy_");
         final AgentContext context = new AgentContext();
         context.setConversation(Conversation.create("test"));
         
         final String csvResponse = """
-                item1;tag1,tag2;42
-                item2;tag3;100
-                item3;;50
+                1;2;3
+                4;5;6
                 """;
         
         final Completion completion = new Completion(csvResponse, null, null, null);
@@ -34,32 +32,30 @@ public class CsvAgentResponseHandlerTest {
         
         assertTrue(result);
         
-        final List<TestObject> objects = context.getValues("_test_", TestObject.class);
-        assertEquals(3, objects.size());
+        final List<String> aValues = context.getStringValues("xy_a");
+        final List<String> bValues = context.getStringValues("xy_b");
+        final List<String> cValues = context.getStringValues("xy_c");
         
-        assertEquals("item1", objects.get(0).name());
-        assertEquals(List.of("tag1", "tag2"), objects.get(0).tags());
-        assertEquals(42, objects.get(0).value());
+        assertNotNull(aValues);
+        assertNotNull(bValues);
+        assertNotNull(cValues);
         
-        assertEquals("item2", objects.get(1).name());
-        assertEquals(List.of("tag3"), objects.get(1).tags());
-        assertEquals(100, objects.get(1).value());
-        
-        assertEquals("item3", objects.get(2).name());
-        assertTrue(objects.get(2).tags().isEmpty());
-        assertEquals(50, objects.get(2).value());
+        assertEquals(List.of("1", "4"), aValues);
+        assertEquals(List.of("2", "5"), bValues);
+        assertEquals(List.of("3", "6"), cValues);
     }
     
     @Test
-    public void testCsvWithHeader() {
-        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(TestObject.class, "_test_");
+    public void testWithHeader() {
+        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("name", "age", "city"), "person_");
         final AgentContext context = new AgentContext();
         context.setConversation(Conversation.create("test"));
         
         final String csvResponse = """
-                name;tags;value
-                item1;tag1,tag2;42
-                item2;tag3;100
+                name;age;city
+                Alice;30;Berlin
+                Bob;25;Munich
+                Charlie;35;Hamburg
                 """;
         
         final Completion completion = new Completion(csvResponse, null, null, null);
@@ -67,24 +63,67 @@ public class CsvAgentResponseHandlerTest {
         
         assertTrue(result);
         
-        final List<TestObject> objects = context.getValues("_test_", TestObject.class);
-        assertEquals(2, objects.size());
+        final List<String> names = context.getStringValues("person_name");
+        final List<String> ages = context.getStringValues("person_age");
+        final List<String> cities = context.getStringValues("person_city");
         
-        assertEquals("item1", objects.get(0).name());
-        assertEquals("item2", objects.get(1).name());
+        assertEquals(List.of("Alice", "Bob", "Charlie"), names);
+        assertEquals(List.of("30", "25", "35"), ages);
+        assertEquals(List.of("Berlin", "Munich", "Hamburg"), cities);
     }
     
     @Test
-    public void testCsvWithPreamble() {
-        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(TestObject.class, "_test_");
+    public void testWithEmptyPrefix() {
+        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("x", "y"), "");
         final AgentContext context = new AgentContext();
         context.setConversation(Conversation.create("test"));
         
         final String csvResponse = """
-                Here is the result:
+                10;20
+                30;40
+                """;
+        
+        final Completion completion = new Completion(csvResponse, null, null, null);
+        final boolean result = handler.handle(completion, context);
+        
+        assertTrue(result);
+        
+        assertEquals(List.of("10", "30"), context.getStringValues("x"));
+        assertEquals(List.of("20", "40"), context.getStringValues("y"));
+    }
+    
+    @Test
+    public void testWithNullPrefix() {
+        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("col1", "col2"), null);
+        final AgentContext context = new AgentContext();
+        context.setConversation(Conversation.create("test"));
+        
+        final String csvResponse = """
+                a;b
+                c;d
+                """;
+        
+        final Completion completion = new Completion(csvResponse, null, null, null);
+        final boolean result = handler.handle(completion, context);
+        
+        assertTrue(result);
+        
+        assertEquals(List.of("a", "c"), context.getStringValues("col1"));
+        assertEquals(List.of("b", "d"), context.getStringValues("col2"));
+    }
+    
+    @Test
+    public void testWithExtraTextBeforeData() {
+        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("a", "b", "c"), "test_");
+        final AgentContext context = new AgentContext();
+        context.setConversation(Conversation.create("test"));
+        
+        final String csvResponse = """
+                Here is the CSV data:
                 
-                item1;tag1,tag2;42
-                item2;tag3;100
+                a;b;c
+                1;2;3
+                4;5;6
                 """;
         
         final Completion completion = new Completion(csvResponse, null, null, null);
@@ -92,50 +131,23 @@ public class CsvAgentResponseHandlerTest {
         
         assertTrue(result);
         
-        final List<TestObject> objects = context.getValues("_test_", TestObject.class);
-        assertEquals(2, objects.size());
+        assertEquals(List.of("1", "4"), context.getStringValues("test_a"));
+        assertEquals(List.of("2", "5"), context.getStringValues("test_b"));
+        assertEquals(List.of("3", "6"), context.getStringValues("test_c"));
     }
     
     @Test
-    public void testCsvWithHeaderAndPreamble() {
-        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(TestObject.class, "_test_");
+    public void testWithEmptyLines() {
+        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("a", "b"), "data_");
         final AgentContext context = new AgentContext();
         context.setConversation(Conversation.create("test"));
         
         final String csvResponse = """
-                Here are the results in CSV format:
+                1;2
                 
-                name;tags;value
-                item1;tag1,tag2;42
-                item2;tag3;100
-                item3;;50
-                """;
-        
-        final Completion completion = new Completion(csvResponse, null, null, null);
-        final boolean result = handler.handle(completion, context);
-        
-        assertTrue(result);
-        
-        final List<TestObject> objects = context.getValues("_test_", TestObject.class);
-        assertEquals(3, objects.size());
-        
-        assertEquals("item1", objects.get(0).name());
-        assertEquals(List.of("tag1", "tag2"), objects.get(0).tags());
-        assertEquals(42, objects.get(0).value());
-    }
-    
-    @Test
-    public void testCsvWithEmptyLines() {
-        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(TestObject.class, "_test_");
-        final AgentContext context = new AgentContext();
-        context.setConversation(Conversation.create("test"));
-        
-        final String csvResponse = """
+                3;4
                 
-                item1;tag1,tag2;42
-                
-                item2;tag3;100
-                
+                5;6
                 """;
         
         final Completion completion = new Completion(csvResponse, null, null, null);
@@ -143,19 +155,19 @@ public class CsvAgentResponseHandlerTest {
         
         assertTrue(result);
         
-        final List<TestObject> objects = context.getValues("_test_", TestObject.class);
-        assertEquals(2, objects.size());
+        assertEquals(List.of("1", "3", "5"), context.getStringValues("data_a"));
+        assertEquals(List.of("2", "4", "6"), context.getStringValues("data_b"));
     }
     
     @Test
-    public void testCsvWithNullValues() {
-        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(TestObject.class, "_test_");
+    public void testWithWhitespace() {
+        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("a", "b", "c"), "ws_");
         final AgentContext context = new AgentContext();
         context.setConversation(Conversation.create("test"));
         
         final String csvResponse = """
-                item1;tag1,tag2;
-                item2;;100
+                  1  ;  2  ;  3  
+                 4 ; 5 ; 6 
                 """;
         
         final Completion completion = new Completion(csvResponse, null, null, null);
@@ -163,31 +175,20 @@ public class CsvAgentResponseHandlerTest {
         
         assertTrue(result);
         
-        final List<TestObject> objects = context.getValues("_test_", TestObject.class);
-        assertEquals(2, objects.size());
-        
-        assertEquals("item1", objects.get(0).name());
-        assertNotNull(objects.get(0).tags());
-        assertEquals(null, objects.get(0).value());
-        
-        assertEquals("item2", objects.get(1).name());
-        assertTrue(objects.get(1).tags().isEmpty());
-        assertEquals(100, objects.get(1).value());
-    }
-    
-    public static record TagObject(String tag, List<String> aliases, Integer importance) {
+        assertEquals(List.of("1", "4"), context.getStringValues("ws_a"));
+        assertEquals(List.of("2", "5"), context.getStringValues("ws_b"));
+        assertEquals(List.of("3", "6"), context.getStringValues("ws_c"));
     }
     
     @Test
-    public void testTagObjectExample() {
-        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(TagObject.class, "_tag_");
+    public void testWithCustomSeparator() {
+        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("a", "b", "c"), "custom_", ",");
         final AgentContext context = new AgentContext();
         context.setConversation(Conversation.create("test"));
         
         final String csvResponse = """
-                location_dark_forest;location_forest,location_shadow_woods;25
-                location_ancient_shrine;location_shrine,location_vine_shrine;65
-                combat_dragon;combat_wyrm,combat_ancient_dragon;65
+                1,2,3
+                4,5,6
                 """;
         
         final Completion completion = new Completion(csvResponse, null, null, null);
@@ -195,28 +196,21 @@ public class CsvAgentResponseHandlerTest {
         
         assertTrue(result);
         
-        final List<TagObject> objects = context.getValues("_tag_", TagObject.class);
-        assertEquals(3, objects.size());
-        
-        assertEquals("location_dark_forest", objects.get(0).tag());
-        assertEquals(List.of("location_forest", "location_shadow_woods"), objects.get(0).aliases());
-        assertEquals(25, objects.get(0).importance());
-        
-        assertEquals("combat_dragon", objects.get(2).tag());
-        assertEquals(List.of("combat_wyrm", "combat_ancient_dragon"), objects.get(2).aliases());
-        assertEquals(65, objects.get(2).importance());
+        assertEquals(List.of("1", "4"), context.getStringValues("custom_a"));
+        assertEquals(List.of("2", "5"), context.getStringValues("custom_b"));
+        assertEquals(List.of("3", "6"), context.getStringValues("custom_c"));
     }
     
     @Test
-    public void testCustomSeparators() {
-        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(
-                TagObject.class, "_custom_", "|", ":");
+    public void testColumnCountMismatch() {
+        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("a", "b", "c"), "mismatch_");
         final AgentContext context = new AgentContext();
         context.setConversation(Conversation.create("test"));
         
         final String csvResponse = """
-                location_dark_forest|location_forest:location_shadow_woods|25
-                location_ancient_shrine|location_shrine:location_vine_shrine|65
+                1;2;3
+                4;5
+                7;8;9
                 """;
         
         final Completion completion = new Completion(csvResponse, null, null, null);
@@ -224,24 +218,82 @@ public class CsvAgentResponseHandlerTest {
         
         assertTrue(result);
         
-        final List<TagObject> objects = context.getValues("_custom_", TagObject.class);
-        assertEquals(2, objects.size());
-        
-        assertEquals("location_dark_forest", objects.get(0).tag());
-        assertEquals(List.of("location_forest", "location_shadow_woods"), objects.get(0).aliases());
-        assertEquals(25, objects.get(0).importance());
+        // Only rows with correct column count should be included
+        assertEquals(List.of("1", "7"), context.getStringValues("mismatch_a"));
+        assertEquals(List.of("2", "8"), context.getStringValues("mismatch_b"));
+        assertEquals(List.of("3", "9"), context.getStringValues("mismatch_c"));
     }
     
     @Test
-    public void testNoListSeparator() {
-        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(
-                TestObject.class, "_nolist_", ";", null);
+    public void testEmptyResponse() {
+        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("a", "b"), "empty_");
+        final AgentContext context = new AgentContext();
+        context.setConversation(Conversation.create("test"));
+        
+        final Completion completion = new Completion("", null, null, null);
+        final boolean result = handler.handle(completion, context);
+        
+        assertFalse(result);
+    }
+    
+    @Test
+    public void testNullResponse() {
+        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("a", "b"), "null_");
+        final AgentContext context = new AgentContext();
+        context.setConversation(Conversation.create("test"));
+        
+        final Completion completion = new Completion(null, null, null, null);
+        final boolean result = handler.handle(completion, context);
+        
+        assertFalse(result);
+    }
+    
+    @Test
+    public void testNoValidData() {
+        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("a", "b"), "nodata_");
         final AgentContext context = new AgentContext();
         context.setConversation(Conversation.create("test"));
         
         final String csvResponse = """
-                item1;tag1,tag2,tag3;42
-                item2;ignored;100
+                This is just text
+                without any valid CSV data
+                """;
+        
+        final Completion completion = new Completion(csvResponse, null, null, null);
+        final boolean result = handler.handle(completion, context);
+        
+        assertFalse(result);
+    }
+    
+    @Test
+    public void testSingleRow() {
+        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("x", "y", "z"), "single_");
+        final AgentContext context = new AgentContext();
+        context.setConversation(Conversation.create("test"));
+        
+        final String csvResponse = "100;200;300";
+        
+        final Completion completion = new Completion(csvResponse, null, null, null);
+        final boolean result = handler.handle(completion, context);
+        
+        assertTrue(result);
+        
+        assertEquals(List.of("100"), context.getStringValues("single_x"));
+        assertEquals(List.of("200"), context.getStringValues("single_y"));
+        assertEquals(List.of("300"), context.getStringValues("single_z"));
+    }
+    
+    @Test
+    public void testMultipleHeaders() {
+        final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("id", "value"), "multi_");
+        final AgentContext context = new AgentContext();
+        context.setConversation(Conversation.create("test"));
+        
+        final String csvResponse = """
+                id;value
+                ID;VALUE
+                1;100
+                2;200
                 """;
         
         final Completion completion = new Completion(csvResponse, null, null, null);
@@ -249,15 +301,22 @@ public class CsvAgentResponseHandlerTest {
         
         assertTrue(result);
         
-        final List<TestObject> objects = context.getValues("_nolist_", TestObject.class);
-        assertEquals(2, objects.size());
-        
-        assertEquals("item1", objects.get(0).name());
-        assertTrue(objects.get(0).tags().isEmpty());
-        assertEquals(42, objects.get(0).value());
-        
-        assertEquals("item2", objects.get(1).name());
-        assertTrue(objects.get(1).tags().isEmpty());
-        assertEquals(100, objects.get(1).value());
+        // Should skip both header rows
+        assertEquals(List.of("1", "2"), context.getStringValues("multi_id"));
+        assertEquals(List.of("100", "200"), context.getStringValues("multi_value"));
+    }
+    
+    @Test
+    public void testNullHeadingsList() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            new CsvAgentResponseHandler(null, "prefix_");
+        });
+    }
+    
+    @Test
+    public void testEmptyHeadingsList() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            new CsvAgentResponseHandler(List.of(), "prefix_");
+        });
     }
 }
