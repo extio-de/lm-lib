@@ -66,9 +66,18 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 			jsonNode = this.objectMapper.readTree(response);
 		}
 		catch (final Exception e) {
-			LOGGER.warn("Cannot parse json response: {}", completion.response());
-			addJsonResponseErrorPrompt(context);
-			return false;
+			LOGGER.debug("Initial JSON parse failed, attempting to sanitize: {}", e.getMessage());
+			try {
+				final var response = completion.response().substring(firstCurly, lastCurly + 1);
+				final var sanitized = sanitizeJson(response);
+				jsonNode = this.objectMapper.readTree(sanitized);
+				LOGGER.debug("Successfully parsed after sanitization");
+			}
+			catch (final Exception e2) {
+				LOGGER.warn("Cannot parse json response even after sanitization: {}", completion.response());
+				addJsonResponseErrorPrompt(context);
+				return false;
+			}
 		}
 		
 		final var items = new LinkedHashMap<String, List<String>>();
@@ -103,12 +112,8 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 	
 	private void parseProperty(final LinkedHashMap<String, List<String>> items, final Entry<String, JsonNode> nestedProperty) {
 		if (nestedProperty.getValue().isObject()) {
-			final var nestedValuesIter = nestedProperty.getValue().values();
-			while (nestedValuesIter.hasNext()) {
-				final var v = nestedValuesIter.next();
-				if (v.isTextual() || v.isNumber() || v.isBoolean()) {
-					items.computeIfAbsent(this.prefixFields + nestedProperty.getKey(), k -> new ArrayList<>()).add(v.asText());
-				}
+			for (final var entry : nestedProperty.getValue().properties()) {
+				this.parseProperty(items, entry);
 			}
 		}
 		else {
@@ -119,6 +124,63 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 	private void addJsonResponseErrorPrompt(final AgentContext context) {
 		final var turn = context.getConversation().getConversation().getLast();
 		context.getConversation().replaceTurn(new Conversation.Turn(turn.type(), turn.text() + "\n\nThe previous response could not be fully processed or validated. Please make sure to format the response in valid JSON syntax with properly escaped characters."));
+	}
+	
+	private String sanitizeJson(final String json) {
+		final var result = new StringBuilder(json.length() + 10);
+		boolean inString = false;
+		boolean escaped = false;
+		
+		for (int i = 0; i < json.length(); i++) {
+			final char c = json.charAt(i);
+			
+			if (escaped) {
+				result.append(c);
+				escaped = false;
+				continue;
+			}
+			
+			if (c == '\\' && inString) {
+				escaped = true;
+				result.append(c);
+				continue;
+			}
+			
+			if (c == '"') {
+				boolean unescapedQuote = false;
+				if (inString) {
+					for (int j = i + 1; j < json.length(); j++) {
+						final var nextChar = json.charAt(j);
+						if (Character.isWhitespace(nextChar)) {
+							continue;
+						}
+						if (nextChar == ':' || nextChar == ',' || nextChar == '}' || nextChar == ']') {
+							break;
+						}
+						result.append('\\');
+						unescapedQuote = true;
+						break;
+					}
+				}
+				
+				inString = unescapedQuote || !inString;
+				result.append(c);
+				continue;
+			}
+			
+			if (inString && (c == '}' || c == ']') && (i == 0 || json.charAt(i - 1) != '\\')) {
+				int insertPos = result.length();
+				while (insertPos > 0 && Character.isWhitespace(result.charAt(insertPos - 1))) {
+					insertPos--;
+				}
+				result.insert(insertPos, '"');
+				inString = false;
+			}
+			
+			result.append(c);
+		}
+		
+		return result.toString();
 	}
 	
 }
