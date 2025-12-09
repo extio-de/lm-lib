@@ -128,7 +128,7 @@ public class CsvAgentResponseHandler implements AgentResponseHandler {
                 }
                 
                 for (int col = 0; col < parts.length; col++) {
-                    final String value = parts[col].trim();
+                    final String value = this.stripQuotes(parts[col].trim());
                     columnData.get(col).add(value);
                 }
                 rowCount++;
@@ -157,5 +157,20 @@ public class CsvAgentResponseHandler implements AgentResponseHandler {
         context.getConversation().replaceTurn(new Conversation.Turn(
                 turn.type(),
                 turn.text() + this.errorPromptSuffix));
+    }
+    
+    private String stripQuotes(final String value) {
+        if (value == null || value.length() < 2) {
+            return value;
+        }
+        
+        if ((value.startsWith("\"")
+                && value.endsWith("\""))
+                || (value.startsWith("'")
+                && value.endsWith("'"))) {
+            return value.substring(1, value.length() - 1);
+        }
+        
+        return value;
     }
 }

@@ -191,9 +191,10 @@ public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandle
     }
     
     private Object parseValue(final String value, final Field field) {
+        final String cleanValue = this.stripQuotes(value);
         final Class<?> fieldType = field.getType();
         
-        if (value.isEmpty() || value.equalsIgnoreCase("null")) {
+        if (cleanValue.isEmpty() || cleanValue.equalsIgnoreCase("null")) {
             if (fieldType == List.class) {
                 return new ArrayList<>();
             }
@@ -201,23 +202,23 @@ public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandle
         }
         
         if (fieldType == String.class) {
-            return value;
+            return cleanValue;
         }
         
         if (fieldType == Integer.class || fieldType == int.class) {
-            return Integer.parseInt(value);
+            return Integer.parseInt(cleanValue);
         }
         
         if (fieldType == Long.class || fieldType == long.class) {
-            return Long.parseLong(value);
+            return Long.parseLong(cleanValue);
         }
         
         if (fieldType == Double.class || fieldType == double.class) {
-            return Double.parseDouble(value);
+            return Double.parseDouble(cleanValue);
         }
         
         if (fieldType == Boolean.class || fieldType == boolean.class) {
-            return Boolean.parseBoolean(value);
+            return Boolean.parseBoolean(cleanValue);
         }
         
         if (fieldType == List.class) {
@@ -231,11 +232,11 @@ public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandle
                 final Type[] typeArgs = paramType.getActualTypeArguments();
                 
                 if (typeArgs.length > 0 && typeArgs[0] == String.class) {
-                    if (value.isEmpty()) {
+                    if (cleanValue.isEmpty()) {
                         return new ArrayList<String>();
                     }
                     
-                    final String[] items = value.split(this.listSeparatorQuoted);
+                    final String[] items = cleanValue.split(this.listSeparatorQuoted);
                     final List<String> list = new ArrayList<>();
                     for (final String item : items) {
                         final String trimmed = item.trim();
@@ -256,5 +257,20 @@ public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandle
         context.getConversation().replaceTurn(new Conversation.Turn(
                 turn.type(),
                 turn.text() + this.errorPromptSuffix));
+    }
+    
+    private String stripQuotes(final String value) {
+        if (value == null || value.length() < 2) {
+            return value;
+        }
+        
+        if ((value.startsWith("\"")
+                && value.endsWith("\""))
+                || (value.startsWith("'")
+                && value.endsWith("'"))) {
+            return value.substring(1, value.length() - 1);
+        }
+        
+        return value;
     }
 }
