@@ -42,8 +42,8 @@ public class AnswerGraderBinary {
 					else {
 						context.setStringValue("qaOutputFormat", "Return a JSON object with exactly this key: {\"qaPassed\": boolean}");
 					}
-                    context.getContext().remove("qaPassed");
-                    context.getContext().remove("qaExplanation");
+					context.getContext().remove("qaPassed");
+					context.getContext().remove("qaExplanation");
 				},
 				context -> {
 					if (!context.getContext().containsKey("qaPassed")) {
@@ -70,7 +70,7 @@ public class AnswerGraderBinary {
 					context.getContext().put("qaPassed", List.of(qaPassed));
 					
 					if (!qaPassed && (int) context.getContext().get("qaIteration").get(0) < 2) {
-                        context.setStringValue("qaFeedback", "Feedback from the previous attempt to consider: " + context.getStringValue("qaExplanation"));
+						context.setStringValue("qaFeedback", "Feedback from the previous attempt to consider: " + context.getStringValue("qaExplanation"));
 						return new AgentNext(context.getStringValue("qaFeedbackLoopDestination"), Boolean.FALSE);
 					}
 					

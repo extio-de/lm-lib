@@ -9,89 +9,89 @@ import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 
 public record Agent(String name,
-        AgentType agentType,
-        ModelCategory modelCategory,
-        ModelProfile modelProfile,
-        String systemPrompt,
-        String textTemplate,
-        AgentResponseHandler responseHandler,
-        Consumer<AgentContext> preProcessor,
-        Consumer<AgentContext> postProcessor,
-        Function<List<AgentContext>,
-        List<AgentContext>> merger,
-        Function<AgentContext, AgentNext> chooseNext) implements BaseAgent {
-    
-    public Agent {
-        if (name == null) {
-            throw new IllegalArgumentException("Name cannot be null");
-        }
-        if (agentType == null) {
-            throw new IllegalArgumentException("Agent type cannot be null");
-        }
-    }
+		AgentType agentType,
+		ModelCategory modelCategory,
+		ModelProfile modelProfile,
+		String systemPrompt,
+		String textTemplate,
+		AgentResponseHandler responseHandler,
+		Consumer<AgentContext> preProcessor,
+		Consumer<AgentContext> postProcessor,
+		Function<List<AgentContext>,
+		List<AgentContext>> merger,
+		Function<AgentContext, AgentNext> chooseNext) implements BaseAgent {
+	
+	public Agent {
+		if (name == null) {
+			throw new IllegalArgumentException("Name cannot be null");
+		}
+		if (agentType == null) {
+			throw new IllegalArgumentException("Agent type cannot be null");
+		}
+	}
 
-    @Override
-    public AgentType agentType(final AgentContext context) {
-        if (agentType != null) {
-            return agentType;
-        }
-        return BaseAgent.super.agentType(context);
-    }
-    
-    @Override
-    public ModelCategory modelCategory(final AgentContext context) {
-        if (modelCategory != null) {
-            return modelCategory;
-        }
-        return BaseAgent.super.modelCategory(context);
-    }
+	@Override
+	public AgentType agentType(final AgentContext context) {
+		if (agentType != null) {
+			return agentType;
+		}
+		return BaseAgent.super.agentType(context);
+	}
+	
+	@Override
+	public ModelCategory modelCategory(final AgentContext context) {
+		if (modelCategory != null) {
+			return modelCategory;
+		}
+		return BaseAgent.super.modelCategory(context);
+	}
 
-    @Override
-    public ModelProfile modelProfile(final AgentContext context) {
-        if (modelProfile != null) {
-            return modelProfile;
-        }
-        return BaseAgent.super.modelProfile(context);
-    }
-    
-    @Override
-    public AgentResponseHandler responseHandler(final AgentContext context) {
-        if (responseHandler != null) {
-            return responseHandler;
-        }
-        return BaseAgent.super.responseHandler(context);
-    }
+	@Override
+	public ModelProfile modelProfile(final AgentContext context) {
+		if (modelProfile != null) {
+			return modelProfile;
+		}
+		return BaseAgent.super.modelProfile(context);
+	}
+	
+	@Override
+	public AgentResponseHandler responseHandler(final AgentContext context) {
+		if (responseHandler != null) {
+			return responseHandler;
+		}
+		return BaseAgent.super.responseHandler(context);
+	}
 
-    @Override
-    public void preProcess(final AgentContext context) {
-        if (preProcessor != null) {
-            preProcessor.accept(context);
-        }
-        BaseAgent.super.preProcess(context);
-    }
-    
-    @Override
-    public void postProcess(final AgentContext context) {
-        if (postProcessor != null) {
-            postProcessor.accept(context);
-        }
-        BaseAgent.super.postProcess(context);
-    }
-    
-    @Override
-    public List<AgentContext> merge(final List<AgentContext> contexts) {
-        if (merger != null) {
-            return merger.apply(contexts);
-        }
-        return BaseAgent.super.merge(contexts);
-    }
-    
-    @Override
-    public AgentNext chooseNextAgent(final AgentContext context) {
-        if (chooseNext != null) {
-            return chooseNext.apply(context);
-        }
-        return BaseAgent.super.chooseNextAgent(context);
-    }
-    
+	@Override
+	public void preProcess(final AgentContext context) {
+		if (preProcessor != null) {
+			preProcessor.accept(context);
+		}
+		BaseAgent.super.preProcess(context);
+	}
+	
+	@Override
+	public void postProcess(final AgentContext context) {
+		if (postProcessor != null) {
+			postProcessor.accept(context);
+		}
+		BaseAgent.super.postProcess(context);
+	}
+	
+	@Override
+	public List<AgentContext> merge(final List<AgentContext> contexts) {
+		if (merger != null) {
+			return merger.apply(contexts);
+		}
+		return BaseAgent.super.merge(contexts);
+	}
+	
+	@Override
+	public AgentNext chooseNextAgent(final AgentContext context) {
+		if (chooseNext != null) {
+			return chooseNext.apply(context);
+		}
+		return BaseAgent.super.chooseNextAgent(context);
+	}
+	
 }

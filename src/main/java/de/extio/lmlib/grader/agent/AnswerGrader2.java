@@ -51,8 +51,8 @@ public class AnswerGrader2 {
 					else {
 						context.setStringValue("qaOutputFormat", "Provide no preamble. Return the response in JSON format with the following field only: {\"qaRating\": rating}");
 					}
-                    context.getContext().remove("qaRating");
-                    context.getContext().remove("qaExplanation");					
+					context.getContext().remove("qaRating");
+					context.getContext().remove("qaExplanation");					
 				},
 				context -> {
 					if (!context.getContext().containsKey("qaRating")) {

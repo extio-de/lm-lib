@@ -204,7 +204,7 @@ public class JsonAgentResponseHandlerTest {
 		assertTrue(value.contains("clown"));
 	}
 
-    @Test
+	@Test
 	public void testSanitizeUnescapedQuotesInString2() {
 		final JsonAgentResponseHandler handler = new JsonAgentResponseHandler();
 		final AgentContext context = new AgentContext();

@@ -2,9 +2,9 @@ package de.extio.lmlib.agent;
 
 public final record AgentNext(String name, Boolean gradingPassed) {
 	
-    public static final AgentNext END = new AgentNext(null, null);
+	public static final AgentNext END = new AgentNext(null, null);
 
-    public static AgentNext end(final AgentContext context) {
-        return END;
-    }
+	public static AgentNext end(final AgentContext context) {
+		return END;
+	}
 }
