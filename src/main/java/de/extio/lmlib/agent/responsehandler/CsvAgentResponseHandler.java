@@ -70,7 +70,7 @@ public class CsvAgentResponseHandler implements AgentResponseHandler {
 	}
 	
 	private boolean parseCsv(final String csvText, final AgentContext context) {
-		final String[] lines = TextUtils.normalizeModelResponse(csvText, false).split("\n");
+		final String[] lines = TextUtils.normalizeModelResponse(csvText.replace("\\r", "\r").replace("\\n", "\n"), false).split("\n");
 		
 		int startLine = 0;
 		

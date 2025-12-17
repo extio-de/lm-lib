@@ -114,7 +114,7 @@ public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandle
 	
 	private List<Object> parseCsv(final String csvText) throws Exception {
 		final List<Object> result = new ArrayList<>();
-		final String[] lines = TextUtils.normalizeModelResponse(csvText, false).split("\n");
+		final String[] lines = TextUtils.normalizeModelResponse(csvText.replace("\\r", "\r").replace("\\n", "\n"), false).split("\n");
 		
 		int startLine = 0;
 		
