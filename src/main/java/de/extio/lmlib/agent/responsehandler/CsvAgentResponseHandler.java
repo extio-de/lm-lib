@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import de.extio.lmlib.agent.AgentContext;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
+import de.extio.lmlib.util.TextUtils;
 
 public class CsvAgentResponseHandler implements AgentResponseHandler {
 	
@@ -69,7 +70,7 @@ public class CsvAgentResponseHandler implements AgentResponseHandler {
 	}
 	
 	private boolean parseCsv(final String csvText, final AgentContext context) {
-		final String[] lines = csvText.split("\n");
+		final String[] lines = TextUtils.normalizeModelResponse(csvText, false).split("\n");
 		
 		int startLine = 0;
 		
@@ -86,10 +87,10 @@ public class CsvAgentResponseHandler implements AgentResponseHandler {
 			}
 			
 			final String lowerLine = line.toLowerCase();
-			boolean isHeader = false;
+			boolean isHeader = true;
 			for (final String heading : this.headings) {
-				if (lowerLine.contains(heading.toLowerCase())) {
-					isHeader = true;
+				if (!lowerLine.contains(heading.toLowerCase())) {
+					isHeader = false;
 					break;
 				}
 			}
@@ -164,13 +165,6 @@ public class CsvAgentResponseHandler implements AgentResponseHandler {
 			return value;
 		}
 		
-		if ((value.startsWith("\"")
-				&& value.endsWith("\""))
-				|| (value.startsWith("'")
-				&& value.endsWith("'"))) {
-			return value.substring(1, value.length() - 1);
-		}
-		
-		return value;
+		return TextUtils.normalizeModelResponse(value, false);
 	}
 }

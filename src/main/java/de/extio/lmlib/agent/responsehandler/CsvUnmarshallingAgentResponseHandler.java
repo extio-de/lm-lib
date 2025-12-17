@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import de.extio.lmlib.agent.AgentContext;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
+import de.extio.lmlib.util.TextUtils;
 
 public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandler {
 	
@@ -113,7 +114,7 @@ public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandle
 	
 	private List<Object> parseCsv(final String csvText) throws Exception {
 		final List<Object> result = new ArrayList<>();
-		final String[] lines = csvText.split("\n");
+		final String[] lines = TextUtils.normalizeModelResponse(csvText, false).split("\n");
 		
 		int startLine = 0;
 		
@@ -130,10 +131,10 @@ public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandle
 			}
 			
 			final String lowerLine = line.toLowerCase();
-			boolean isHeader = false;
+			boolean isHeader = true;
 			for (final String fieldName : this.fieldNames) {
-				if (lowerLine.contains(fieldName.toLowerCase())) {
-					isHeader = true;
+				if (!lowerLine.contains(fieldName.toLowerCase())) {
+					isHeader = false;
 					break;
 				}
 			}
@@ -264,13 +265,6 @@ public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandle
 			return value;
 		}
 		
-		if ((value.startsWith("\"")
-				&& value.endsWith("\""))
-				|| (value.startsWith("'")
-				&& value.endsWith("'"))) {
-			return value.substring(1, value.length() - 1);
-		}
-		
-		return value;
+		return TextUtils.normalizeModelResponse(value, false);
 	}
 }
