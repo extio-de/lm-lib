@@ -5,28 +5,27 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestClient;
 
 class ModelNameLoader {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(ModelNameLoader.class);
 	
-	private final WebClient webClient;
+	private final RestClient restClient;
 	
-	public ModelNameLoader(final WebClient webClient) {
-		this.webClient = webClient;
+	public ModelNameLoader(final RestClient restClient) {
+		this.restClient = restClient;
 	}
 	
 	public Optional<String> loadModelName() {
 		try {
 			LOGGER.info("Querying model name");
 			
-			final var modelName = this.webClient
+			final var modelName = this.restClient
 					.method(HttpMethod.GET)
 					.uri(uriBuilder -> uriBuilder.path("/v1/models").build())
 					.retrieve()
-					.bodyToMono(ModelsResponse.class)
-					.block()
+					.body(ModelsResponse.class)
 					.getData()
 					.stream()
 					.map(Model::getId)

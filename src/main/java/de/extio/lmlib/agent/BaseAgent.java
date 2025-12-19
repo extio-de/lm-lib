@@ -12,8 +12,8 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import de.extio.lmlib.agent.responsehandler.AgentResponseHandler;
 import de.extio.lmlib.agent.responsehandler.StreamedAgentResponseHandler;
@@ -239,7 +239,7 @@ public interface BaseAgent {
 				try {
 					text = text.replace(k, objectMapper.writeValueAsString(entry.getValue()));
 				}
-				catch (final JsonProcessingException e) {
+				catch (final JacksonException e) {
 					LOGGER.warn("Cannot write json", e);
 				}
 			}

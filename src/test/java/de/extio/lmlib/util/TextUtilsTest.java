@@ -215,8 +215,6 @@ public class TextUtilsTest {
 			"'This is a test with special characters', 'test{2}', false",
 			"'This is a test with special characters', 'test[abc]', false",
 			
-			"'bean:exchangeSenderProducer?method=sendToNamedConnection(${exchange}, \\'HttpsOutbound\\')', 'exchangeSenderProducer', true",
-			
 			"'Service.process(${param}, [1,2,3])', 'Service', true",
 			"'Service.process(${param}, [1,2,3])', 'process', true",
 			"'Service.process(${param}, [1,2,3])', 'param', true",

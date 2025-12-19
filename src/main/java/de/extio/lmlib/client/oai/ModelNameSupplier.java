@@ -6,7 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestClient;
 
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
@@ -15,8 +15,8 @@ import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 public class ModelNameSupplier {
 	
 	@Autowired
-	@Qualifier("lmLibWebClientBuilder")
-	private WebClient.Builder webClientBuilder;
+	@Qualifier("lmLibRestClientBuilder")
+	private RestClient.Builder restClientBuilder;
 	
 	private final Map<String, String> resolvedModelNames = new ConcurrentHashMap<>();
 	
@@ -31,8 +31,8 @@ public class ModelNameSupplier {
 		
 		final var cacheKey = modelProfile.category() + "|" + modelProfile.url();
 		return this.resolvedModelNames.computeIfAbsent(cacheKey, key -> {
-			final var webClient = this.webClientBuilder.baseUrl(modelProfile.url()).build();
-			final var loader = new ModelNameLoader(webClient);
+			final var restClient = this.restClientBuilder.baseUrl(modelProfile.url()).build();
+			final var loader = new ModelNameLoader(restClient);
 			return loader.loadModelName().orElse("");
 		});
 	}

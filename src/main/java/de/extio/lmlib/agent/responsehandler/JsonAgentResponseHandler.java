@@ -10,11 +10,11 @@ import java.util.Map.Entry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.json.JsonReadFeature;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.core.json.JsonReadFeature;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import de.extio.lmlib.agent.AgentContext;
 import de.extio.lmlib.client.Completion;
@@ -52,7 +52,7 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 				.enable(JsonReadFeature.ALLOW_LEADING_DECIMAL_POINT_FOR_NUMBERS)
 				.enable(JsonReadFeature.ALLOW_LEADING_PLUS_SIGN_FOR_NUMBERS)
 				.enable(JsonReadFeature.ALLOW_TRAILING_DECIMAL_POINT_FOR_NUMBERS)
-				.enable(JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES)
+				.enable(JsonReadFeature.ALLOW_UNQUOTED_PROPERTY_NAMES)
 				.build();
 	}
 	
@@ -94,7 +94,7 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 	
 	private void parseEntry(final LinkedHashMap<String, List<String>> items, final Entry<String, JsonNode> entry) {
 		if (entry.getValue().isArray()) {
-			entry.getValue().elements().forEachRemaining(nestedArrayValue -> {
+			entry.getValue().values().forEach(nestedArrayValue -> {
 				if (nestedArrayValue.properties().isEmpty()) {
 					items.computeIfAbsent(this.prefixFields + entry.getKey(), k -> new ArrayList<>()).add(nestedArrayValue.asText());
 				}

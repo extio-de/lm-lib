@@ -16,6 +16,11 @@ The libraries's key features include:
 - Modular architecture for easy extension and customization  
 - Spring integration for dependency injection and configuration  
 
+# Requirements
+
+- **Java 25** or higher
+- **Spring Boot 4.0** or higher
+
 # Setup
 
 To keep this library lean and compatible with different dependency trees, all dependencies must be provided by the application.
@@ -24,8 +29,24 @@ To keep this library lean and compatible with different dependency trees, all de
 
     <dependency>
         <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-webflux</artifactId>
+        <artifactId>spring-boot-starter-restclient</artifactId>
     </dependency>
+
+## Configuration
+
+The library can be configured using the following application properties:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `lmlib.client.proxy.enabled` | Boolean | `false` | Enable HTTP proxy for LLM requests. |
+| `lmlib.client.proxy.host` | String | | HTTP proxy host. |
+| `lmlib.client.proxy.port` | Integer | `0` | HTTP proxy port. |
+| `lmlib.client.proxy.user` | String | | HTTP proxy username (optional). |
+| `lmlib.client.proxy.password` | String | | HTTP proxy password (optional). |
+| `lmlib.client.tls.verification.disabled` | Boolean | `false` | Disable TLS certificate verification (not recommended for production). |
+| `lmlib.client.retry.max-attempts` | Integer | `5` | Maximum number of retry attempts for failed requests. |
+| `lmlib.client.retry.backoff-interval-min` | Long | `200` | Minimum backoff interval in milliseconds between retry attempts. |
+| `lmlib.client.retry.backoff-interval-max` | Long | `2500` | Maximum backoff interval in milliseconds between retry attempts. |
 
 ## Optional dependencies
 

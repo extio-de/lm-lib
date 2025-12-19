@@ -1,6 +1,6 @@
 package de.extio.lmlib.client.oai.completion.chat;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.*;
 
 class ChatChoice {
 	

@@ -13,13 +13,13 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestClient;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.json.JsonReadFeature;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.core.json.JsonReadFeature;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Client;
@@ -32,15 +32,14 @@ import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.profile.ModelProfileService;
 import de.extio.lmlib.token.Tokenizer;
-import reactor.util.retry.Retry;
 
 public abstract class AbstractCompletionClient implements Client, DisposableBean {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(AbstractCompletionClient.class);
 	
 	@Autowired
-	@Qualifier("lmLibWebClientBuilder")
-	protected WebClient.Builder webClientBuilder;
+	@Qualifier("lmLibRestClientBuilder")
+	protected RestClient.Builder restClientBuilder;
 	
 	@Autowired
 	protected ModelNameSupplier modelNameSupplier;
@@ -65,7 +64,8 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 				.configure(DeserializationFeature.FAIL_ON_MISSING_EXTERNAL_TYPE_ID_PROPERTY, false)
 				.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 				.configure(DeserializationFeature.FAIL_ON_UNRESOLVED_OBJECT_IDS, false)
-				.serializationInclusion(JsonInclude.Include.NON_NULL)
+				.changeDefaultPropertyInclusion(incl -> incl.withValueInclusion(JsonInclude.Include.NON_NULL))
+				.changeDefaultPropertyInclusion(incl -> incl.withContentInclusion(JsonInclude.Include.NON_NULL))				
 				.enable(JsonReadFeature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER)
 				.enable(JsonReadFeature.ALLOW_JAVA_COMMENTS)
 				.enable(JsonReadFeature.ALLOW_MISSING_VALUES)
@@ -77,7 +77,7 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 				.enable(JsonReadFeature.ALLOW_LEADING_DECIMAL_POINT_FOR_NUMBERS)
 				.enable(JsonReadFeature.ALLOW_LEADING_PLUS_SIGN_FOR_NUMBERS)
 				.enable(JsonReadFeature.ALLOW_TRAILING_DECIMAL_POINT_FOR_NUMBERS)
-				.enable(JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES)
+				.enable(JsonReadFeature.ALLOW_UNQUOTED_PROPERTY_NAMES)
 				.build();
 	}
 	
@@ -120,16 +120,6 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 			case FinishReasons.FINISH_REASON_LENGTH -> CompletionFinishReason.TOKEN_LIMIT_REACHED;
 			default -> CompletionFinishReason.DONE;
 		};
-	}
-	
-	protected Retry createRetrySpec() {
-		return Retry.backoff(99, Duration.ofSeconds(1))
-				.maxBackoff(Duration.ofSeconds(10))
-				.jitter(0.25d)
-				.filter(throwable -> {
-					return throwable instanceof java.io.IOException || throwable instanceof java.net.ConnectException || throwable instanceof java.net.http.HttpTimeoutException;
-				})
-				.doAfterRetry(rs -> LOGGER.warn("Retrying failed request: " + rs.failure().getClass().getName() + " " + rs.failure().getMessage()));
 	}
 	
 	protected void configureStreamOptions(final boolean enableStreaming, final Consumer<StreamOptions> streamOptionsConsumer) {

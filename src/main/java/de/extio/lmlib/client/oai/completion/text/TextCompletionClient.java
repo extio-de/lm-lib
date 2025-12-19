@@ -1,5 +1,8 @@
 package de.extio.lmlib.client.oai.completion.text;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -11,8 +14,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import tools.jackson.core.JacksonException;
 
 import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Completion;
@@ -24,7 +28,6 @@ import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.prompt.PromptStrategy;
 import de.extio.lmlib.prompt.PromptStrategyFactory;
-import reactor.core.publisher.Mono;
 
 @Component
 public class TextCompletionClient extends AbstractCompletionClient {
@@ -65,88 +68,94 @@ public class TextCompletionClient extends AbstractCompletionClient {
 		try {
 			requestBody = this.objectMapper.writeValueAsString(request);
 		}
-		catch (final JsonProcessingException e) {
+		catch (final JacksonException e) {
 			throw new IllegalStateException("Cannot serialize request body", e);
 		}
 		
 		LOGGER.debug("Requesting completion at {}", modelProfile.url());
 		final LocalDateTime start = LocalDateTime.now();
-		final var webClient = this.webClientBuilder.baseUrl(modelProfile.url()).build();
-		var requestSpec = webClient
+		final var restClient = this.restClientBuilder.baseUrl(modelProfile.url()).build();
+		var requestSpec = restClient
 				.method(HttpMethod.POST)
-				.uri(uriBuilder -> uriBuilder.path("/v1/completions").build())
+				.uri("/v1/completions")
 				.header("Content-Type", "application/json");
 		if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
 			requestSpec = requestSpec.header("Authorization", "Bearer " + modelProfile.apiKey());
 		}
 		final var response = requestSpec
-				.bodyValue(requestBody)
-				.exchangeToMono(clientResponse -> {
-					if (clientResponse.statusCode().isError()) {
-						return clientResponse.bodyToMono(String.class)
-								.flatMap(errorBody -> Mono.error(new IllegalStateException("Error response from server: " + clientResponse.statusCode() + " - " + errorBody)));
+				.body(requestBody)
+				.exchange((clientRequest, clientResponse) -> {
+					if (clientResponse.getStatusCode().isError()) {
+						throw new IllegalStateException("Error response from server: " + clientResponse.getStatusCode());
 					}
 					
 					if (chunkConsumer == null) {
-						return clientResponse.bodyToMono(CompletionResponse.class);
+						return this.objectMapper.readValue(clientResponse.getBody(), CompletionResponse.class);
 					}
 					else {
-						final var CompletionResponse = new CompletionResponse();
-						CompletionResponse.setChoices(List.of(new Choice()));
+						final var completionResponse = new CompletionResponse();
+						completionResponse.setChoices(List.of(new Choice()));
 						final StringBuilder contentStringBuilder = new StringBuilder();
-						return clientResponse.bodyToFlux(String.class)
-								.doOnNext(buffer -> {
-									try {
-										if (!"[DONE]".equals(buffer)) {
-											final var streamResponse = this.objectMapper.readValue(buffer, CompletionResponse.class);
-											
-											if (streamResponse.getId() != null && !streamResponse.getId().isEmpty()) {
-												CompletionResponse.setId(streamResponse.getId());
-											}
-											if (streamResponse.getObject() != null && !streamResponse.getObject().isEmpty()) {
-												CompletionResponse.setObject(streamResponse.getObject());
-											}
-											if (streamResponse.getCreated() != null) {
-												CompletionResponse.setCreated(streamResponse.getCreated());
-											}
-											if (streamResponse.isStoppedEos() != null) {
-												CompletionResponse.setStoppedEos(streamResponse.isStoppedEos());
-											}
-											if (streamResponse.getContent() != null && !streamResponse.getContent().isEmpty()) {
-												contentStringBuilder.append(streamResponse.getContent());
-											}
-											if (streamResponse.getUsage() != null) {
-												CompletionResponse.setUsage(streamResponse.getUsage());
-											}
-											if (streamResponse.getTimings() != null) {
-												CompletionResponse.setTimings(streamResponse.getTimings());
-											}
-											if (streamResponse.getChoices() != null && !streamResponse.getChoices().isEmpty()) {
-												if (streamResponse.getChoices().getFirst().getFinishReason() != null) {
-													CompletionResponse.getChoices().getFirst().setFinishReason(streamResponse.getChoices().getFirst().getFinishReason());
-												}
-												if (streamResponse.getChoices().getFirst().getScore() != null) {
-													CompletionResponse.getChoices().getFirst().setScore(streamResponse.getChoices().getFirst().getScore());
-												}
-												if (streamResponse.getChoices().getFirst().getText() != null && !streamResponse.getChoices().getFirst().getText().isEmpty()) {
-													contentStringBuilder.append(streamResponse.getChoices().getFirst().getText());
-													chunkConsumer.accept(new Chunk(streamResponse.getChoices().getFirst().getText(), null));
-												}
-											}
+						
+						try (BufferedReader reader = new BufferedReader(new InputStreamReader(clientResponse.getBody(), StandardCharsets.UTF_8))) {
+							String line;
+							while ((line = reader.readLine()) != null) {
+								if (line.startsWith("data: ")) {
+									line = line.substring(6).trim();
+								}
+								if (line.isEmpty()) {
+									continue;
+								}
+								if ("[DONE]".equals(line)) {
+									break;
+								}
+								
+								try {
+									final var streamResponse = this.objectMapper.readValue(line, CompletionResponse.class);
+									
+									if (streamResponse.getId() != null && !streamResponse.getId().isEmpty()) {
+										completionResponse.setId(streamResponse.getId());
+									}
+									if (streamResponse.getObject() != null && !streamResponse.getObject().isEmpty()) {
+										completionResponse.setObject(streamResponse.getObject());
+									}
+									if (streamResponse.getCreated() != null) {
+										completionResponse.setCreated(streamResponse.getCreated());
+									}
+									if (streamResponse.isStoppedEos() != null) {
+										completionResponse.setStoppedEos(streamResponse.isStoppedEos());
+									}
+									if (streamResponse.getContent() != null && !streamResponse.getContent().isEmpty()) {
+										contentStringBuilder.append(streamResponse.getContent());
+									}
+									if (streamResponse.getUsage() != null) {
+										completionResponse.setUsage(streamResponse.getUsage());
+									}
+									if (streamResponse.getTimings() != null) {
+										completionResponse.setTimings(streamResponse.getTimings());
+									}
+									if (streamResponse.getChoices() != null && !streamResponse.getChoices().isEmpty()) {
+										if (streamResponse.getChoices().getFirst().getFinishReason() != null) {
+											completionResponse.getChoices().getFirst().setFinishReason(streamResponse.getChoices().getFirst().getFinishReason());
+										}
+										if (streamResponse.getChoices().getFirst().getScore() != null) {
+											completionResponse.getChoices().getFirst().setScore(streamResponse.getChoices().getFirst().getScore());
+										}
+										if (streamResponse.getChoices().getFirst().getText() != null && !streamResponse.getChoices().getFirst().getText().isEmpty()) {
+											contentStringBuilder.append(streamResponse.getChoices().getFirst().getText());
+											chunkConsumer.accept(new Chunk(streamResponse.getChoices().getFirst().getText(), null));
 										}
 									}
-									catch (final JsonProcessingException e) {
-										LOGGER.warn("Streamed chunk is not parseable", e);
-									}
-								})
-								.then(Mono.<CompletionResponse> fromSupplier(() -> {
-									CompletionResponse.getChoices().getFirst().setText(contentStringBuilder.toString());
-									return CompletionResponse;
-								}));
+								}
+								catch (final JacksonException e) {
+									LOGGER.warn("Streamed chunk is not parseable: {}", line, e);
+								}
+							}
+						}
+						completionResponse.getChoices().getFirst().setText(contentStringBuilder.toString());
+						return completionResponse;
 					}
-				})
-				.retryWhen(this.createRetrySpec())
-				.block();
+				});
 		
 		String content = null;
 		String reasoning = null;

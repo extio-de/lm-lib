@@ -107,8 +107,13 @@ public class CachedClientTest {
 		
 		final var sb = new java.lang.StringBuilder();
 		var completion = this.clientService.getClient(ModelCategory.MEDIUM).streamConversation(ModelCategory.MEDIUM, conversation, chunk -> {
-			sb.append(chunk);
-			System.out.print(chunk);
+			if (chunk.reasoningContent() != null) {
+				System.out.print(chunk.reasoningContent());
+			}
+			if (chunk.content() != null) {	
+				sb.append(chunk.content());
+				System.out.print(chunk.content());
+			}
 		});
 		assertFalse(completion.statistics().cached());
 		assertEquals(1, completion.statistics().requests());
@@ -120,8 +125,13 @@ public class CachedClientTest {
 
 		final var sb2 = new java.lang.StringBuilder();
 		completion = this.clientService.getClient(ModelCategory.MEDIUM).streamConversation(ModelCategory.MEDIUM, conversation, chunk -> {
-			sb2.append(chunk);
-			System.out.print(chunk);
+			if (chunk.reasoningContent() != null) {
+				System.out.print(chunk.reasoningContent());
+			}
+			if (chunk.content() != null) {
+				sb2.append(chunk.content());
+				System.out.print(chunk.content());
+			}
 		});
 		assertTrue(completion.statistics().cached());
 		assertEquals(sb.toString(), sb2.toString());

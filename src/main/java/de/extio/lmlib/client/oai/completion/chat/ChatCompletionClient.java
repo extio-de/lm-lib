@@ -1,5 +1,8 @@
 package de.extio.lmlib.client.oai.completion.chat;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -12,8 +15,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import tools.jackson.core.JacksonException;
 
 import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Completion;
@@ -22,7 +26,6 @@ import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.oai.completion.AbstractCompletionClient;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
-import reactor.core.publisher.Mono;
 
 @Component
 public class ChatCompletionClient extends AbstractCompletionClient {
@@ -80,92 +83,99 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		try {
 			requestBody = this.objectMapper.writeValueAsString(request);
 		}
-		catch (final JsonProcessingException e) {
+		catch (final JacksonException e) {
 			throw new IllegalStateException("Cannot serialize request body", e);
 		}
 		
 		LOGGER.debug("Requesting chat completion at {}", modelProfile.url());
 		final LocalDateTime start = LocalDateTime.now();
-		final var webClient = this.webClientBuilder.baseUrl(modelProfile.url()).build();
+		final var restClient = this.restClientBuilder.baseUrl(modelProfile.url()).build();
 		
-		var requestSpec = webClient
+		var requestSpec = restClient
 				.method(HttpMethod.POST)
-				.uri(uriBuilder -> uriBuilder.path("/v1/chat/completions").build())
+				.uri("/v1/chat/completions")
 				.header("Content-Type", "application/json");
 		if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
 			requestSpec = requestSpec.header("Authorization", "Bearer " + modelProfile.apiKey());
 		}
+		
 		final var response = requestSpec
-				.bodyValue(requestBody)
-				.exchangeToMono(clientResponse -> {
-					if (clientResponse.statusCode().isError()) {
-						return clientResponse.bodyToMono(String.class)
-								.flatMap(errorBody -> Mono.error(new IllegalStateException("Error response from server: " + clientResponse.statusCode() + " - " + errorBody)));
+				.body(requestBody)
+				.exchange((clientRequest, clientResponse) -> {
+					if (clientResponse.getStatusCode().isError()) {
+						throw new IllegalStateException("Error response from server: " + clientResponse.getStatusCode());
 					}
 					
 					if (chunkConsumer == null) {
-						return clientResponse.bodyToMono(ChatCompletionResponse.class);
+						return this.objectMapper.readValue(clientResponse.getBody(), ChatCompletionResponse.class);
 					}
 					else {
 						final var chatCompletionResponse = new ChatCompletionResponse();
 						chatCompletionResponse.setChoices(List.of(new ChatChoice()));
 						final StringBuilder contentStringBuilder = new StringBuilder();
 						final StringBuilder reasoningStringBuilder = new StringBuilder();
-						return clientResponse.bodyToFlux(String.class)
-								.doOnNext(buffer -> {
-									try {
-										if (!"[DONE]".equals(buffer)) {
-											final var streamResponse = this.objectMapper.readValue(buffer, ChatCompletionResponse.class);
-											
-											if (streamResponse.getId() != null && !streamResponse.getId().isEmpty()) {
-												chatCompletionResponse.setId(streamResponse.getId());
+						
+						try (BufferedReader reader = new BufferedReader(new InputStreamReader(clientResponse.getBody(), StandardCharsets.UTF_8))) {
+							String line;
+							while ((line = reader.readLine()) != null) {
+								if (line.startsWith("data: ")) {
+									line = line.substring(6).trim();
+								}
+								if (line.isEmpty()) {
+									continue;
+								}
+								if ("[DONE]".equals(line)) {
+									break;
+								}
+								
+								try {
+									final var streamResponse = this.objectMapper.readValue(line, ChatCompletionResponse.class);
+									
+									if (streamResponse.getId() != null && !streamResponse.getId().isEmpty()) {
+										chatCompletionResponse.setId(streamResponse.getId());
+									}
+									if (streamResponse.getObject() != null && !streamResponse.getObject().isEmpty()) {
+										chatCompletionResponse.setObject(streamResponse.getObject());
+									}
+									if (streamResponse.getCreated() != null) {
+										chatCompletionResponse.setCreated(streamResponse.getCreated());
+									}
+									if (streamResponse.getUsage() != null) {
+										chatCompletionResponse.setUsage(streamResponse.getUsage());
+									}
+									if (streamResponse.getTimings() != null) {
+										chatCompletionResponse.setTimings(streamResponse.getTimings());
+									}
+									if (streamResponse.getChoices() != null && !streamResponse.getChoices().isEmpty()) {
+										if (streamResponse.getChoices().getFirst().getFinishReason() != null) {
+											chatCompletionResponse.getChoices().getFirst().setFinishReason(streamResponse.getChoices().getFirst().getFinishReason());
+										}
+										if (streamResponse.getChoices().getFirst().getMessage() != null) {
+											String content = null;
+											String reasoning = null;
+											if (streamResponse.getChoices().getFirst().getMessage().getContent() != null && !streamResponse.getChoices().getFirst().getMessage().getContent().isEmpty()) {
+												content = streamResponse.getChoices().getFirst().getMessage().getContent();
+												contentStringBuilder.append(content);
 											}
-											if (streamResponse.getObject() != null && !streamResponse.getObject().isEmpty()) {
-												chatCompletionResponse.setObject(streamResponse.getObject());
+											if (streamResponse.getChoices().getFirst().getMessage().getReasoningContent() != null && !streamResponse.getChoices().getFirst().getMessage().getReasoningContent().isEmpty()) {
+												reasoning = streamResponse.getChoices().getFirst().getMessage().getReasoningContent();
+												reasoningStringBuilder.append(reasoning);
 											}
-											if (streamResponse.getCreated() != null) {
-												chatCompletionResponse.setCreated(streamResponse.getCreated());
-											}
-											if (streamResponse.getUsage() != null) {
-												chatCompletionResponse.setUsage(streamResponse.getUsage());
-											}
-											if (streamResponse.getTimings() != null) {
-												chatCompletionResponse.setTimings(streamResponse.getTimings());
-											}
-											if (streamResponse.getChoices() != null && !streamResponse.getChoices().isEmpty()) {
-												if (streamResponse.getChoices().getFirst().getFinishReason() != null) {
-													chatCompletionResponse.getChoices().getFirst().setFinishReason(streamResponse.getChoices().getFirst().getFinishReason());
-												}
-												if (streamResponse.getChoices().getFirst().getMessage() != null) {
-													String content = null;
-													String reasoning = null;
-													if (streamResponse.getChoices().getFirst().getMessage().getContent() != null && !streamResponse.getChoices().getFirst().getMessage().getContent().isEmpty()) {
-														content = streamResponse.getChoices().getFirst().getMessage().getContent();
-														contentStringBuilder.append(content);
-													}
-													if (streamResponse.getChoices().getFirst().getMessage().getReasoningContent() != null && !streamResponse.getChoices().getFirst().getMessage().getReasoningContent().isEmpty()) {
-														reasoning = streamResponse.getChoices().getFirst().getMessage().getReasoningContent();
-														reasoningStringBuilder.append(reasoning);
-													}
-													if (content != null || reasoning != null) {
-														chunkConsumer.accept(new Chunk(content, reasoning));
-													}
-												}
+											if (content != null || reasoning != null) {
+												chunkConsumer.accept(new Chunk(content, reasoning));
 											}
 										}
 									}
-									catch (final JsonProcessingException e) {
-										LOGGER.warn("Streamed chunk is not parseable", e);
-									}
-								})
-								.then(Mono.<ChatCompletionResponse> fromSupplier(() -> {
-									chatCompletionResponse.getChoices().getFirst().setMessage(new ChatMessage("assistant", contentStringBuilder.toString(), reasoningStringBuilder.toString()));
-									return chatCompletionResponse;
-								}));
+								}
+								catch (final JacksonException e) {
+									LOGGER.warn("Streamed chunk is not parseable: {}", line, e);
+								}
+							}
+						}
+						chatCompletionResponse.getChoices().getFirst().setMessage(new ChatMessage("assistant", contentStringBuilder.toString(), reasoningStringBuilder.toString()));
+						return chatCompletionResponse;
 					}
-				})
-				.retryWhen(this.createRetrySpec())
-				.block();
+				});
 		
 		if (response.getChoices() == null || response.getChoices().isEmpty() || response.getChoices().getFirst().getMessage() == null) {
 			throw new IllegalStateException("No parseable response content from server");

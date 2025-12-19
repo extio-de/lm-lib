@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestClient;
 
 @AutoConfiguration
 public class TokenizerAutoConfiguration {
@@ -15,8 +15,8 @@ public class TokenizerAutoConfiguration {
 	@Bean
 	@ConditionalOnProperty(name = "tokenizer.strategy", havingValue = "llamaServer")
 	@ConditionalOnMissingBean(type = "de.extio.lmlib.token.Tokenizer")
-	Tokenizer llamaServerTokenizer(@Qualifier("lmLibWebClientBuilder") final WebClient.Builder webClientBuilder) {
-		return new LlamaServerTokenizer(webClientBuilder);
+	Tokenizer llamaServerTokenizer(@Qualifier("lmLibRestClientBuilder") final RestClient.Builder restClientBuilder) {
+		return new LlamaServerTokenizer(restClientBuilder);
 	}
 	
 	@Configuration(proxyBeanMethods = false)

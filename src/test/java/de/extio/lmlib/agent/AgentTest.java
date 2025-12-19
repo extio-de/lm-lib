@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Disabled;
@@ -26,7 +27,6 @@ import de.extio.lmlib.agent.responsehandler.TextAgentResponseHandler;
 import de.extio.lmlib.client.ClientService;
 import de.extio.lmlib.grader.Grader;
 import de.extio.lmlib.profile.ModelCategory;
-import io.netty.util.internal.ThreadLocalRandom;
 
 /**
  * These tests have been verified with Llama 3.1 8B, Gemma2 27B, Gemma3 27B and GPT-OSS models

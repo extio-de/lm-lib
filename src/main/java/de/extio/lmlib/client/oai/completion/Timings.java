@@ -1,6 +1,6 @@
 package de.extio.lmlib.client.oai.completion;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.*;
 
 public final class Timings {
 	

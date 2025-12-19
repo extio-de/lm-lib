@@ -2,7 +2,7 @@ package de.extio.lmlib.client.oai.completion.chat;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.*;
 
 import de.extio.lmlib.client.oai.completion.AbstractCompletionRequest;
 

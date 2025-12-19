@@ -2,7 +2,7 @@ package de.extio.lmlib.client.oai;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.*;
 
 public final class ModelsResponse {
 	
