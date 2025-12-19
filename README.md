@@ -1,6 +1,6 @@
 # lm-lib
 
-The purpose of lm-lib is to provide a modular, extensible Java framework for interacting with large language models (LLMs) from various providers (such as OpenAI, Azure AI, and local models). It abstracts away the complexities of prompt construction, conversation management, and model configuration, enabling developers to easily switch between models and providers. The library supports advanced features like streaming completions, request caching, statistics tracking, and agentic flow execution—allowing for the orchestration of multi-step, branching, and parallel conversational workflows. Integration with Spring ensures flexible configuration and dependency management, making it suitable for building scalable, maintainable, and sophisticated LLM-powered applications.
+The purpose of lm-lib is to provide a modular, extensible Java framework for interacting with large language models (LLMs) from various providers (such as OpenAI and local models). It abstracts away the complexities of prompt construction, conversation management, and model configuration, enabling developers to easily switch between models and providers. The library supports advanced features like streaming completions, request caching, statistics tracking, and agentic flow execution—allowing for the orchestration of multi-step, branching, and parallel conversational workflows. Integration with Spring ensures flexible configuration and dependency management, making it suitable for building scalable, maintainable, and sophisticated LLM-powered applications.
 
 The libraries's key features include:
 
@@ -8,7 +8,7 @@ The libraries's key features include:
     - Dynamic prompt templates with placeholder substitution for injecting agent context data
     - Branching & merging (depth-1 parallel splits) with contextual graph tracing
 - Streaming and non-streaming chat and text completions with reasoning support
-- Unified API for multiple LLM providers (OpenAI, Azure, local models, etc.)  
+- Unified API for multiple LLM providers (OpenAI, local models, etc.)  
     - Model profile configuration and switching  
     - Prompt and conversation management utilities  
     - Request caching and statistics tracking  
@@ -56,13 +56,13 @@ lm-lib offers three flexible approaches for managing model profiles:
 Map model profiles to predefined categories using application properties:
 
     profile.model.s=local-small-model
-    profile.model.m=llama3.3-70b-azure
+    profile.model.m=llama3.3-70b-local
     profile.model.l=gpt-4
     profile.model.xl=gpt-4-turbo
     profile.model.hot=high-temperature-model
     profile.model.cold=deterministic-model
 
-The value is the name of the model profile `.properties` file (without the extension), for example "llama3.3-70b-azure".
+The value is the name of the model profile `.properties` file (without the extension), for example "llama3.3-70b-local".
 **Note:** Model profile `.properties` files must be located in the classpath resources (e.g., `src/main/resources`). Examples can be found in test resources.
 
 Agent and completion requests use predefined constants like `ModelCategory.MEDIUM` or `ModelCategory.LARGE`, which automatically load the corresponding model profile.
@@ -86,7 +86,7 @@ final var client = clientService.getClient(customCategory);
 final var completion = client.conversation(customCategory, conversation);
 ```
 
-The value is the name of the model profile `.properties` file (without the extension), for example "llama3.3-70b-azure".
+The value is the name of the model profile `.properties` file (without the extension), for example "llama3.3-70b-local".
 **Note:** Model profile `.properties` files must be located in the classpath resources (e.g., `src/main/resources`). Examples can be found in test resources.
 
 This approach is useful when you need to:
@@ -157,7 +157,7 @@ Each model profile is a `.properties` file that configures how the library inter
 | `maxContextLength` | Integer | Yes | Maximum total context length (prompt + response) supported by the model. | `16000`, `32767`, `128000` |
 | `temperature` | Double | Yes | Controls randomness in responses. Lower values (0.0-0.5) are more deterministic, higher values (0.5-1.0+) more creative. | `0.2`, `0.4`, `0.7` |
 | `topP` | Double | Yes | Nucleus sampling parameter. Controls diversity via cumulative probability. Typically kept at 1.0. | `1.0`, `0.9` |
-| `modelProvider` | Enum | Yes | The LLM provider/client type to use. | `OAI_CHAT_COMPLETION`, `OAI_TEXT_COMPLETION`, `AZURE_AI` |
+| `modelProvider` | Enum | Yes | The LLM provider/client type to use. | `OAI_CHAT_COMPLETION`, `OAI_TEXT_COMPLETION` |
 | `modelName` | String | No | The specific model identifier or deployment name. Can be empty for local models (e.g. lama-server) where it's auto-detected (use first name). | `Llama-3.3-70B-Instruct`, `gpt-4`, `` (empty for auto-detect) |
 | `url` | String | Yes | Base URL endpoint for the model API. | `https://api.openai.com/v1`, `http://localhost:5001` |
 | `apiKey` | String | No | Authentication key for the API. Can use Spring property placeholders like `${apikey}`. Can be empty for local models. | `sk-...`, `${apikey}`, `` (empty) |
@@ -188,23 +188,6 @@ For models that support reasoning (e.g., OpenAI's o1 series), you can configure 
 These settings control how the model generates and presents its reasoning process. The reasoning content is captured separately from the main response and can be accessed via the `reasoning` field in `Completion` objects or the `<key>_reasoning` context key in agents.
 
 ### Example Profile Files
-
-**Azure AI Chat Completion (llama3.3-70b-azure.properties):**
-```properties
-category=
-prompts=
-tokenEncoding=cl100k_base
-maxTokens=1500
-maxContextLength=32767
-temperature=0.2
-topP=1.0
-modelProvider=AZURE_AI
-modelName=Llama-3.3-70B-Instruct
-url=https://your-endpoint.inference.ai.azure.com
-apiKey=${apikey}
-cost1MInTokens=0.71
-cost1MOutTokens=0.71
-```
 
 **Local Chat Completion (local-chatcompletion.properties):**
 ```properties
@@ -269,29 +252,6 @@ To activate a prompt template, set the following property in your model profile 
 
 Example profile: src/test/resources/xxx-local.properties
 
-## Azure AI client
-
-Use tokenizer strategy jtokkit.
-
-Property:
-
-    tokenizer.strategy=jtokkit
-
-Example profile: src/test/resources/llama3.3-70b-azure.properties
-
-    <dependency>
-    	<groupId>com.azure</groupId>
-    	<artifactId>azure-ai-inference</artifactId>
-    </dependency>
-    <dependency>
-    	<groupId>com.knuddels</groupId>
-    	<artifactId>jtokkit</artifactId>
-    </dependency>
-    <dependency>
-    	<groupId>com.github.ben-manes.caffeine</groupId>
-    	<artifactId>caffeine</artifactId>
-    </dependency>
-
 # Usage
 
 1. Setup dependencies, see above
@@ -303,7 +263,7 @@ Example profile: src/test/resources/llama3.3-70b-azure.properties
 # Usage Examples
 
 - Client service: clientService.getClient(ModelCategory.MEDIUM);
-- Client usage details: CompletionClientTest and AzureAiClientTest
+- Client usage details: CompletionClientTest
 - Agentic flow: AgentTest#agenticFlow and AgentTest#streamedAgenticFlow
 
 # Completions and Streaming

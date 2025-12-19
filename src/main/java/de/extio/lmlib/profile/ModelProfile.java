@@ -46,6 +46,6 @@ public record ModelProfile(
 	}
 	
 	public static enum ModelProvider {
-		AZURE_AI, OAI_TEXT_COMPLETION, OAI_CHAT_COMPLETION;
+		OAI_TEXT_COMPLETION, OAI_CHAT_COMPLETION;
 	}
 }

@@ -31,7 +31,7 @@ import io.netty.util.internal.ThreadLocalRandom;
 /**
  * These tests have been verified with Llama 3.1 8B, Gemma2 27B, Gemma3 27B and GPT-OSS models
  */
-@Disabled("This test requires a running Llama server or an Azure subscription (setup azure key in model profile)")
+@Disabled("This test requires a running Llama server or a cloud subscription")
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
 @ComponentScan(basePackages = "de.extio.lmlib")

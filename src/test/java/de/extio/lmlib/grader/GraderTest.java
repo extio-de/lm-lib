@@ -41,7 +41,7 @@ import de.extio.lmlib.grader.agent.AnswerGrader2;
 import de.extio.lmlib.grader.agent.AnswerGraderBinary;
 import de.extio.lmlib.profile.ModelCategory;
 
-@Disabled("This test requires a running Llama server or an Azure subscription (setup azure key in model profile)")
+@Disabled("This test requires a running Llama server or a cloud subscription (setup key in model profile)")
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
 @ComponentScan(basePackages = "de.extio.lmlib")
