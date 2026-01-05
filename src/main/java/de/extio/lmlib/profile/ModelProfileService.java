@@ -10,11 +10,9 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.support.ResourcePropertySource;
-import org.springframework.stereotype.Service;
 
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 
-@Service
 public class ModelProfileService {
 	
 	private final Environment environment;

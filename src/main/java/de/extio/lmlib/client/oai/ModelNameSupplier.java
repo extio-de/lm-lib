@@ -5,13 +5,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 
-@Component
 public class ModelNameSupplier {
 	
 	@Autowired

@@ -5,7 +5,6 @@ import java.util.function.Consumer;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.stereotype.Service;
 
 import de.extio.lmlib.client.cached.CachedClient;
 import de.extio.lmlib.client.cached.CachedClientRepository;
@@ -14,7 +13,6 @@ import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.profile.ModelProfileService;
 
-@Service
 public class ClientService {
 	
 	@Autowired

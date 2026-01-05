@@ -7,9 +7,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.web.client.RestClient;
 
@@ -18,7 +18,7 @@ import de.extio.lmlib.profile.ModelProfileService;
 
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
-@ComponentScan(basePackages = "de.extio.lmlib")
+@EnableAutoConfiguration
 @PropertySource("classpath:/application-test.properties")
 public class TokenizerTest {
 	

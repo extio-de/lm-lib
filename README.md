@@ -1,6 +1,6 @@
 # lm-lib
 
-The purpose of lm-lib is to provide a modular, extensible Java framework for interacting with large language models (LLMs) from various providers (such as OpenAI and local models). It abstracts away the complexities of prompt construction, conversation management, and model configuration, enabling developers to easily switch between models and providers. The library supports advanced features like streaming completions, request caching, statistics tracking, and agentic flow execution—allowing for the orchestration of multi-step, branching, and parallel conversational workflows. Integration with Spring ensures flexible configuration and dependency management, making it suitable for building scalable, maintainable, and sophisticated LLM-powered applications.
+The purpose of lm-lib is to provide a modular, extensible Java framework for interacting with large language models (LLMs) from various providers (such as OpenAI and local models). It abstracts away the complexities of prompt construction, conversation management, and model configuration, enabling developers to easily switch between models and providers. The library supports advanced features like streaming completions, request caching, statistics tracking, and agentic flow execution, allowing for the orchestration of multi-step, branching, and parallel conversational workflows. Integration with Spring ensures flexible configuration and dependency management, making it suitable for building scalable, maintainable, and sophisticated LLM-powered applications.
 
 The libraries's key features include:
 
@@ -14,7 +14,7 @@ The libraries's key features include:
     - Request caching and statistics tracking  
     - Pluggable interceptors, e.g. for rate limiting
 - Modular architecture for easy extension and customization  
-- Spring integration for dependency injection and configuration  
+- Spring Boot auto-configuration with selective module enabling
 
 # Requirements
 
@@ -34,7 +34,22 @@ To keep this library lean and compatible with different dependency trees, all de
 
 ## Configuration
 
-The library can be configured using the following application properties:
+The library uses Spring Boot auto-configuration with a modular architecture. Each domain can be selectively enabled or disabled.
+
+### Module Enable/Disable Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `lmlib.profile.enabled` | Boolean | `true` | Enable model profile service for managing LLM configurations. |
+| `lmlib.tokenizer.enabled` | Boolean | `true` | Enable tokenizer service for token counting and encoding. |
+| `lmlib.restclient.enabled` | Boolean | `true` | Enable REST client configuration for HTTP communication with LLM providers. |
+| `lmlib.prompt.enabled` | Boolean | `true` | Enable prompt strategy services for text completion formatting. |
+| `lmlib.client.enabled` | Boolean | `true` | Enable LLM client services for completion requests. Depends on profile, tokenizer, and restclient modules. |
+| `lmlib.agent.enabled` | Boolean | `true` | Enable agent executor service for orchestrating agentic flows. Depends on client module. |
+
+**Note:** Modules have dependencies. Disabling a module that another depends on may cause runtime errors. For example, disabling `lmlib.client.enabled` while keeping `lmlib.agent.enabled=true` requires to provide a custom ClientService implementation.
+
+### REST Client Configuration
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -45,24 +60,47 @@ The library can be configured using the following application properties:
 | `lmlib.client.proxy.password` | String | | HTTP proxy password (optional). |
 | `lmlib.client.tls.verification.disabled` | Boolean | `false` | Disable TLS certificate verification (not recommended for production). |
 | `lmlib.client.retry.max-attempts` | Integer | `5` | Maximum number of retry attempts for failed requests. |
-| `lmlib.client.retry.backoff-interval-min` | Long | `200` | Minimum backoff interval in milliseconds between retry attempts. |
+| `lmlib.client.retry.backoff-interval-min` | Long | `125` | Minimum backoff interval in milliseconds between retry attempts. |
 | `lmlib.client.retry.backoff-interval-max` | Long | `2500` | Maximum backoff interval in milliseconds between retry attempts. |
+
+### Tokenizer Configuration
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `tokenizer.strategy` | String | `jTokkit` | Token counting strategy. Options: `jTokkit`, `llamaServer`. |
 
 ## Optional dependencies
 
-Some services benefit from Spring cache framework, e.g. the model profile service:
+### Caching Support
+
+Some services benefit from Spring cache framework (e.g., model profile service, client service):
 
     <dependency>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-cache</artifactId>
-    </dependency>		
+    </dependency>
+    <dependency>
+        <groupId>com.github.ben-manes.caffeine</groupId>
+        <artifactId>caffeine</artifactId>
+    </dependency>
 
-Don't forget to activate a CacheManager afterwards:
+Don't forget to activate a CacheManager:
 
     @Bean
     public CacheManager cacheManager() {
         return new CaffeineCacheManager();
     }
+
+### Tokenizer Dependencies
+
+For jTokkit tokenizer (recommended):
+
+    <dependency>
+        <groupId>com.knuddels</groupId>
+        <artifactId>jtokkit</artifactId>
+    </dependency>
+
+For llamaServer tokenizer, no additional dependencies are needed (uses REST client to query llama.cpp server).
 
 ## Model profiles
 

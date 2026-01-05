@@ -1,8 +1,5 @@
 package de.extio.lmlib.prompt;
 
-import org.springframework.stereotype.Component;
-
-@Component
 public class Qwen3PromptStrategy implements PromptStrategy {
 
 	private static final String IM_START = "<|im_start|>";

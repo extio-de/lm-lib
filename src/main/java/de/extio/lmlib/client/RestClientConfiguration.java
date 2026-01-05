@@ -19,8 +19,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
@@ -30,7 +31,8 @@ import org.springframework.util.backoff.BackOffExecution;
 import org.springframework.util.backoff.ExponentialBackOff;
 import org.springframework.web.client.RestClient;
 
-@Configuration
+@AutoConfiguration
+@ConditionalOnProperty(prefix = "lmlib.restclient", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class RestClientConfiguration {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(RestClientConfiguration.class);

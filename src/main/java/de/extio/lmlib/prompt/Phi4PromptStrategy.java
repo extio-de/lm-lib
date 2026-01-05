@@ -1,8 +1,5 @@
 package de.extio.lmlib.prompt;
 
-import org.springframework.stereotype.Component;
-
-@Component
 public class Phi4PromptStrategy implements PromptStrategy {
 	
 	@Override

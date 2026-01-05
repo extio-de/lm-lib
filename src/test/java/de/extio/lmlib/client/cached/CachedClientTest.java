@@ -12,9 +12,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.PropertySource;
 
 import de.extio.lmlib.client.ClientService;
@@ -26,7 +27,8 @@ import de.extio.lmlib.profile.ModelCategory;
 @Disabled("This test requires a running Llama server or a cloud subscription (setup key in model profile)")
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
-@ComponentScan(basePackages = "de.extio.lmlib")
+@EnableAutoConfiguration
+@Import({ TestCachedClientRepository.Config.class })
 @PropertySource("classpath:/application-test.properties")
 public class CachedClientTest {
 	

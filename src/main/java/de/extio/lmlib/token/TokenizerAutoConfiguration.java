@@ -6,10 +6,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
 @AutoConfiguration
+@ConditionalOnProperty(prefix = "lmlib.tokenizer", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class TokenizerAutoConfiguration {
 	
 	@Bean
@@ -19,17 +19,12 @@ public class TokenizerAutoConfiguration {
 		return new LlamaServerTokenizer(restClientBuilder);
 	}
 	
-	@Configuration(proxyBeanMethods = false)
+	@Bean
 	@ConditionalOnClass(name = "com.knuddels.jtokkit.Encodings")
-	@ConditionalOnProperty(name = "tokenizer.strategy", havingValue = "jTokkit")
+	@ConditionalOnProperty(name = "tokenizer.strategy", havingValue = "jTokkit", matchIfMissing = true)
 	@ConditionalOnMissingBean(type = "de.extio.lmlib.token.Tokenizer")
-	public static class SomeServiceConfiguration {
-		
-		@Bean
-		Tokenizer jTokkitTokenizer() {
-			return new JTokkitTokenizer();
-		}
-		
+	Tokenizer jTokkitTokenizer() {
+		return new JTokkitTokenizer();
 	}
-	
+
 }

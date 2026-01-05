@@ -1,11 +1,6 @@
 package de.extio.lmlib.prompt;
 
-import org.springframework.stereotype.Component;
 
-/**
- * @see https://www.llama.com/docs/model-cards-and-prompt-formats/llama4/
- */
-@Component
 public class Llama4PromptStrategy implements PromptStrategy {
 	
 	@Override

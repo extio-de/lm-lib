@@ -14,7 +14,6 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
-import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import tools.jackson.core.JacksonException;
@@ -27,7 +26,6 @@ import de.extio.lmlib.client.oai.completion.AbstractCompletionClient;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 
-@Component
 public class ChatCompletionClient extends AbstractCompletionClient {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(ChatCompletionClient.class);

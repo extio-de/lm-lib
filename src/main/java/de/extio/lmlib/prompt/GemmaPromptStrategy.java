@@ -1,12 +1,5 @@
 package de.extio.lmlib.prompt;
 
-import org.springframework.stereotype.Component;
-
-/**
- * Works for both Gemma2 and Gemma3
- * @see https://ai.google.dev/gemma/docs/core/prompt-structure
- */
-@Component
 public class GemmaPromptStrategy implements PromptStrategy {
 	
 	@Override

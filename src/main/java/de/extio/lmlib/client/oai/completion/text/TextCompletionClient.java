@@ -13,7 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
-import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import tools.jackson.core.JacksonException;
@@ -29,7 +28,6 @@ import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.prompt.PromptStrategy;
 import de.extio.lmlib.prompt.PromptStrategyFactory;
 
-@Component
 public class TextCompletionClient extends AbstractCompletionClient {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(TextCompletionClient.class);

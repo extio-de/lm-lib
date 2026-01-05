@@ -1,8 +1,5 @@
 package de.extio.lmlib.prompt;
 
-import org.springframework.stereotype.Component;
-
-@Component
 public class GptOssPromptStrategy implements PromptStrategy {
 	
 	private static final String finalMarker = "<|channel|>final<|message|>";
