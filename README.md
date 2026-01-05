@@ -248,7 +248,7 @@ cost1MOutTokens=0
 
 ## OpenAi compatible client
 
-Use tokenizer strategy jtokkit or llamaServer (if the model is hosted on a llama.cpp server)
+Use tokenizer strategy jTokkit or llamaServer (if the model is hosted on a llama.cpp server)
 
 Property:
 
