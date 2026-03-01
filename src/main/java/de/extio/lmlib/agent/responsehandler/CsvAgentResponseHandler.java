@@ -40,8 +40,8 @@ public class CsvAgentResponseHandler implements AgentResponseHandler {
 		this.fieldSeparatorQuoted = Pattern.quote(fieldSeparator);
 		
 		this.errorPromptSuffix = "\n\nThe previous response could not be fully processed or validated. " +
-				"Please format the response as CSV with '" + fieldSeparator + "' as field separator. " +
-				"Expected columns: " + String.join(", ", headings) + ". One row per line.";
+				"Please format the response as CSV with '" + fieldSeparator + "' as field separator.\n" +
+				"Expected columns: " + String.join(", ", headings) + " \nOne row per line.";
 	}
 	
 	@Override
