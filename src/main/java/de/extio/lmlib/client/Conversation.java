@@ -65,7 +65,9 @@ public final class Conversation {
 	}
 	
 	public List<Turn> getConversation() {
-		return Collections.unmodifiableList(this.conversation);
+		synchronized (this.conversation) {
+			return Collections.unmodifiableList(this.conversation);
+		}
 	}
 	
 	@Override
