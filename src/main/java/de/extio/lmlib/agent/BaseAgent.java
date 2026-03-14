@@ -112,7 +112,7 @@ public interface BaseAgent {
 					split.context().getGraph().add(this.name());
 					
 					if (!skipCompletion) {
-						final boolean skipCache = split.context().isSkipCache();
+						final boolean skipCache = split.context().isSkipCache() || split.context().isAlwaysSkipCache();
 						split.context().setSkipCache(false);
 						final var conversation = this.setupConversation(split);
 						
