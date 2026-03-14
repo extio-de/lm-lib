@@ -154,6 +154,7 @@ public interface BaseAgent {
 								if (!responseHandler.handle(completion, split.context())) {
 									split.context().getGraph().add("⚠");
 									LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response());
+									split.context().setSkipCache(true);
 									continue;
 								}
 								
@@ -163,6 +164,7 @@ public interface BaseAgent {
 							catch (final Exception e) {
 								split.context().getGraph().add("⚠");
 								LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response(), e);
+								split.context().setSkipCache(true);
 								continue;
 							}
 						}
