@@ -80,10 +80,18 @@ public interface BaseAgent {
 		final var splits = new ArrayList<Split>();
 		
 		context.setNextAgent(null);
+		context.clearError();
 		
-		this.preProcess(context);
-		if (context.getAgentContextUpdateConsumer() != null) {
-			context.getAgentContextUpdateConsumer().accept(context);
+		try {
+			this.preProcess(context);
+			if (context.getAgentContextUpdateConsumer() != null) {
+				context.getAgentContextUpdateConsumer().accept(context);
+			}
+		}
+		catch (final Exception ex) {
+			LOGGER.error("Error during agent execution", ex);
+			context.setError(AgentErrorType.GENERAL, ex);
+			return List.of(context);
 		}
 
 		splits.addAll(this.applyTemplate(context));
@@ -91,6 +99,7 @@ public interface BaseAgent {
 		for (final var split : splits) {
 			tasks.add(CompletableFuture.runAsync(() -> {
 				try {
+					split.context().clearError();
 					final boolean skipCompletion = split.context().isSkipNextCompletion() || this.agentType(split.context()) == AgentType.PROCESSING_ONLY;
 					if (skipCompletion) {
 						split.context().setSkipNextCompletion(false);
@@ -108,6 +117,7 @@ public interface BaseAgent {
 						final var conversation = this.setupConversation(split);
 						
 						boolean parseable = false;
+						Exception parseException = null;
 						for (int i = 0; i < 2; i++) {
 							LOGGER.debug("Conversation: {}", conversation);	
 							
@@ -162,6 +172,7 @@ public interface BaseAgent {
 								break;
 							}
 							catch (final Exception e) {
+								parseException = e;
 								split.context().getGraph().add("⚠");
 								LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response(), e);
 								split.context().setSkipCache(true);
@@ -171,7 +182,7 @@ public interface BaseAgent {
 						if (!parseable) {
 							LOGGER.warn("{} Response is still not parseable after last attempt", this.name());
 							split.context().getGraph().add("☢");
-							split.context().setError(true);
+							split.context().setError(AgentErrorType.PARSING, parseException);
 							return;
 						}
 					}
@@ -183,7 +194,7 @@ public interface BaseAgent {
 				}
 				catch (final Exception ex) {
 					LOGGER.error("Error during agent execution", ex);
-					split.context().setError(true);
+					split.context().setError(AgentErrorType.GENERAL, ex);
 				}
 			}, agentExecutorService));
 		}

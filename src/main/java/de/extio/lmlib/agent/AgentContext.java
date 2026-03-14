@@ -22,7 +22,9 @@ public final class AgentContext {
 	
 	private volatile boolean streaming;
 	
-	private volatile boolean error;
+	private volatile AgentErrorType errorType;
+
+	private volatile Exception errorException;
 	
 	private volatile boolean skipNextCompletion;
 
@@ -74,7 +76,8 @@ public final class AgentContext {
 		this.requestStatistic = other.requestStatistic;
 		this.lastCompletion = other.lastCompletion;
 		this.agentContextUpdateConsumer = other.agentContextUpdateConsumer;
-		this.error = other.error;
+		this.errorType = other.errorType;
+		this.errorException = other.errorException;
 		this.skipNextCompletion = other.skipNextCompletion;
 		this.skipCache = other.skipCache;
 		this.streaming = other.streaming;
@@ -190,11 +193,29 @@ public final class AgentContext {
 	}
 	
 	public boolean isError() {
-		return this.error;
+		return this.errorType != null;
 	}
 	
-	public void setError(final boolean error) {
-		this.error = error;
+	public AgentErrorType getErrorType() {
+		return this.errorType;
+	}
+	
+	public Exception getErrorException() {
+		return this.errorException;
+	}
+	
+	public void setError(final AgentErrorType errorType, final Exception errorException) {
+		if (errorType == null) {
+			this.clearError();
+			return;
+		}
+		this.errorType = errorType;
+		this.errorException = errorException;
+	}
+	
+	public void clearError() {
+		this.errorType = null;
+		this.errorException = null;
 	}
 	
 	public boolean isSkipNextCompletion() {

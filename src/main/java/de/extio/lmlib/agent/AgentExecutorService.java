@@ -111,6 +111,8 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 					}
 					catch (final Exception e) {
 						LOGGER.error("Error executing agent", e);
+						branchContext.setError(AgentErrorType.GENERAL, e);
+						responses.add(branchContext);
 					}
 				}, this.branchExecutorService));
 			}
