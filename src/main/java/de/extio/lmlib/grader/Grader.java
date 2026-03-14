@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.ClientService;
+import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.profile.ModelCategory;
 
 /**
@@ -25,15 +26,17 @@ public class Grader {
 		
 		var score = 0;
 		while (Math.abs(score) < 3) {
-			final var completion = client.completion(
+			final var completion = client.conversation(
 					ModelCategory.MEDIUM,
-					"""
-							You are a grader assessing the truthfulness of a given text to a user question.
-							Please provide a binary response 'true' or 'false' for the following text.
-							'true' means that the text provides a truthful answer to the question, while 'false' means that it does not.
-							Only provide the response as a single word and no preamble and no explanation.""",
-					"Here is the text:\n" + text + "\n\n" +
-					"Here is the user question: " + question);
+					Conversation.create(
+						"""
+								You are a grader assessing the truthfulness of a given text to a user question.
+								Please provide a binary response 'true' or 'false' for the following text.
+								'true' means that the text provides a truthful answer to the question, while 'false' means that it does not.
+								Only provide the response as a single word and no preamble and no explanation.""",
+						"Here is the text:\n" + text + "\n\n" +
+						"Here is the user question: " + question),
+					true);
 			LOGGER.info(completion.response());
 			score += Boolean.parseBoolean(completion.response().strip()) ? 1 : -1;
 			if (Math.abs(score) == 2) {

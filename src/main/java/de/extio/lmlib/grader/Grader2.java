@@ -49,7 +49,8 @@ public class Grader2 {
 					- 'true': The text provides a truthful answer.
 					- 'false': The text does not provide a truthful answer.
 					Only provide the response as a single word. Do not include any preamble or explanation.
-					""".formatted(question, text)));
+					""".formatted(question, text)),
+					true);
 			LOGGER.info(completion.response());
 			score += Boolean.parseBoolean(completion.response().strip()) ? 1 : -1;
 			if (Math.abs(score) == 2) {

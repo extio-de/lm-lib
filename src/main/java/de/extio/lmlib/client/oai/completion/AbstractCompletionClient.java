@@ -82,29 +82,24 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 	}
 	
 	@Override
-	public Completion completion(final ModelCategory modelCategory, final String system, final String text) {
-		return this.conversation(modelCategory, Conversation.create(system, text));
+	public Completion conversation(final ModelCategory modelCategory, final Conversation conversation, final boolean skipCache) {
+		return this.streamConversation(modelCategory, conversation, null, skipCache);
 	}
 	
 	@Override
-	public Completion conversation(final ModelCategory modelCategory, final Conversation conversation) {
-		return this.streamConversation(modelCategory, conversation, null);
+	public Completion conversation(final ModelProfile modelProfile, final Conversation conversation, final boolean skipCache) {
+		return this.streamConversation(modelProfile, conversation, null, skipCache);
 	}
 	
 	@Override
-	public Completion conversation(final ModelProfile modelProfile, final Conversation conversation) {
-		return this.streamConversation(modelProfile, conversation, null);
-	}
-	
-	@Override
-	public Completion streamConversation(final ModelCategory modelCategory_, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
+	public Completion streamConversation(final ModelCategory modelCategory_, final Conversation conversation, final Consumer<Chunk> chunkConsumer, final boolean skipCache) {
 		final ModelCategory modelCategory = (modelCategory_ == null) ? ModelCategory.MEDIUM : modelCategory_;
 		final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile(), modelCategory);
-		return this.streamConversation(modelProfile, conversation, chunkConsumer);
+		return this.streamConversation(modelProfile, conversation, chunkConsumer, skipCache);
 	}
 	
 	@Override
-	public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
+	public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation, final Consumer<Chunk> chunkConsumer, final boolean skipCache) {
 		if (modelProfile == null || (modelProfile.modelProvider() != ModelProvider.OAI_TEXT_COMPLETION && modelProfile.modelProvider() != ModelProvider.OAI_CHAT_COMPLETION)) {
 			throw new IllegalArgumentException("Invalid ModelProfile");
 		}

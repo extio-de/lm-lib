@@ -25,6 +25,8 @@ public final class AgentContext {
 	private volatile boolean error;
 	
 	private volatile boolean skipNextCompletion;
+
+	private volatile boolean skipCache;
 	
 	private volatile Conversation conversation;
 	
@@ -74,6 +76,7 @@ public final class AgentContext {
 		this.agentContextUpdateConsumer = other.agentContextUpdateConsumer;
 		this.error = other.error;
 		this.skipNextCompletion = other.skipNextCompletion;
+		this.skipCache = other.skipCache;
 		this.streaming = other.streaming;
 		synchronized (other.graph) {
 			this.graph.addAll(other.graph);
@@ -200,6 +203,14 @@ public final class AgentContext {
 	
 	public void setSkipNextCompletion(final boolean skipNextCompletion) {
 		this.skipNextCompletion = skipNextCompletion;
+	}
+
+	public boolean isSkipCache() {
+		return this.skipCache;
+	}
+
+	public void setSkipCache(final boolean skipCache) {
+		this.skipCache = skipCache;
 	}
 	
 	Consumer<AgentContext> getAgentContextUpdateConsumer() {

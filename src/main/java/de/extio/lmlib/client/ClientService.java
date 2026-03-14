@@ -57,29 +57,24 @@ public class ClientService {
 		}
 		
 		@Override
-		public Completion completion(final ModelCategory modelCategory, final String system, final String text) {
-			return this.client.completion(modelCategory, system, text);
+		public Completion conversation(final ModelCategory modelCategory, final Conversation conversation_, final boolean skipCache) {
+			final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile(), modelCategory);
+			return this.conversation(modelProfile, conversation_, skipCache);
 		}
 		
 		@Override
-		public Completion conversation(final ModelCategory modelCategory, final Conversation conversation_) {
+		public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation_, final Consumer<Chunk> chunkConsumer, final boolean skipCache) {
 			final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile(), modelCategory);
-			return this.conversation(modelProfile, conversation_);
-		}
-		
-		@Override
-		public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation_, final Consumer<Chunk> chunkConsumer) {
-			final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile(), modelCategory);
-			return this.streamConversation(modelProfile, conversation_, chunkConsumer);
+			return this.streamConversation(modelProfile, conversation_, chunkConsumer, skipCache);
 		}
 
 		@Override
-		public Completion conversation(final ModelProfile modelProfile, final Conversation conversation_) {
+		public Completion conversation(final ModelProfile modelProfile, final Conversation conversation_, final boolean skipCache) {
 			Conversation conversation = conversation_;
 			for (final var interceptor : this.completionInterceptors) {
 				conversation = interceptor.before(modelProfile, conversation);
 			}
-			var completion = this.client.conversation(modelProfile, conversation);
+			var completion = this.client.conversation(modelProfile, conversation, skipCache);
 			for (final var interceptor : this.completionInterceptors) {
 				completion = interceptor.after(modelProfile, conversation, completion);
 			}
@@ -87,12 +82,12 @@ public class ClientService {
 		}
 		
 		@Override
-		public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation_, final Consumer<Chunk> chunkConsumer) {
+		public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation_, final Consumer<Chunk> chunkConsumer, final boolean skipCache) {
 			Conversation conversation = conversation_;
 			for (final var interceptor : this.completionInterceptors) {
 				conversation = interceptor.before(modelProfile, conversation);
 			}
-			var completion = this.client.streamConversation(modelProfile, conversation, chunkConsumer);
+			var completion = this.client.streamConversation(modelProfile, conversation, chunkConsumer, skipCache);
 			for (final var interceptor : this.completionInterceptors) {
 				completion = interceptor.after(modelProfile, conversation, completion);
 			}

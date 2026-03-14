@@ -27,6 +27,7 @@ import de.extio.lmlib.client.Conversation.TurnType;
 import de.extio.lmlib.client.oai.completion.chat.ChatCompletionClient;
 import de.extio.lmlib.client.oai.completion.text.TextCompletionClient;
 import de.extio.lmlib.grader.Grader2;
+import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfileService;
 
 @Disabled("This test requires a running Llama server")
@@ -55,7 +56,8 @@ public class CompletionClientTest {
 		final var modelProfile = this.modelProfileService.getModelProfile("profile.model.textcompletion");
 		final var completion = this.textCompletionClient.conversation(
 				modelProfile,
-				Conversation.create("You are a helpful assistant", "Say the color is green"));
+				Conversation.create("You are a helpful assistant", "Say the color is green"),
+				false);
 		
 		LOGGER.info(completion.reasoning());
 		LOGGER.info(completion.response());
@@ -69,7 +71,7 @@ public class CompletionClientTest {
 		final var conversation = Conversation.create("You are a helpful assistant", "I would like to paint my canvas in a solid color.");
 		conversation.addTurn(new Turn(TurnType.ASSISTANT, "Which color do you want to see?"));
 		conversation.addTurn(new Turn(TurnType.USER, "You choose!"));
-		final var completion = this.textCompletionClient.conversation(modelProfile, conversation);
+		final var completion = this.textCompletionClient.conversation(modelProfile, conversation, false);
 		
 		LOGGER.info(completion.reasoning());
 		LOGGER.info(completion.response());
@@ -92,7 +94,7 @@ public class CompletionClientTest {
 				System.out.print(chunk.content());
 				sb.append(chunk.content());
 			}
-		});
+		}, false);
 		
 		if (completion.reasoning() != null) {
 			// Prompt template does not separate reasoning and response from the stream at the moment
@@ -112,7 +114,7 @@ public class CompletionClientTest {
 		final var conversation = Conversation.create("You are a helpful assistant", "I would like to paint my canvas in a solid color.");
 		conversation.addTurn(new Turn(TurnType.ASSISTANT, "Which color do you want to see?"));
 		conversation.addTurn(new Turn(TurnType.USER, "You choose!"));
-		final var completion = this.chatCompletionclient.conversation(modelProfile, conversation);
+		final var completion = this.chatCompletionclient.conversation(modelProfile, conversation, false);
 		
 		LOGGER.info(completion.reasoning());
 		LOGGER.info(completion.response());
@@ -135,7 +137,7 @@ public class CompletionClientTest {
 				System.out.print(chunk.content());
 				sb.append(chunk.content());
 			}
-		});
+		}, false);
 		
 		assertEquals(completion.response(), sb.toString());
 		assertTrue(Grader2.assessScoreBinary("Does the text explain a chess opening?", completion.response(), modelProfile, this.clientService));
@@ -151,10 +153,10 @@ public class CompletionClientTest {
 		}
 		sb.delete(sb.length() - 2, sb.length());
 		
-		final var completion = this.textCompletionClient.completion(
-				null,
-				"You are counting machine",
-				"How many numbers do you count?\n" + sb.toString());
+		final var completion = this.textCompletionClient.conversation(
+				ModelCategory.MEDIUM,
+				Conversation.create("You are counting machine", "How many numbers do you count?\n" + sb.toString()),
+				false);
 		LOGGER.info(completion.response());
 	}
 	
@@ -199,10 +201,10 @@ public class CompletionClientTest {
 	private Tasks createTasks() {
 		return new Tasks(() -> {
 			try {
-				final var completion = this.textCompletionClient.completion(
-						null,
-						"You are a helpful assistant",
-						"How do I calculate the annual profit margin?");
+				final var completion = this.textCompletionClient.conversation(
+						ModelCategory.MEDIUM,
+						Conversation.create("You are a helpful assistant", "How do I calculate the annual profit margin?"),
+						false);
 				LOGGER.info(completion.response());
 			}
 			catch (final Exception e) {
@@ -210,10 +212,10 @@ public class CompletionClientTest {
 			}
 		}, () -> {
 			try {
-				final var completion = this.textCompletionClient.completion(
-						null,
-						"You are a helpful assistant",
-						"How do I calculate the operating profit ratio?");
+				final var completion = this.textCompletionClient.conversation(
+						ModelCategory.MEDIUM,
+						Conversation.create("You are a helpful assistant", "How do I calculate the operating profit ratio?"),
+						false);
 				LOGGER.info(completion.response());
 			}
 			catch (final Exception e) {
@@ -221,10 +223,10 @@ public class CompletionClientTest {
 			}
 		}, () -> {
 			try {
-				final var completion = this.textCompletionClient.completion(
-						null,
-						"You are a helpful assistant",
-						"How do I calculate the return of investment?");
+				final var completion = this.textCompletionClient.conversation(
+						ModelCategory.MEDIUM,
+						Conversation.create("You are a helpful assistant", "How do I calculate the return of investment?"),
+						false);
 				LOGGER.info(completion.response());
 			}
 			catch (final Exception e) {
@@ -232,10 +234,10 @@ public class CompletionClientTest {
 			}
 		}, () -> {
 			try {
-				final var completion = this.textCompletionClient.completion(
-						null,
-						"You are a helpful assistant",
-						"How do I calculate the return on net worth?");
+				final var completion = this.textCompletionClient.conversation(
+						ModelCategory.MEDIUM,
+						Conversation.create("You are a helpful assistant", "How do I calculate the return on net worth?"),
+						false);
 				LOGGER.info(completion.response());
 			}
 			catch (final Exception e) {

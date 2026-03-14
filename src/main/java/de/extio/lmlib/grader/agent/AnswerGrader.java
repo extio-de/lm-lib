@@ -31,7 +31,9 @@ public class AnswerGrader {
 						The answer is: {{answer}}
 						""",
 				new JsonAgentResponseHandler(),
-				null,
+				context -> {
+					context.setSkipCache(true);
+				},
 				context -> {
 					if (!context.getContext().containsKey("qaRating")) {
 						context.setStringValue("qaRating", "0");

@@ -8,19 +8,13 @@ import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 
 public interface Client {
 	
-	/**
-	 * @deprecated use {@link #conversation(ModelCategory, Conversation)} instead. Conversation can be converted from a system and text by Conversation.create(system, text)
-	 */
-	@Deprecated
-	Completion completion(ModelCategory modelCategory, String system, String text);
+	Completion conversation(ModelCategory modelCategory, Conversation conversation, boolean skipCache);
 	
-	Completion conversation(ModelCategory modelCategory, Conversation conversation);
-	
-	Completion conversation(ModelProfile modelProfile, Conversation conversation);
+	Completion conversation(ModelProfile modelProfile, Conversation conversation, boolean skipCache);
 
-	Completion streamConversation(ModelCategory modelCategory, Conversation conversation, Consumer<Chunk> chunkConsumer);
+	Completion streamConversation(ModelCategory modelCategory, Conversation conversation, Consumer<Chunk> chunkConsumer, boolean skipCache);
 	
-	Completion streamConversation(ModelProfile modelProfile, Conversation conversation, Consumer<Chunk> chunkConsumer);
+	Completion streamConversation(ModelProfile modelProfile, Conversation conversation, Consumer<Chunk> chunkConsumer, boolean skipCache);
 	
 	ModelProvider getModelProvider();
 }

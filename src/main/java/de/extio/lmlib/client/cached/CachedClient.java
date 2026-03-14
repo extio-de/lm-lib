@@ -6,7 +6,6 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
-import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -36,23 +35,18 @@ public class CachedClient implements Client {
 	}
 	
 	@Override
-	public Completion completion(final ModelCategory modelCategory, final String system, final String text) {
-		return this.getCachedResponse(modelCategory, null, () -> this.client.completion(modelCategory, system, text), system, text);
+	public Completion conversation(final ModelCategory modelCategory, final Conversation conversation, final boolean skipCache) {
+		return this.getCachedResponse(modelCategory, null, skipCache, () -> this.client.conversation(modelCategory, conversation, skipCache), conversation.getConversation().toString());
 	}
 	
 	@Override
-	public Completion conversation(final ModelCategory modelCategory, final Conversation conversation) {
-		return this.getCachedResponse(modelCategory, null, () -> this.client.conversation(modelCategory, conversation), conversation.getConversation().toString());
-	}
-	
-	@Override
-	public Completion conversation(final ModelProfile modelProfile, final Conversation conversation) {
-		return this.getCachedResponse(null, modelProfile, () -> this.client.conversation(modelProfile, conversation), conversation.getConversation().toString());
+	public Completion conversation(final ModelProfile modelProfile, final Conversation conversation, final boolean skipCache) {
+		return this.getCachedResponse(null, modelProfile, skipCache, () -> this.client.conversation(modelProfile, conversation, skipCache), conversation.getConversation().toString());
 	}
 
 	@Override
-	public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
-		final var response = this.getCachedResponse(modelCategory, null, () -> this.client.streamConversation(modelCategory, conversation, chunkConsumer), conversation.getConversation().toString());
+	public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation, final Consumer<Chunk> chunkConsumer, final boolean skipCache) {
+		final var response = this.getCachedResponse(modelCategory, null, skipCache, () -> this.client.streamConversation(modelCategory, conversation, chunkConsumer, skipCache), conversation.getConversation().toString());
 		if (response.statistics().cached()) {
 			chunkConsumer.accept(new Chunk(response.response(), response.reasoning()));
 		}
@@ -60,8 +54,8 @@ public class CachedClient implements Client {
 	}
 	
 	@Override
-	public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation, final Consumer<Chunk> chunkConsumer) {
-		final var response = this.getCachedResponse(null, modelProfile, () -> this.client.streamConversation(modelProfile, conversation, chunkConsumer), conversation.getConversation().toString());
+	public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation, final Consumer<Chunk> chunkConsumer, final boolean skipCache) {
+		final var response = this.getCachedResponse(null, modelProfile, skipCache, () -> this.client.streamConversation(modelProfile, conversation, chunkConsumer, skipCache), conversation.getConversation().toString());
 		if (response.statistics().cached()) {
 			chunkConsumer.accept(new Chunk(response.response(), response.reasoning()));
 		}
@@ -73,10 +67,10 @@ public class CachedClient implements Client {
 		return this.client.getModelProvider();
 	}
 	
-	private Completion getCachedResponse(final ModelCategory modelCategory, final ModelProfile modelProfile, final Supplier<Completion> supplier, final String... keys) {
+	private Completion getCachedResponse(final ModelCategory modelCategory, final ModelProfile modelProfile, final boolean skipCache, final Supplier<Completion> supplier, final String... keys) {
 		final var key = this.createCacheKey(modelCategory, modelProfile, keys);
 		
-		final var cachedCompletion = this.cacheRepository.get(key);
+		final var cachedCompletion = skipCache ? null : this.cacheRepository.get(key);
 		if (cachedCompletion != null) {
 			return new Completion(cachedCompletion.response(), cachedCompletion.reasoning(), CompletionFinishReason.DONE, new CompletionStatistics(0, Duration.ZERO, cachedCompletion.inTokens(), cachedCompletion.cachedInTokens(), cachedCompletion.outTokens(), cachedCompletion.reasoningOutTokens(), BigDecimal.ZERO, true));
 		}

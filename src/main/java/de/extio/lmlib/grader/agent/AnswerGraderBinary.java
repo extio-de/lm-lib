@@ -44,6 +44,7 @@ public class AnswerGraderBinary {
 					}
 					context.getContext().remove("qaPassed");
 					context.getContext().remove("qaExplanation");
+					context.setSkipCache(true);
 				},
 				context -> {
 					if (!context.getContext().containsKey("qaPassed")) {

@@ -103,6 +103,8 @@ public interface BaseAgent {
 					split.context().getGraph().add(this.name());
 					
 					if (!skipCompletion) {
+						final boolean skipCache = split.context().isSkipCache();
+						split.context().setSkipCache(false);
 						final var conversation = this.setupConversation(split);
 						
 						boolean parseable = false;
@@ -126,21 +128,21 @@ public interface BaseAgent {
 								};
 								if (modelProfile != null) {
 									requestStart = System.currentTimeMillis();
-									completion = client.streamConversation(modelProfile, conversation, chunkConsumer);
+									completion = client.streamConversation(modelProfile, conversation, chunkConsumer, skipCache);
 								}
 								else {
 									requestStart = System.currentTimeMillis();
-									completion = client.streamConversation(this.modelCategory(split.context()), conversation, chunkConsumer);
+									completion = client.streamConversation(this.modelCategory(split.context()), conversation, chunkConsumer, skipCache);
 								}
 							}
 							else {
 								if (modelProfile != null) {
 									requestStart = System.currentTimeMillis();
-									completion = client.conversation(modelProfile, conversation);
+									completion = client.conversation(modelProfile, conversation, skipCache);
 								}
 								else {
 									requestStart = System.currentTimeMillis();
-									completion = client.conversation(this.modelCategory(split.context()), conversation);
+									completion = client.conversation(this.modelCategory(split.context()), conversation, skipCache);
 								}
 							}
 							final var durationMs = System.currentTimeMillis() - requestStart;
