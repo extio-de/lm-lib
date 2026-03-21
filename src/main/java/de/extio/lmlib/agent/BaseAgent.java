@@ -80,6 +80,7 @@ public interface BaseAgent {
 	default List<AgentContext> execute(final Client client, final ExecutorService agentExecutorService, final AgentContext context) {
 		final var splits = new ArrayList<Split>();
 		
+		context.setCurrentAgentName(this.name());
 		context.setNextAgent(null);
 		context.clearError();
 		
@@ -94,6 +95,7 @@ public interface BaseAgent {
 			context.setError(AgentErrorType.GENERAL, ex);
 			return List.of(context);
 		}
+		final boolean skipCompletion = context.isSkipNextCompletion();
 
 		splits.addAll(this.applyTemplate(context));
 		final var tasks = new ArrayList<CompletableFuture<?>>(splits.size());
@@ -101,8 +103,8 @@ public interface BaseAgent {
 			tasks.add(CompletableFuture.runAsync(() -> {
 				try {
 					split.context().clearError();
-					final boolean skipCompletion = split.context().isSkipNextCompletion() || this.agentType(split.context()) == AgentType.PROCESSING_ONLY;
-					if (skipCompletion) {
+					final boolean skipCompletionInSplit = skipCompletion || this.agentType(split.context()) == AgentType.PROCESSING_ONLY;
+					if (skipCompletionInSplit) {
 						split.context().setSkipNextCompletion(false);
 						split.context().getGraph().add("○");
 					}
@@ -112,7 +114,7 @@ public interface BaseAgent {
 					}
 					split.context().getGraph().add(this.name());
 					
-					if (!skipCompletion) {
+					if (!skipCompletionInSplit) {
 						final boolean skipCache = split.context().isSkipCache() || split.context().isAlwaysSkipCache();
 						split.context().setSkipCache(false);
 						final var conversation = this.setupConversation(split);
@@ -218,7 +220,7 @@ public interface BaseAgent {
 				}
 			}
 			
-			retContexts.forEach(this::nextAgent);
+			retContexts.forEach(ctx -> this.nextAgent(ctx, skipCompletion));
 		}
 		
 		retContexts.addAll(splits.stream().filter(s -> s.context().isError()).map(s -> s.context()).toList());
@@ -357,7 +359,7 @@ public interface BaseAgent {
 		return conversation;
 	}
 	
-	private void nextAgent(final AgentContext context) {
+	private void nextAgent(final AgentContext context, final boolean skipCompletion) {
 		context.setNextAgent(this.chooseNextAgent(context));
 		
 		if (context.getNextAgent() != null) {
@@ -400,7 +402,8 @@ public interface BaseAgent {
 					}
 					else {
 						context.getGraph().add("↴");
-						if (context.getConversation().getConversation().getLast().type() != TurnType.ASSISTANT) {
+						final var currentAgent = context.getAgents().get(context.getCurrentAgentName());
+						if (! skipCompletion && currentAgent.agentType(context) != AgentType.PROCESSING_ONLY && context.getConversation().getConversation().getLast().type() != TurnType.ASSISTANT) {
 							context.getConversation().addTurn(new Conversation.Turn(TurnType.ASSISTANT, context.getLastCompletion().response()));
 						}
 					}

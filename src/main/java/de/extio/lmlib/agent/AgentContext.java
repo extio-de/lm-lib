@@ -41,6 +41,8 @@ public final class AgentContext {
 	// Internal
 	
 	private final Map<String, ? extends BaseAgent> agents;
+
+	private volatile String currentAgentName;
 	
 	private volatile AgentNext nextAgent;
 	
@@ -259,5 +261,13 @@ public final class AgentContext {
 	
 	public void setStreaming(final boolean streaming) {
 		this.streaming = streaming;
+	}
+	
+	public String getCurrentAgentName() {
+		return currentAgentName;
+	}
+
+	public void setCurrentAgentName(final String currentAgentName) {
+		this.currentAgentName = currentAgentName;
 	}
 }
