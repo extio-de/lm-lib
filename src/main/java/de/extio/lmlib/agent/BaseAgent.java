@@ -22,6 +22,7 @@ import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
+import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
@@ -344,13 +345,13 @@ public interface BaseAgent {
 				split.context().setConversation(newConversation);
 				conversation = newConversation;
 			}
-			if (conversation.getConversation().get(conversation.getConversation().size() - 1).type() == TurnType.ASSISTANT) {
-				if (this.systemPrompt() == null || this.systemPrompt().isEmpty() ||conversation.getConversation().size() > 1) {
-					conversation.addTurn(new Conversation.Turn(TurnType.USER, split.text()));
-				}
-				else {
-					conversation.addTurn(new Conversation.Turn(TurnType.USER, String.join("\n", this.systemPrompt(), split.text())));
-				}
+
+			if (conversation.getConversation().getLast().type() != TurnType.USER) {
+				conversation.addTurn(new Conversation.Turn(TurnType.USER, split.text()));
+			}
+			else {
+				final var lastUserTurn = conversation.getConversation().getLast();
+				conversation.replaceTurn(new Turn(TurnType.USER, lastUserTurn.text() + "\n" + split.text()));
 			}
 		}
 		return conversation;
