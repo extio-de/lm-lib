@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -39,7 +40,7 @@ class AgentErrorHandlingTest {
 	@Test
 	void parsingErrorsKeepTheirTypeWithoutAnExceptionWhenTheHandlerReturnsFalse() {
 		final Client client = mock(Client.class);
-		when(client.conversation(any(ModelCategory.class), any(), any(ToolCallData.class), anyBoolean())).thenReturn(new Completion("not json", null, null, new CompletionStatistics(1, Duration.ofMillis(1), 1, 0, 1, 0, BigDecimal.ZERO, false)));
+		when(client.conversation(any(ModelCategory.class), any(), isNull(), anyBoolean())).thenReturn(new Completion("not json", null, null, new CompletionStatistics(1, Duration.ofMillis(1), 1, 0, 1, 0, BigDecimal.ZERO, false)));
 		
 		final AgentResponseHandler responseHandler = (completion, context) -> false;
 		final var agent = new Agent("ParseAgent",
