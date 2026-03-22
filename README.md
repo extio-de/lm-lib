@@ -1,17 +1,21 @@
 # lm-lib
 
-lm-lib is a modular Java library for building LLM-powered applications on top of OpenAI-compatible APIs. It has two main responsibilities:
+lm-lib is a modular Java library for building LLM-powered applications with a strong focus on agentic orchestration. It has two main responsibilities:
 
-- A client layer for model profiles, chat and text completions, streaming, reasoning capture, token and cost accounting, caching, retries, and interceptors
 - An agent runtime for prompt templating, conversation orchestration, branching, merging, grading, and execution tracing
+- A client layer for model profiles, chat and text completions, streaming, reasoning capture, token and cost accounting, caching, retries, and interceptors
 
-The library exists to keep model integration and multi-step orchestration out of application code. Instead of manually wiring REST requests, prompt formatting, cache checks, token counting, and agent flow control in every project, you configure profiles and compose agents while lm-lib handles the repetitive infrastructure.
+The library exists to keep both multi-step orchestration and model integration out of application code. Instead of manually wiring agent flow control, prompt formatting, cache checks, token counting, and REST requests in every project, you compose agents and clients while lm-lib handles the repetitive infrastructure.
+
+lm-lib is published under the Apache License 2.0.
 
 ## Overview
 
-lm-lib is designed for applications that need more than single prompt-response calls. It supports direct completion use cases, but it is especially useful when you need structured multi-step flows such as classification, planning, fan-out analysis, synthesis, grading, and feedback loops.
+lm-lib is designed for applications that need more than single prompt-response calls. Its center of gravity is the agent framework: structured multi-step flows such as classification, planning, fan-out analysis, synthesis, grading, feedback loops, and other graph-based execution patterns.
 
-Current provider support is centered on OpenAI-compatible endpoints, including local servers that expose the same API shape. The library supports both chat completions and legacy text completions, with model-specific prompt strategies for text completion models.
+It also supports direct completion use cases through a client abstraction layer. The built-in clients currently target OpenAI-compatible endpoints, including local servers that expose the same API shape, but the library is intentionally structured so additional client implementations can be added over time. Applications can also provide their own client implementations by implementing the relevant interfaces.
+
+The current built-in client set supports both chat completions and legacy text completions, with model-specific prompt strategies for text completion models.
 
 ## Key Capabilities
 
@@ -36,9 +40,31 @@ Current provider support is centered on OpenAI-compatible endpoints, including l
 
 ## Setup
 
-The library intentionally keeps most dependencies in `provided` scope so consuming applications can control their own dependency tree.
+The published artifacts are hosted in the external Maven repository, so consuming applications must add that repository in addition to Maven Central:
+
+```xml
+<repositories>
+    <repository>
+        <id>spacecraft-tactics-releases</id>
+        <name>Spacecraft Tactics Repository</name>
+        <url>https://spacecraft-tactics.com/repository/releases</url>
+    </repository>
+    <repository>
+        <id>Central</id>
+        <url>https://repo1.maven.org/maven2/</url>
+    </repository>
+</repositories>
+
+<dependency>
+    <groupId>de.extio</groupId>
+    <artifactId>lm-lib</artifactId>
+    <version>${lmlib.version}</version>
+</dependency>
+```
 
 ### Mandatory Dependency
+
+The library requires Spring Boot. The library intentionally keeps most dependencies in `provided` scope so consuming applications can control their own dependency tree.
 
 ```xml
 <dependency>
@@ -278,9 +304,11 @@ cost1MInTokens=0
 cost1MOutTokens=0
 ```
 
-## OpenAI-Compatible Clients
+## Client Implementations
 
-The library currently supports these provider types:
+lm-lib exposes a client abstraction intended to support multiple backend implementations.
+
+The built-in provider implementations currently support these types:
 
 ```properties
 modelProvider=OAI_CHAT_COMPLETION
@@ -288,6 +316,8 @@ modelProvider=OAI_TEXT_COMPLETION
 ```
 
 Chat completions are the preferred default. They are simpler to use because the library only needs to send the conversation. Text completions are still useful when you need explicit prompt formatting or must work with instruct models that depend on raw prompt structure.
+
+These built-in providers are OpenAI-compatible today, but that is an implementation detail of the current client set, not a hard architectural limit of the library. Additional provider integrations can be added in the library itself, and applications can plug in their own client implementations where needed.
 
 For text completions, select a prompt strategy with the `prompts` property. lm-lib ships built-in strategies for common model families including Llama, GPT-OSS, Gemma, Mistral, Phi, Qwen, Vicuna, ChatML, Alpaca, and a no-formatting strategy.
 
