@@ -13,7 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
-import org.springframework.web.client.RestClient;
 
 import tools.jackson.core.JacksonException;
 
@@ -21,6 +20,7 @@ import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.Conversation;
+import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.oai.completion.AbstractCompletionClient;
 import de.extio.lmlib.profile.ModelProfile;
@@ -41,7 +41,12 @@ public class TextCompletionClient extends AbstractCompletionClient {
 	}
 	
 	@Override
-	protected Completion requestCompletion(final Conversation conversation, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer) {
+	public boolean supportsToolCalling() {
+		return false;
+	}
+
+	@Override
+	protected Completion requestCompletion(final Conversation conversation, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData) {
 		final var promptStrategy = this.promptStrategyFactory.getStrategy(modelProfile.prompt());
 		if (promptStrategy == null) {
 			throw new IllegalArgumentException("Prompt strategy not found: " + modelProfile.prompt());

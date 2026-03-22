@@ -15,6 +15,11 @@ public enum CompletionFinishReason {
 	/**
 	 * Completion was stopped because the content was filtered.
 	 */
-	CONTENT_FILTERED
+	CONTENT_FILTERED,
+
+	/**
+	 * Completion stopped because the model emitted one or more tool calls.
+	 */
+	TOOL_CALLS
 
 }

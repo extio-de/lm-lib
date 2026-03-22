@@ -9,18 +9,22 @@ import java.util.HexFormat;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import tools.jackson.databind.ObjectMapper;
+
 import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
-import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.CompletionStatistics;
 import de.extio.lmlib.client.Conversation;
+import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.profile.ModelProfileService;
 
 public class CachedClient implements Client {
+
+	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 	
 	private final CachedClientRepository cacheRepository;
 	
@@ -35,18 +39,18 @@ public class CachedClient implements Client {
 	}
 	
 	@Override
-	public Completion conversation(final ModelCategory modelCategory, final Conversation conversation, final boolean skipCache) {
-		return this.getCachedResponse(modelCategory, null, skipCache, () -> this.client.conversation(modelCategory, conversation, skipCache), conversation.getConversation().toString());
+	public Completion conversation(final ModelCategory modelCategory, final Conversation conversation, final ToolCallData toolCallData, final boolean skipCache) {
+		return this.getCachedResponse(modelCategory, null, skipCache, () -> this.client.conversation(modelCategory, conversation, toolCallData, skipCache), conversation.getConversation().toString(), this.serializeToolCallData(toolCallData));
 	}
 	
 	@Override
-	public Completion conversation(final ModelProfile modelProfile, final Conversation conversation, final boolean skipCache) {
-		return this.getCachedResponse(null, modelProfile, skipCache, () -> this.client.conversation(modelProfile, conversation, skipCache), conversation.getConversation().toString());
+	public Completion conversation(final ModelProfile modelProfile, final Conversation conversation, final ToolCallData toolCallData, final boolean skipCache) {
+		return this.getCachedResponse(null, modelProfile, skipCache, () -> this.client.conversation(modelProfile, conversation, toolCallData, skipCache), conversation.getConversation().toString(), this.serializeToolCallData(toolCallData));
 	}
 
 	@Override
-	public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation, final Consumer<Chunk> chunkConsumer, final boolean skipCache) {
-		final var response = this.getCachedResponse(modelCategory, null, skipCache, () -> this.client.streamConversation(modelCategory, conversation, chunkConsumer, skipCache), conversation.getConversation().toString());
+	public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData, final boolean skipCache) {
+		final var response = this.getCachedResponse(modelCategory, null, skipCache, () -> this.client.streamConversation(modelCategory, conversation, chunkConsumer, toolCallData, skipCache), conversation.getConversation().toString(), this.serializeToolCallData(toolCallData));
 		if (response.statistics().cached()) {
 			chunkConsumer.accept(new Chunk(response.response(), response.reasoning()));
 		}
@@ -54,8 +58,8 @@ public class CachedClient implements Client {
 	}
 	
 	@Override
-	public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation, final Consumer<Chunk> chunkConsumer, final boolean skipCache) {
-		final var response = this.getCachedResponse(null, modelProfile, skipCache, () -> this.client.streamConversation(modelProfile, conversation, chunkConsumer, skipCache), conversation.getConversation().toString());
+	public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData, final boolean skipCache) {
+		final var response = this.getCachedResponse(null, modelProfile, skipCache, () -> this.client.streamConversation(modelProfile, conversation, chunkConsumer, toolCallData, skipCache), conversation.getConversation().toString(), this.serializeToolCallData(toolCallData));
 		if (response.statistics().cached()) {
 			chunkConsumer.accept(new Chunk(response.response(), response.reasoning()));
 		}
@@ -66,20 +70,37 @@ public class CachedClient implements Client {
 	public ModelProvider getModelProvider() {
 		return this.client.getModelProvider();
 	}
+
+	@Override
+	public boolean supportsToolCalling() {
+		return this.client.supportsToolCalling();
+	}
 	
 	private Completion getCachedResponse(final ModelCategory modelCategory, final ModelProfile modelProfile, final boolean skipCache, final Supplier<Completion> supplier, final String... keys) {
 		final var key = this.createCacheKey(modelCategory, modelProfile, keys);
 		
 		final var cachedCompletion = skipCache ? null : this.cacheRepository.get(key);
 		if (cachedCompletion != null) {
-			return new Completion(cachedCompletion.response(), cachedCompletion.reasoning(), CompletionFinishReason.DONE, new CompletionStatistics(0, Duration.ZERO, cachedCompletion.inTokens(), cachedCompletion.cachedInTokens(), cachedCompletion.outTokens(), cachedCompletion.reasoningOutTokens(), BigDecimal.ZERO, true));
+			return new Completion(cachedCompletion.response(), cachedCompletion.reasoning(), cachedCompletion.finishReason(), new CompletionStatistics(0, Duration.ZERO, cachedCompletion.inTokens(), cachedCompletion.cachedInTokens(), cachedCompletion.outTokens(), cachedCompletion.reasoningOutTokens(), BigDecimal.ZERO, true), cachedCompletion.toolCalls());
 		}
 		
 		final var completion = supplier.get();
 		if (completion != null) {
-			this.cacheRepository.put(key, new CachedCompletion(completion.response(), completion.reasoning(), completion.finishReason(), completion.statistics().inTokens(), completion.statistics().cachedInTokens(), completion.statistics().outTokens(), completion.statistics().reasoningOutTokens(), OffsetDateTime.now()));
+			this.cacheRepository.put(key, new CachedCompletion(completion.response(), completion.reasoning(), completion.finishReason(), completion.toolCalls(), completion.statistics().inTokens(), completion.statistics().cachedInTokens(), completion.statistics().outTokens(), completion.statistics().reasoningOutTokens(), OffsetDateTime.now()));
 		}
 		return completion;
+	}
+
+	private String serializeToolCallData(final ToolCallData toolCallData) {
+		if (toolCallData == null) {
+			return null;
+		}
+		try {
+			return OBJECT_MAPPER.writeValueAsString(toolCallData);
+		}
+		catch (final Exception e) {
+			return toolCallData.toString();
+		}
 	}
 	
 	private String createCacheKey(ModelCategory modelCategory, ModelProfile modelProfile, final String... keys) {

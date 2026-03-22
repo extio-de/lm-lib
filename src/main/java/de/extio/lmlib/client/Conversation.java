@@ -80,10 +80,18 @@ public final class Conversation {
 	}
 	
 	public enum TurnType {
-		SYSTEM, USER, ASSISTANT
+		SYSTEM, USER, ASSISTANT, TOOL
 	}
 	
-	public record Turn(TurnType type, String text) {
+	public record Turn(TurnType type, String text, List<ToolCall> toolCalls, String toolCallId) {
+
+		public Turn {
+			toolCalls = toolCalls == null ? List.of() : List.copyOf(toolCalls);
+		}
+
+		public Turn(final TurnType type, final String text) {
+			this(type, text, List.of(), null);
+		}
 	}
 	
 }

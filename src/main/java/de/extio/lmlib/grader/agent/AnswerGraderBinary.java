@@ -33,6 +33,7 @@ public class AnswerGraderBinary {
 				Output Format:
 				{{qaOutputFormat}}
 				""",
+				null,
 				new JsonAgentResponseHandler(),
 				context -> {
 					final Boolean outputDescription = context.getValue("qaOutputDescription", Boolean.class);

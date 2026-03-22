@@ -30,6 +30,7 @@ public class AnswerGrader {
 						The question is: {{questions}}
 						The answer is: {{answer}}
 						""",
+				null,
 				new JsonAgentResponseHandler(),
 				context -> {
 					context.setSkipCache(true);

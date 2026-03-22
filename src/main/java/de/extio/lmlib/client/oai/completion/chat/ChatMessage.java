@@ -1,5 +1,7 @@
 package de.extio.lmlib.client.oai.completion.chat;
 
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.*;
 
 final class ChatMessage {
@@ -9,6 +11,10 @@ final class ChatMessage {
 	private String content;
 	
 	private String reasoningContent;
+
+	private List<ChatToolCall> toolCalls;
+
+	private String toolCallId;
 	
 	public ChatMessage() {
 	}
@@ -44,5 +50,23 @@ final class ChatMessage {
 	
 	public void setReasoningContent(final String reasoningContent) {
 		this.reasoningContent = reasoningContent;
+	}
+
+	@JsonProperty("tool_calls")
+	public List<ChatToolCall> getToolCalls() {
+		return this.toolCalls;
+	}
+
+	public void setToolCalls(final List<ChatToolCall> toolCalls) {
+		this.toolCalls = toolCalls;
+	}
+
+	@JsonProperty("tool_call_id")
+	public String getToolCallId() {
+		return this.toolCallId;
+	}
+
+	public void setToolCallId(final String toolCallId) {
+		this.toolCallId = toolCallId;
 	}
 }

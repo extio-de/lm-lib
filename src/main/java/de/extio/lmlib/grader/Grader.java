@@ -36,6 +36,7 @@ public class Grader {
 								Only provide the response as a single word and no preamble and no explanation.""",
 						"Here is the text:\n" + text + "\n\n" +
 						"Here is the user question: " + question),
+					null,
 					true);
 			LOGGER.info(completion.response());
 			score += Boolean.parseBoolean(completion.response().strip()) ? 1 : -1;

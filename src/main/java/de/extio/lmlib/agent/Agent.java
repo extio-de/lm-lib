@@ -5,6 +5,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import de.extio.lmlib.agent.responsehandler.AgentResponseHandler;
+import de.extio.lmlib.client.ToolDefinition;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 
@@ -14,6 +15,7 @@ public record Agent(String name,
 		ModelProfile modelProfile,
 		String systemPrompt,
 		String textTemplate,
+		List<ToolDefinition> toolDefinitions,
 		AgentResponseHandler responseHandler,
 		Consumer<AgentContext> preProcessor,
 		Consumer<AgentContext> postProcessor,
@@ -52,6 +54,14 @@ public record Agent(String name,
 			return modelProfile;
 		}
 		return BaseAgent.super.modelProfile(context);
+	}
+
+	@Override
+	public List<ToolDefinition> toolDefinitions(final AgentContext context) {
+		if (toolDefinitions != null) {
+			return toolDefinitions;
+		}
+		return BaseAgent.super.toolDefinitions(context);
 	}
 	
 	@Override

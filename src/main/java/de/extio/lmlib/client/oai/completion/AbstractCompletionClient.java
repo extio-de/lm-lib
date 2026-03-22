@@ -26,6 +26,7 @@ import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.Conversation;
+import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.oai.ModelNameSupplier;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
@@ -82,37 +83,38 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 	}
 	
 	@Override
-	public Completion conversation(final ModelCategory modelCategory, final Conversation conversation, final boolean skipCache) {
-		return this.streamConversation(modelCategory, conversation, null, skipCache);
+	public Completion conversation(final ModelCategory modelCategory, final Conversation conversation, final ToolCallData toolCallData, final boolean skipCache) {
+		return this.streamConversation(modelCategory, conversation, null, toolCallData, skipCache);
 	}
 	
 	@Override
-	public Completion conversation(final ModelProfile modelProfile, final Conversation conversation, final boolean skipCache) {
-		return this.streamConversation(modelProfile, conversation, null, skipCache);
+	public Completion conversation(final ModelProfile modelProfile, final Conversation conversation, final ToolCallData toolCallData, final boolean skipCache) {
+		return this.streamConversation(modelProfile, conversation, null, toolCallData, skipCache);
 	}
 	
 	@Override
-	public Completion streamConversation(final ModelCategory modelCategory_, final Conversation conversation, final Consumer<Chunk> chunkConsumer, final boolean skipCache) {
+	public Completion streamConversation(final ModelCategory modelCategory_, final Conversation conversation, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData, final boolean skipCache) {
 		final ModelCategory modelCategory = (modelCategory_ == null) ? ModelCategory.MEDIUM : modelCategory_;
 		final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile(), modelCategory);
-		return this.streamConversation(modelProfile, conversation, chunkConsumer, skipCache);
+		return this.streamConversation(modelProfile, conversation, chunkConsumer, toolCallData, skipCache);
 	}
 	
 	@Override
-	public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation, final Consumer<Chunk> chunkConsumer, final boolean skipCache) {
+	public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData, final boolean skipCache) {
 		if (modelProfile == null || (modelProfile.modelProvider() != ModelProvider.OAI_TEXT_COMPLETION && modelProfile.modelProvider() != ModelProvider.OAI_CHAT_COMPLETION)) {
 			throw new IllegalArgumentException("Invalid ModelProfile");
 		}
 		
-		return this.requestCompletion(conversation, modelProfile, chunkConsumer);
+		return this.requestCompletion(conversation, modelProfile, chunkConsumer, toolCallData);
 	}
 	
-	protected abstract Completion requestCompletion(final Conversation conversation, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer);
+	protected abstract Completion requestCompletion(final Conversation conversation, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData);
 	
 	protected CompletionFinishReason mapFinishReason(final String finishReason) {
 		return switch (finishReason) {
 			case FinishReasons.FINISH_REASON_CONTENT_FILTER -> CompletionFinishReason.CONTENT_FILTERED;
 			case FinishReasons.FINISH_REASON_LENGTH -> CompletionFinishReason.TOKEN_LIMIT_REACHED;
+			case FinishReasons.FINISH_REASON_TOOL_CALLS -> CompletionFinishReason.TOOL_CALLS;
 			default -> CompletionFinishReason.DONE;
 		};
 	}

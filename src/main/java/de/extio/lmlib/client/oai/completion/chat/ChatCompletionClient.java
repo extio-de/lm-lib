@@ -4,23 +4,24 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
-import org.springframework.web.client.RestClient;
 
 import tools.jackson.core.JacksonException;
 
 import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
+import de.extio.lmlib.client.ToolCall;
+import de.extio.lmlib.client.ToolCallData;
+import de.extio.lmlib.client.ToolDefinition;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.oai.completion.AbstractCompletionClient;
 import de.extio.lmlib.profile.ModelProfile;
@@ -35,12 +36,17 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 	}
 	
 	@Override
+	public boolean supportsToolCalling() {
+		return true;
+	}
+
+	@Override
 	public ModelProvider getModelProvider() {
 		return ModelProvider.OAI_CHAT_COMPLETION;
 	}
 	
 	@Override
-	protected Completion requestCompletion(final Conversation conversation, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer) {
+	protected Completion requestCompletion(final Conversation conversation, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData) {
 		final var chat = createChats(conversation, modelProfile);
 		
 		final var request = new ChatCompletionRequest();
@@ -75,6 +81,11 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 			catch (final IllegalArgumentException e) {
 				throw new IllegalArgumentException("Invalid reasoning summary details in the model profile: " + modelProfile.reasoningSummaryDetails(), e);
 			}
+		}
+		if (toolCallData != null && toolCallData.hasTools()) {
+			request.setTools(this.createTools(toolCallData.tools()));
+			request.setToolChoice(this.createToolChoice(toolCallData));
+			request.setParallelToolCalls(toolCallData.parallelToolCalls());
 		}
 		
 		String requestBody;
@@ -112,6 +123,7 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 						chatCompletionResponse.setChoices(List.of(new ChatChoice()));
 						final StringBuilder contentStringBuilder = new StringBuilder();
 						final StringBuilder reasoningStringBuilder = new StringBuilder();
+						final List<ChatToolCall> toolCalls = new ArrayList<>();
 						
 						try (BufferedReader reader = new BufferedReader(new InputStreamReader(clientResponse.getBody(), StandardCharsets.UTF_8))) {
 							String line;
@@ -162,6 +174,9 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 											if (content != null || reasoning != null) {
 												chunkConsumer.accept(new Chunk(content, reasoning));
 											}
+											if (streamResponse.getChoices().getFirst().getMessage().getToolCalls() != null && !streamResponse.getChoices().getFirst().getMessage().getToolCalls().isEmpty()) {
+												this.mergeToolCalls(toolCalls, streamResponse.getChoices().getFirst().getMessage().getToolCalls());
+											}
 										}
 									}
 								}
@@ -171,6 +186,7 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 							}
 						}
 						chatCompletionResponse.getChoices().getFirst().setMessage(new ChatMessage("assistant", contentStringBuilder.toString(), reasoningStringBuilder.toString()));
+						chatCompletionResponse.getChoices().getFirst().getMessage().setToolCalls(List.copyOf(toolCalls));
 						return chatCompletionResponse;
 					}
 				});
@@ -181,65 +197,118 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		final var choice = response.getChoices().getFirst();
 		final var content = response.getChoices().getFirst().getMessage().getContent();
 		final var reasoning = response.getChoices().getFirst().getMessage().getReasoningContent();
+		final var toolCalls = this.toToolCalls(response.getChoices().getFirst().getMessage().getToolCalls());
+		if ((content == null || content.isBlank()) && toolCalls.isEmpty()) {
+			throw new IllegalStateException("No parseable response content from server");
+		}
 		final var finishReason = this.mapFinishReason(choice.getFinishReason());
 		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), response.getTimings(), null, content, reasoning);
-		return new Completion(content, reasoning, finishReason, statistics);
+		return new Completion(content, reasoning, finishReason, statistics, toolCalls);
+	}
+
+	private List<ChatCompletionRequest.ChatCompletionTool> createTools(final List<ToolDefinition> toolDefinitions) {
+		return toolDefinitions.stream().map(toolDefinition -> {
+			final var function = new ChatCompletionRequest.ChatCompletionFunction();
+			function.setName(toolDefinition.name());
+			function.setDescription(toolDefinition.description());
+			function.setParameters(toolDefinition.parameters());
+			function.setStrict(toolDefinition.strict());
+
+			final var tool = new ChatCompletionRequest.ChatCompletionTool();
+			tool.setType("function");
+			tool.setFunction(function);
+			return tool;
+		}).toList();
+	}
+
+	private Object createToolChoice(final ToolCallData toolCallData) {
+		if (toolCallData == null) {
+			return null;
+		}
+		if (toolCallData.forcedToolName() != null && !toolCallData.forcedToolName().isBlank()) {
+			final var function = new ChatCompletionRequest.ChatCompletionNamedToolChoiceFunction();
+			function.setName(toolCallData.forcedToolName());
+
+			final var namedToolChoice = new ChatCompletionRequest.ChatCompletionNamedToolChoice();
+			namedToolChoice.setType("function");
+			namedToolChoice.setFunction(function);
+			return namedToolChoice;
+		}
+		return toolCallData.toolChoice();
+	}
+
+	private void mergeToolCalls(final List<ChatToolCall> currentToolCalls, final List<ChatToolCall> deltaToolCalls) {
+		for (final var deltaToolCall : deltaToolCalls) {
+			final int index = deltaToolCall.getIndex() != null ? deltaToolCall.getIndex() : currentToolCalls.size();
+			while (currentToolCalls.size() <= index) {
+				currentToolCalls.add(new ChatToolCall());
+			}
+			final var currentToolCall = currentToolCalls.get(index);
+			if (deltaToolCall.getId() != null && !deltaToolCall.getId().isBlank()) {
+				currentToolCall.setId(deltaToolCall.getId());
+			}
+			if (deltaToolCall.getType() != null && !deltaToolCall.getType().isBlank()) {
+				currentToolCall.setType(deltaToolCall.getType());
+			}
+			if (deltaToolCall.getFunction() != null) {
+				if (currentToolCall.getFunction() == null) {
+					currentToolCall.setFunction(new ChatToolFunction());
+				}
+				if (deltaToolCall.getFunction().getName() != null && !deltaToolCall.getFunction().getName().isBlank()) {
+					currentToolCall.getFunction().setName(deltaToolCall.getFunction().getName());
+				}
+				if (deltaToolCall.getFunction().getArguments() != null && !deltaToolCall.getFunction().getArguments().isEmpty()) {
+					final var existingArguments = currentToolCall.getFunction().getArguments();
+					currentToolCall.getFunction().setArguments((existingArguments == null ? "" : existingArguments) + deltaToolCall.getFunction().getArguments());
+				}
+			}
+		}
+	}
+
+	private List<ToolCall> toToolCalls(final List<ChatToolCall> chatToolCalls) {
+		if (chatToolCalls == null || chatToolCalls.isEmpty()) {
+			return List.of();
+		}
+		return chatToolCalls.stream()
+				.filter(Objects::nonNull)
+				.map(toolCall -> new ToolCall(toolCall.getId(), toolCall.getType(), toolCall.getFunction() != null ? toolCall.getFunction().getName() : null, toolCall.getFunction() != null ? toolCall.getFunction().getArguments() : null))
+				.toList();
 	}
 	
 	private List<ChatMessage> createChats(final Conversation conversation, final ModelProfile modelProfile) {
 		final List<ChatMessage> chat = new ArrayList<>();
-		
-		final Deque<Turn> turns = new ArrayDeque<>(conversation.getConversation());
-		Turn systemTurn = null;
-		Turn userTurn = null;
-		Turn assistantTurn = null;
-		boolean first = true;
-		
 		final AtomicInteger tokens = new AtomicInteger();
-		
-		while (!turns.isEmpty()) {
-			final Turn turn = turns.pop();
+
+		for (final Turn turn : conversation.getConversation()) {
 			switch (turn.type()) {
 				case SYSTEM:
-					systemTurn = turn;
+					chat.add(this.createChatMessage("system", turn));
 					break;
 				case USER:
-					userTurn = turn;
+					if (this.addChatRequestMessage("user", turn, tokens, chat, modelProfile)) {
+						return chat;
+					}
 					break;
 				case ASSISTANT:
-					assistantTurn = turn;
+					if (this.addChatRequestMessage("assistant", turn, tokens, chat, modelProfile)) {
+						return chat;
+					}
+					break;
+				case TOOL:
+					if (this.addChatRequestMessage("tool", turn, tokens, chat, modelProfile)) {
+						return chat;
+					}
 					break;
 				default:
 					throw new IllegalArgumentException("Unknown turn type: " + turn.type());
 			}
-			
-			if (first && userTurn != null) {
-				if (systemTurn != null) {
-					chat.add(new ChatMessage("system", systemTurn.text(), null));
-				}
-				if (this.addChatRequestMessage("user", userTurn.text(), tokens, chat, modelProfile)) {
-					break;
-				}
-				userTurn = null;
-				first = false;
-			}
-			else if (!first && assistantTurn != null && userTurn != null) {
-				if (this.addChatRequestMessage("assistant", assistantTurn.text(), tokens, chat, modelProfile)) {
-					break;
-				}
-				if (this.addChatRequestMessage("user", userTurn.text(), tokens, chat, modelProfile)) {
-					break;
-				}
-				userTurn = null;
-				assistantTurn = null;
-			}
 		}
-		
+
 		return chat;
 	}
 	
-	private boolean addChatRequestMessage(final String role, final String text, final AtomicInteger tokens, final List<ChatMessage> chat, final ModelProfile modelProfile) {
-		var prompt = text;
+	private boolean addChatRequestMessage(final String role, final Turn turn, final AtomicInteger tokens, final List<ChatMessage> chat, final ModelProfile modelProfile) {
+		var prompt = turn.text() != null ? turn.text() : "";
 		var trimmed = false;
 		
 		final var textTokens = this.tokenizer.count(prompt, modelProfile);
@@ -252,9 +321,30 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 			trimmed = true;
 		}
 		
-		chat.add(new ChatMessage(role, prompt, null));
+		final var message = this.createChatMessage(role, turn);
+		message.setContent(prompt);
+		chat.add(message);
 		
 		return trimmed;
+	}
+
+	private ChatMessage createChatMessage(final String role, final Turn turn) {
+		final var message = new ChatMessage(role, turn.text() != null ? turn.text() : "", null);
+		if (!turn.toolCalls().isEmpty()) {
+			message.setToolCalls(turn.toolCalls().stream().map(toolCall -> {
+				final var function = new ChatToolFunction();
+				function.setName(toolCall.name());
+				function.setArguments(toolCall.arguments());
+
+				final var chatToolCall = new ChatToolCall();
+				chatToolCall.setId(toolCall.id());
+				chatToolCall.setType(toolCall.type());
+				chatToolCall.setFunction(function);
+				return chatToolCall;
+			}).toList());
+		}
+		message.setToolCallId(turn.toolCallId());
+		return message;
 	}
 	
 }

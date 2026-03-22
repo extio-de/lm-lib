@@ -50,6 +50,7 @@ public class Grader2 {
 					- 'false': The text does not provide a truthful answer.
 					Only provide the response as a single word. Do not include any preamble or explanation.
 					""".formatted(question, text)),
+					null,
 					true);
 			LOGGER.info(completion.response());
 			score += Boolean.parseBoolean(completion.response().strip()) ? 1 : -1;

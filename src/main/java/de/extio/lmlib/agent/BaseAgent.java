@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
@@ -18,14 +19,19 @@ import tools.jackson.databind.ObjectMapper;
 import de.extio.lmlib.agent.responsehandler.AgentResponseHandler;
 import de.extio.lmlib.agent.responsehandler.StreamedAgentResponseHandler;
 import de.extio.lmlib.agent.responsehandler.TextAgentResponseHandler;
+import de.extio.lmlib.agent.responsehandler.ToolCallingAgentResponseHandler;
 import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Client;
+import de.extio.lmlib.client.ClientService;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
+import de.extio.lmlib.client.ToolCallData;
+import de.extio.lmlib.client.ToolDefinition;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
+import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 
 public interface BaseAgent {
 	
@@ -55,6 +61,38 @@ public interface BaseAgent {
 	
 	default String textTemplate() {
 		return null;
+	}
+
+	default List<ToolDefinition> toolDefinitions(final AgentContext context) {
+		return null;
+	}
+
+	default ToolCallData toolCallData(final AgentContext context) {
+		final var toolDefinitions = this.toolDefinitions(context);
+		if (toolDefinitions == null || toolDefinitions.isEmpty()) {
+			final var rememberedToolCallData = context.getToolCallData();
+			if (rememberedToolCallData == null || !rememberedToolCallData.hasTools()) {
+				return null;
+			}
+			return ToolCallData.auto(rememberedToolCallData.tools());
+		}
+		return ToolCallData.auto(toolDefinitions);
+	}
+
+	default boolean supportsToolCalling(final AgentContext context) {
+		final var modelProfile = this.modelProfile(context);
+		return modelProfile != null && modelProfile.modelProvider() == ModelProvider.OAI_CHAT_COMPLETION;
+	}
+
+	default boolean supportsToolCalling(final AgentContext context, final ClientService clientService) {
+		if (clientService == null) {
+			return this.supportsToolCalling(context);
+		}
+		final var modelProfile = this.modelProfile(context);
+		if (modelProfile != null) {
+			return clientService.supportsToolCalling(modelProfile);
+		}
+		return clientService.supportsToolCalling(this.modelCategory(context));
 	}
 	
 	default AgentResponseHandler responseHandler(final AgentContext context) {
@@ -115,13 +153,18 @@ public interface BaseAgent {
 					split.context().getGraph().add(this.name());
 					
 					if (!skipCompletionInSplit) {
+						final var completionClient = Objects.requireNonNull(client);
 						final boolean skipCache = split.context().isSkipCache() || split.context().isAlwaysSkipCache();
 						split.context().setSkipCache(false);
 						final var conversation = this.setupConversation(split);
+						final var toolCallData = completionClient.supportsToolCalling() ? this.toolCallData(split.context()) : null;
+						this.rememberToolCallData(split.context(), toolCallData);
 						
 						boolean parseable = false;
 						Exception parseException = null;
-						for (int i = 0; i < 2; i++) {
+						int parseAttempts = 0;
+						int toolCallRounds = 0;
+						while (parseAttempts < 2) {
 							LOGGER.debug("Conversation: {}", conversation);	
 							
 							final var modelProfile = this.modelProfile(split.context());
@@ -141,33 +184,46 @@ public interface BaseAgent {
 								};
 								if (modelProfile != null) {
 									requestStart = System.currentTimeMillis();
-									completion = client.streamConversation(modelProfile, conversation, chunkConsumer, skipCache);
+										completion = completionClient.streamConversation(modelProfile, conversation, chunkConsumer, toolCallData, skipCache);
 								}
 								else {
 									requestStart = System.currentTimeMillis();
-									completion = client.streamConversation(this.modelCategory(split.context()), conversation, chunkConsumer, skipCache);
+										completion = completionClient.streamConversation(this.modelCategory(split.context()), conversation, chunkConsumer, toolCallData, skipCache);
 								}
 							}
 							else {
 								if (modelProfile != null) {
 									requestStart = System.currentTimeMillis();
-									completion = client.conversation(modelProfile, conversation, skipCache);
+										completion = completionClient.conversation(modelProfile, conversation, toolCallData, skipCache);
 								}
 								else {
 									requestStart = System.currentTimeMillis();
-									completion = client.conversation(this.modelCategory(split.context()), conversation, skipCache);
+										completion = completionClient.conversation(this.modelCategory(split.context()), conversation, toolCallData, skipCache);
 								}
 							}
 							final var durationMs = System.currentTimeMillis() - requestStart;
 							split.context().getGraph().add("(" + durationMs + " ms)");
 							split.context().setLastCompletion(completion);
 							split.context().getRequestStatistic().add(completion);
+							if (!completion.toolCalls().isEmpty() && responseHandler instanceof final ToolCallingAgentResponseHandler toolCallingAgentResponseHandler) {
+								if (toolCallRounds >= 4) {
+									parseException = new IllegalStateException("Too many tool call rounds");
+									break;
+								}
+								final var toolCallResults = new ToolCallingAgentResponseHandler.ToolCallResults();
+								if (toolCallingAgentResponseHandler.handleToolCalls(completion, split.context(), toolCallResults)) {
+									toolCallRounds++;
+									this.appendToolCallResults(conversation, completion, toolCallResults.results());
+									continue;
+								}
+							}
 							
 							try {
 								if (!responseHandler.handle(completion, split.context())) {
 									split.context().getGraph().add("⚠");
 									LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response());
 									split.context().setSkipCache(true);
+									parseAttempts++;
 									continue;
 								}
 								
@@ -179,6 +235,7 @@ public interface BaseAgent {
 								split.context().getGraph().add("⚠");
 								LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response(), e);
 								split.context().setSkipCache(true);
+								parseAttempts++;
 								continue;
 							}
 						}
@@ -247,6 +304,13 @@ public interface BaseAgent {
 			});
 		}
 		return List.of(first);
+	}
+
+	private void appendToolCallResults(final Conversation conversation, final Completion completion, final List<ToolCallingAgentResponseHandler.ToolCallResult> toolCallResults) {
+		conversation.addTurn(new Conversation.Turn(TurnType.ASSISTANT, completion.response() == null ? "" : completion.response(), completion.toolCalls(), null));
+		for (final var toolCallResult : toolCallResults) {
+			conversation.addTurn(new Conversation.Turn(TurnType.TOOL, toolCallResult.output(), null, toolCallResult.toolCallId()));
+		}
 	}
 	
 	private List<Split> applyTemplate(final AgentContext context) {
@@ -358,6 +422,35 @@ public interface BaseAgent {
 		}
 		return conversation;
 	}
+
+	private void appendLastCompletionToConversation(final AgentContext context, final boolean skipCompletion) {
+		if (skipCompletion || context.getConversation() == null || context.getLastCompletion() == null) {
+			return;
+		}
+		final var currentAgent = context.getAgents().get(context.getCurrentAgentName());
+		if (currentAgent == null || currentAgent.agentType(context) == AgentType.PROCESSING_ONLY) {
+			return;
+		}
+		if (context.getConversation().getConversation().getLast().type() == TurnType.ASSISTANT) {
+			return;
+		}
+		final var completion = context.getLastCompletion();
+		if ((completion.response() == null || completion.response().isEmpty()) && completion.toolCalls().isEmpty()) {
+			return;
+		}
+		context.getConversation().addTurn(new Conversation.Turn(TurnType.ASSISTANT, completion.response() == null ? "" : completion.response(), completion.toolCalls(), null));
+	}
+
+	private void rememberToolCallData(final AgentContext context, final ToolCallData toolCallData) {
+		if (toolCallData == null || !toolCallData.hasTools()) {
+			return;
+		}
+		context.setToolCallData(toolCallData);
+	}
+
+	private void clearRememberedToolCallData(final AgentContext context) {
+		context.setToolCallData(null);
+	}
 	
 	private void nextAgent(final AgentContext context, final boolean skipCompletion) {
 		context.setNextAgent(this.chooseNextAgent(context));
@@ -388,11 +481,13 @@ public interface BaseAgent {
 				case final BaseAgent a when a.agentType(context) == AgentType.COMPLETION -> {
 					context.getGraph().add("→");
 					context.setConversation(null);
+					this.clearRememberedToolCallData(context);
 				}
 				
 				case final BaseAgent a when a.agentType(context) == AgentType.START_CONVERSATION || a.agentType(context) == AgentType.START_CONVERSATION_WITH_SYSTEM_PROMPT -> {
 					context.getGraph().add("🗨");
 					context.setConversation(null);
+					this.clearRememberedToolCallData(context);
 				}
 				
 				case final BaseAgent a when a.agentType(context) == AgentType.CONVERSATION || a.agentType(context) == AgentType.CONVERSATION_WITH_SYSTEM_PROMPT -> {
@@ -402,15 +497,12 @@ public interface BaseAgent {
 					}
 					else {
 						context.getGraph().add("↴");
-						final var currentAgent = context.getAgents().get(context.getCurrentAgentName());
-						if (! skipCompletion && currentAgent.agentType(context) != AgentType.PROCESSING_ONLY && context.getConversation().getConversation().getLast().type() != TurnType.ASSISTANT) {
-							context.getConversation().addTurn(new Conversation.Turn(TurnType.ASSISTANT, context.getLastCompletion().response()));
-						}
+						this.appendLastCompletionToConversation(context, skipCompletion);
 					}
 				}
 				
 				case final BaseAgent a when a.agentType(context) == AgentType.PROCESSING_ONLY -> {
-
+					this.appendLastCompletionToConversation(context, skipCompletion);
 				}
 				
 				default -> {

@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -21,9 +23,13 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.context.annotation.PropertySource;
 
 import de.extio.lmlib.client.ClientService;
+import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
+import de.extio.lmlib.client.ToolCallData;
+import de.extio.lmlib.client.ToolDefinition;
+import de.extio.lmlib.client.ToolParameters;
 import de.extio.lmlib.client.oai.completion.chat.ChatCompletionClient;
 import de.extio.lmlib.client.oai.completion.text.TextCompletionClient;
 import de.extio.lmlib.grader.Grader2;
@@ -57,6 +63,7 @@ public class CompletionClientTest {
 		final var completion = this.textCompletionClient.conversation(
 				modelProfile,
 				Conversation.create("You are a helpful assistant", "Say the color is green"),
+				null,
 				false);
 		
 		LOGGER.info(completion.reasoning());
@@ -71,7 +78,7 @@ public class CompletionClientTest {
 		final var conversation = Conversation.create("You are a helpful assistant", "I would like to paint my canvas in a solid color.");
 		conversation.addTurn(new Turn(TurnType.ASSISTANT, "Which color do you want to see?"));
 		conversation.addTurn(new Turn(TurnType.USER, "You choose!"));
-		final var completion = this.textCompletionClient.conversation(modelProfile, conversation, false);
+		final var completion = this.textCompletionClient.conversation(modelProfile, conversation, null, false);
 		
 		LOGGER.info(completion.reasoning());
 		LOGGER.info(completion.response());
@@ -94,7 +101,7 @@ public class CompletionClientTest {
 				System.out.print(chunk.content());
 				sb.append(chunk.content());
 			}
-		}, false);
+		}, null, false);
 		
 		if (completion.reasoning() != null) {
 			// Prompt template does not separate reasoning and response from the stream at the moment
@@ -114,7 +121,7 @@ public class CompletionClientTest {
 		final var conversation = Conversation.create("You are a helpful assistant", "I would like to paint my canvas in a solid color.");
 		conversation.addTurn(new Turn(TurnType.ASSISTANT, "Which color do you want to see?"));
 		conversation.addTurn(new Turn(TurnType.USER, "You choose!"));
-		final var completion = this.chatCompletionclient.conversation(modelProfile, conversation, false);
+		final var completion = this.chatCompletionclient.conversation(modelProfile, conversation, null, false);
 		
 		LOGGER.info(completion.reasoning());
 		LOGGER.info(completion.response());
@@ -137,10 +144,82 @@ public class CompletionClientTest {
 				System.out.print(chunk.content());
 				sb.append(chunk.content());
 			}
-		}, false);
+		}, null, false);
 		
 		assertEquals(completion.response(), sb.toString());
 		assertTrue(Grader2.assessScoreBinary("Does the text explain a chess opening?", completion.response(), modelProfile, this.clientService));
+	}
+	
+	@Test
+	void toolCallingChatCompletion() throws Exception {
+		final var modelProfile = this.modelProfileService.getModelProfile("profile.model.chatcompletion");
+		final var toolDefinition = new ToolDefinition(
+				"get_weather",
+				"Gets the current weather for a given location.",
+				ToolParameters.create(Map.of("location", "City and country, for example Berlin, Germany")),
+				true);
+		final var conversation = Conversation.create(
+				"You are a helpful assistant. Use the provided tool when the user asks for weather information. After receiving tool results, answer using the forecast from the tool output.",
+				"What is the weather in Berlin, Germany? Use the tool.");
+		final var toolCallData = ToolCallData.required(List.of(toolDefinition));
+		final var completion = this.chatCompletionclient.conversation(
+				modelProfile,
+				conversation,
+				toolCallData,
+				false);
+		
+		assertTrue(this.chatCompletionclient.supportsToolCalling());
+		assertFalse(this.textCompletionClient.supportsToolCalling());
+		assertTrue(this.clientService.supportsToolCalling(modelProfile));
+		assertTrue(completion.finishReason() == CompletionFinishReason.TOOL_CALLS);
+		assertFalse(completion.toolCalls().isEmpty());
+		assertEquals("get_weather", completion.toolCalls().getFirst().name());
+		assertTrue(completion.toolCalls().getFirst().arguments().contains("Berlin"));
+
+		conversation.addTurn(new Turn(TurnType.ASSISTANT, "", completion.toolCalls(), null));
+		conversation.addTurn(new Turn(TurnType.TOOL, ToolParameters.create().add("forecast", "Berlin is rainy and 21C").json(), null, completion.toolCalls().getFirst().id()));
+
+		final var finalCompletion = this.chatCompletionclient.conversation(modelProfile, conversation, ToolCallData.auto(List.of(toolDefinition)), false);
+		assertTrue(finalCompletion.finishReason() == CompletionFinishReason.DONE);
+		assertTrue(Grader2.assessScoreBinary("Does the text say that Berlin is rainy and 21C?", finalCompletion.response(), modelProfile, this.clientService));
+	}
+	
+	@Test
+	void streamToolCallingChatCompletion() throws Exception {
+		final var modelProfile = this.modelProfileService.getModelProfile("profile.model.chatcompletion");
+		final var getWeather = new ToolDefinition(
+				"get_weather",
+				"Gets the current weather for a given location.",
+				ToolParameters.create(Map.of("location", "City and country, for example Berlin, Germany")),
+				true);
+		final var getCpu = new ToolDefinition(
+				"get_cpu",
+				"Gets the current CPU utilization.",
+				ToolParameters.create(Map.of("cpu", "CPU identifier, for example CPU0. Use CPU for overall utilization.")),
+				true);
+		final var completion = this.chatCompletionclient.streamConversation(
+				modelProfile,
+				Conversation.create(
+						"You are a helpful assistant. Use the provided tool when applicable.",
+						"How high is the current CPU utilization?"),
+				chunk -> {
+					if (chunk.reasoningContent() != null) {
+						System.out.print(chunk.reasoningContent());
+					}
+					if (chunk.content() != null) {
+						System.out.print(chunk.content());
+					}
+				},
+				ToolCallData.required(List.of(getWeather, getCpu)),
+				false);
+		
+		assertTrue(this.chatCompletionclient.supportsToolCalling());
+		assertFalse(this.textCompletionClient.supportsToolCalling());
+		assertTrue(this.clientService.supportsToolCalling(modelProfile));
+		assertTrue(completion.finishReason() == CompletionFinishReason.TOOL_CALLS);
+		assertFalse(completion.toolCalls().isEmpty());
+		assertEquals("get_cpu", completion.toolCalls().getFirst().name());
+		assertTrue(completion.toolCalls().getFirst().arguments().contains("CPU"));
 	}
 	
 	@Disabled
@@ -156,6 +235,7 @@ public class CompletionClientTest {
 		final var completion = this.textCompletionClient.conversation(
 				ModelCategory.MEDIUM,
 				Conversation.create("You are counting machine", "How many numbers do you count?\n" + sb.toString()),
+				null,
 				false);
 		LOGGER.info(completion.response());
 	}
@@ -204,6 +284,7 @@ public class CompletionClientTest {
 				final var completion = this.textCompletionClient.conversation(
 						ModelCategory.MEDIUM,
 						Conversation.create("You are a helpful assistant", "How do I calculate the annual profit margin?"),
+						null,
 						false);
 				LOGGER.info(completion.response());
 			}
@@ -215,6 +296,7 @@ public class CompletionClientTest {
 				final var completion = this.textCompletionClient.conversation(
 						ModelCategory.MEDIUM,
 						Conversation.create("You are a helpful assistant", "How do I calculate the operating profit ratio?"),
+						null,
 						false);
 				LOGGER.info(completion.response());
 			}
@@ -226,6 +308,7 @@ public class CompletionClientTest {
 				final var completion = this.textCompletionClient.conversation(
 						ModelCategory.MEDIUM,
 						Conversation.create("You are a helpful assistant", "How do I calculate the return of investment?"),
+						null,
 						false);
 				LOGGER.info(completion.response());
 			}
@@ -237,6 +320,7 @@ public class CompletionClientTest {
 				final var completion = this.textCompletionClient.conversation(
 						ModelCategory.MEDIUM,
 						Conversation.create("You are a helpful assistant", "How do I calculate the return on net worth?"),
+						null,
 						false);
 				LOGGER.info(completion.response());
 			}

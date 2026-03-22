@@ -20,6 +20,7 @@ The current built-in client set supports both chat completions and legacy text c
 ## Key Capabilities
 
 - OpenAI-compatible chat and text completions
+- Chat-completion tool calling with tool definitions, returned tool calls, and tool-result follow-up rounds
 - Streaming and non-streaming APIs
 - Separate reasoning capture for models that expose reasoning output
 - Model profile loading from properties or direct programmatic profile creation
@@ -170,7 +171,7 @@ Each value refers to a profile file on the classpath without the `.properties` s
 
 ```java
 final var client = clientService.getClient(ModelCategory.MEDIUM);
-final var completion = client.conversation(ModelCategory.LARGE, conversation, false);
+final var completion = client.conversation(ModelCategory.LARGE, conversation, null, false);
 ```
 
 ### 2. Custom Categories
@@ -181,7 +182,7 @@ Create categories dynamically when predefined ones are too restrictive:
 final var customCategory = new ModelCategory("profile-name", "CUSTOM");
 
 final var client = clientService.getClient(customCategory);
-final var completion = client.conversation(customCategory, conversation, false);
+final var completion = client.conversation(customCategory, conversation, null, false);
 ```
 
 This is useful for runtime routing, model experiments, or per-tenant profile selection.
@@ -212,7 +213,7 @@ final var modelProfile = new ModelProfile(
 );
 
 final var client = clientService.getClient(modelProfile);
-final var completion = client.conversation(modelProfile, conversation, false);
+final var completion = client.conversation(modelProfile, conversation, null, false);
 ```
 
 Agents can also use a specific profile directly:
@@ -225,6 +226,7 @@ final var agent = new Agent(
     modelProfile,
     "You are a helpful assistant.",
     "{{userInput}}",
+    null,
     new TextAgentResponseHandler("response"),
     null, null, null,
     AgentNext::end
@@ -317,6 +319,8 @@ modelProvider=OAI_TEXT_COMPLETION
 
 Chat completions are the preferred default. They are simpler to use because the library only needs to send the conversation. Text completions are still useful when you need explicit prompt formatting or must work with instruct models that depend on raw prompt structure.
 
+Tool calling is currently supported only for chat completion models. `TextCompletionClient` does not support tools, and `supportsToolCalling()` can be used on `Client`, `ClientService`, and `BaseAgent` to detect availability before enabling tool-aware flows.
+
 These built-in providers are OpenAI-compatible today, but that is an implementation detail of the current client set, not a hard architectural limit of the library. Additional provider integrations can be added in the library itself, and applications can plug in their own client implementations where needed.
 
 For text completions, select a prompt strategy with the `prompts` property. lm-lib ships built-in strategies for common model families including Llama, GPT-OSS, Gemma, Mistral, Phi, Qwen, Vicuna, ChatML, Alpaca, and a no-formatting strategy.
@@ -343,8 +347,60 @@ Typical integration flow:
 
 ```java
 final var client = clientService.getClient(ModelCategory.MEDIUM);
-final var completion = client.conversation(ModelCategory.MEDIUM, conversation, false);
+final var completion = client.conversation(ModelCategory.MEDIUM, conversation, null, false);
 ```
+
+### Tool Calling
+
+Tool calling lets chat completion models return one or more structured tool invocations instead of a final natural-language answer. The library exposes this in both the direct client API and the agent runtime.
+
+The main tool-calling types are:
+
+- `ToolDefinition`: describes a callable tool and its input schema
+- `ToolParameters`: helper for building nested parameter maps and JSON outputs
+- `ToolCallData`: request-side tool configuration such as available tools and tool choice mode
+- `ToolCall`: a tool call returned by the model
+
+Client-side flow:
+
+```java
+final var weatherTool = new ToolDefinition(
+    "get_weather",
+    "Gets the current weather for a given location.",
+    ToolParameters.create(Map.of("location", "City and country, for example Berlin, Germany")),
+    true
+);
+
+final var toolCallData = ToolCallData.required(List.of(weatherTool));
+final var completion = client.conversation(ModelCategory.MEDIUM, conversation, toolCallData, false);
+
+if (completion.finishReason() == CompletionFinishReason.TOOL_CALLS) {
+    final var toolCall = completion.toolCalls().getFirst();
+
+    conversation.addTurn(new Conversation.Turn(Conversation.TurnType.ASSISTANT, "", completion.toolCalls(), null));
+    conversation.addTurn(new Conversation.Turn(
+        Conversation.TurnType.TOOL,
+        ToolParameters.create().add("forecast", "Berlin is rainy and 21C").json(),
+        null,
+        toolCall.id()
+    ));
+
+    final var finalCompletion = client.conversation(
+        ModelCategory.MEDIUM,
+        conversation,
+        ToolCallData.auto(List.of(weatherTool)),
+        false
+    );
+}
+```
+
+`ToolCallData` helpers:
+
+- `ToolCallData.auto(...)`: model may decide whether to call a tool
+- `ToolCallData.required(...)`: model must choose one of the provided tools
+- `ToolCallData.force(...)`: model must call a specific named tool
+
+The returned `Completion` now exposes `toolCalls()` in addition to `response()`, `reasoning()`, `finishReason()`, and `statistics()`.
 
 ## Completions and Streaming
 
@@ -353,7 +409,9 @@ Both streaming and non-streaming execution paths are supported.
 - Non-streaming calls return a final `Completion` object when the request finishes.
 - Streaming calls accept a `Consumer<Chunk>` and still return the final `Completion` after the stream completes.
 - Each `Chunk` exposes both `content()` and `reasoningContent()`.
-- Final `Completion` objects expose `response()`, `reasoning()`, `finishReason()`, and `statistics()`.
+- Final `Completion` objects expose `response()`, `reasoning()`, `finishReason()`, `statistics()`, and `toolCalls()`.
+
+If a chat completion decides to call a tool, `finishReason()` is `CompletionFinishReason.TOOL_CALLS` and `toolCalls()` contains the requested function calls. Streaming chat completions also aggregate tool calls into the final `Completion`.
 
 This lets you stream visible output while still capturing final structured accounting data.
 
@@ -364,12 +422,12 @@ If a `CachedClientRepository` bean is available, lm-lib will wrap clients with a
 Direct client calls support a `skipCache` flag:
 
 ```java
-final var cached = client.conversation(ModelCategory.MEDIUM, conversation, false);
-final var fresh = client.conversation(ModelCategory.MEDIUM, conversation, true);
+final var cached = client.conversation(ModelCategory.MEDIUM, conversation, null, false);
+final var fresh = client.conversation(ModelCategory.MEDIUM, conversation, null, true);
 
 final var streamed = client.streamConversation(ModelCategory.MEDIUM, conversation, chunk -> {
     System.out.print(chunk.content());
-}, true);
+}, null, true);
 ```
 
 `skipCache=true` bypasses reading a cached response for that request but still stores the fresh result afterwards.
@@ -588,6 +646,7 @@ final var blogPostAgent = new Agent(
     null,
     "You are a concise technical blog writer.",
     "Write a blog post about {{topic}} using these bullets:\n\n{{points}}",
+    null,
     new TextAgentResponseHandler("blogPost"),
     null,
     null,
@@ -606,11 +665,49 @@ final var blogPostAgent = new Agent(
 | `modelProfile(context)` | Supplies a specific model profile and overrides `modelCategory()`. | `null` |
 | `systemPrompt()` | Optional system instruction. | `null` |
 | `textTemplate()` | Optional user prompt template. | `null` |
+| `toolDefinitions(context)` | Optional tool definitions for tool-capable chat models. | `null` |
+| `toolCallData(context)` | Optional tool request configuration. Defaults to `ToolCallData.auto(toolDefinitions)`. | `null` |
+| `supportsToolCalling(context, clientService)` | Reports whether the resolved client can handle tool calls. | derived from model/provider |
 | `responseHandler(context)` | Parses the model response. | `new TextAgentResponseHandler("response")` |
 | `preProcess(context)` | Runs before completion. | no-op |
 | `postProcess(context)` | Runs after completion. | no-op |
 | `merge(contexts)` | Merges split contexts after branching. | `null` |
 | `chooseNextAgent(context)` | Selects the next agent or ends the flow. Required. | none |
+
+### Agent Tool Calling
+
+Agents can declare tool definitions directly. For simple in-agent tool execution loops, wrap a normal response handler with `ToolCallingAgentResponseHandler`.
+
+```java
+final var weatherAgent = new Agent(
+    "WeatherAgent",
+    AgentType.START_CONVERSATION,
+    ModelCategory.MEDIUM,
+    null,
+    "Use the provided tool when the user asks for weather information.",
+    "What is the weather in Berlin, Germany? Use the tool.",
+    List.of(weatherTool),
+    new ToolCallingAgentResponseHandler(
+        new TextAgentResponseHandler("answer"),
+        (completion, context, toolCallResults) -> {
+            if (completion.toolCalls().isEmpty()) {
+                return false;
+            }
+            toolCallResults.add(
+                completion.toolCalls().getFirst(),
+                ToolParameters.create().add("forecast", "Berlin is rainy and 21C")
+            );
+            return true;
+        }
+    ),
+    null,
+    null,
+    null,
+    AgentNext::end
+);
+```
+
+If you do not want the current agent to resolve tool calls itself, the conversation handoff now preserves assistant tool-call turns so the next `CONVERSATION` or `PROCESSING_ONLY` agent can inspect them in `preProcess()` and decide how to continue.
 
 ### Agent Types
 

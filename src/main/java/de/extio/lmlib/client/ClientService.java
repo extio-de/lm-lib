@@ -31,6 +31,10 @@ public class ClientService {
 		final var modelProfile = this.modelProfileService.getModelProfile(category.getModelProfile(), category);
 		return this.getClient(modelProfile);
 	}
+
+	public boolean supportsToolCalling(final ModelCategory category) {
+		return this.getClient(category).supportsToolCalling();
+	}
 	
 	@Cacheable("clients")
 	public Client getClient(final ModelProfile modelProfile) {
@@ -40,6 +44,10 @@ public class ClientService {
 				.map(client -> this.cachedClientRepository == null ? client : new CachedClient(this.cachedClientRepository, this.modelProfileService, client))
 				.map(client -> this.completionInterceptors == null || this.completionInterceptors.isEmpty() ? client : new InterceptingClient(client, this.modelProfileService, this.completionInterceptors))
 				.orElseThrow(() -> new IllegalStateException("No client found for model profile " + modelProfile.modelName()));
+	}
+
+	public boolean supportsToolCalling(final ModelProfile modelProfile) {
+		return this.getClient(modelProfile).supportsToolCalling();
 	}
 	
 	private static class InterceptingClient implements Client {
@@ -57,24 +65,24 @@ public class ClientService {
 		}
 		
 		@Override
-		public Completion conversation(final ModelCategory modelCategory, final Conversation conversation_, final boolean skipCache) {
+		public Completion conversation(final ModelCategory modelCategory, final Conversation conversation_, final ToolCallData toolCallData, final boolean skipCache) {
 			final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile(), modelCategory);
-			return this.conversation(modelProfile, conversation_, skipCache);
+			return this.conversation(modelProfile, conversation_, toolCallData, skipCache);
 		}
 		
 		@Override
-		public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation_, final Consumer<Chunk> chunkConsumer, final boolean skipCache) {
+		public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation_, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData, final boolean skipCache) {
 			final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile(), modelCategory);
-			return this.streamConversation(modelProfile, conversation_, chunkConsumer, skipCache);
+			return this.streamConversation(modelProfile, conversation_, chunkConsumer, toolCallData, skipCache);
 		}
 
 		@Override
-		public Completion conversation(final ModelProfile modelProfile, final Conversation conversation_, final boolean skipCache) {
+		public Completion conversation(final ModelProfile modelProfile, final Conversation conversation_, final ToolCallData toolCallData, final boolean skipCache) {
 			Conversation conversation = conversation_;
 			for (final var interceptor : this.completionInterceptors) {
 				conversation = interceptor.before(modelProfile, conversation);
 			}
-			var completion = this.client.conversation(modelProfile, conversation, skipCache);
+			var completion = this.client.conversation(modelProfile, conversation, toolCallData, skipCache);
 			for (final var interceptor : this.completionInterceptors) {
 				completion = interceptor.after(modelProfile, conversation, completion);
 			}
@@ -82,12 +90,12 @@ public class ClientService {
 		}
 		
 		@Override
-		public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation_, final Consumer<Chunk> chunkConsumer, final boolean skipCache) {
+		public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation_, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData, final boolean skipCache) {
 			Conversation conversation = conversation_;
 			for (final var interceptor : this.completionInterceptors) {
 				conversation = interceptor.before(modelProfile, conversation);
 			}
-			var completion = this.client.streamConversation(modelProfile, conversation, chunkConsumer, skipCache);
+			var completion = this.client.streamConversation(modelProfile, conversation, chunkConsumer, toolCallData, skipCache);
 			for (final var interceptor : this.completionInterceptors) {
 				completion = interceptor.after(modelProfile, conversation, completion);
 			}
@@ -97,6 +105,11 @@ public class ClientService {
 		@Override
 		public ModelProvider getModelProvider() {
 			return this.client.getModelProvider();
+		}
+
+		@Override
+		public boolean supportsToolCalling() {
+			return this.client.supportsToolCalling();
 		}
 		
 	}

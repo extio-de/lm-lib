@@ -8,13 +8,15 @@ import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 
 public interface Client {
 	
-	Completion conversation(ModelCategory modelCategory, Conversation conversation, boolean skipCache);
-	
-	Completion conversation(ModelProfile modelProfile, Conversation conversation, boolean skipCache);
+	Completion conversation(ModelCategory modelCategory, Conversation conversation, ToolCallData toolCallData, boolean skipCache);
 
-	Completion streamConversation(ModelCategory modelCategory, Conversation conversation, Consumer<Chunk> chunkConsumer, boolean skipCache);
+	Completion conversation(ModelProfile modelProfile, Conversation conversation, ToolCallData toolCallData, boolean skipCache);
+
+	Completion streamConversation(ModelCategory modelCategory, Conversation conversation, Consumer<Chunk> chunkConsumer, ToolCallData toolCallData, boolean skipCache);
 	
-	Completion streamConversation(ModelProfile modelProfile, Conversation conversation, Consumer<Chunk> chunkConsumer, boolean skipCache);
+	Completion streamConversation(ModelProfile modelProfile, Conversation conversation, Consumer<Chunk> chunkConsumer, ToolCallData toolCallData, boolean skipCache);
 	
 	ModelProvider getModelProvider();
+
+	boolean supportsToolCalling();
 }

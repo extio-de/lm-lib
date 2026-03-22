@@ -24,9 +24,15 @@ import org.springframework.context.annotation.PropertySource;
 
 import de.extio.lmlib.agent.responsehandler.JsonAgentResponseHandler;
 import de.extio.lmlib.agent.responsehandler.TextAgentResponseHandler;
+import de.extio.lmlib.agent.responsehandler.ToolCallingAgentResponseHandler;
 import de.extio.lmlib.client.ClientService;
-import de.extio.lmlib.grader.Grader;
+import de.extio.lmlib.client.Conversation;
+import de.extio.lmlib.client.ToolCallData;
+import de.extio.lmlib.client.ToolDefinition;
+import de.extio.lmlib.client.ToolParameters;
+import de.extio.lmlib.grader.Grader2;
 import de.extio.lmlib.profile.ModelCategory;
+import de.extio.lmlib.profile.ModelProfileService;
 
 /**
  * These tests have been verified with Llama 3.1 8B, Gemma2 27B, Gemma3 27B and GPT-OSS models
@@ -45,6 +51,9 @@ public class AgentTest {
 	
 	@Autowired
 	private ClientService clientService;
+
+	@Autowired
+	private ModelProfileService modelProfileService;
 	
 	@Test
 	void agenticFlow() throws IOException {
@@ -56,6 +65,7 @@ public class AgentTest {
 						null,
 						"Generate a summary of the following Java source code.",
 						"The source code is:\n{{code}}",
+						null,
 						new TextAgentResponseHandler("summary"),
 						null,
 						null,
@@ -69,6 +79,7 @@ public class AgentTest {
 						null,
 						"",
 						"Generate a list of 5 distinct functional features. In scope is business logic, not code mechanics. Provide no preamble and no explanation. Return the response in JSON format with the following field: { \"features\": [\"Feature 1\", \"Feature 2\", ... ] }",
+						null,
 						new JsonAgentResponseHandler(),
 						null,
 						context -> context.getStringValues("features").forEach(feature -> LOGGER.info(feature)),
@@ -85,6 +96,7 @@ public class AgentTest {
 								The source code is:
 								{{code}}
 								The feature is: [[features]]""",
+						null,
 						new TextAgentResponseHandler("featureDescription"),
 						null,
 						null,
@@ -102,6 +114,7 @@ public class AgentTest {
 								The code analysis:
 								{{summary}}
 								{{featureDescription}}""",
+						null,
 						new TextAgentResponseHandler("blogPost"),
 						context -> {
 							context.setStringValues("topics", List.of(String.join(", ", context.getStringValues("features").stream().toArray(size -> new String[size]))));
@@ -123,7 +136,7 @@ public class AgentTest {
 		assertEquals(1, resultContext.getContext().get("blogPost").size());
 		assertEquals(8, resultContext.getRequestStatistic().getRequests().get());
 		for (final var feature : resultContext.getContext().get("features")) {
-			assertTrue(Grader.assessScoreBinary("Does the following blog post mention the feature " + feature, resultContext.getStringValue("blogPost"), this.clientService));
+			assertTrue(Grader2.assessScoreBinary("Does the following blog post mention the feature " + feature, resultContext.getStringValue("blogPost"), ModelCategory.MEDIUM, this.modelProfileService, this.clientService));
 		}
 	}
 
@@ -138,6 +151,7 @@ public class AgentTest {
 						null,
 						"Generate a summary of the following Java source code.",
 						"The source code is:\n{{code}}",
+						null,
 						new TextAgentResponseHandler("summary",
 								null,
 								null,
@@ -176,6 +190,146 @@ public class AgentTest {
 		LOGGER.info("### final result");
 		LOGGER.info(resultContexts.getFirst().toString());
 	}
+
+	@Test
+	void toolCallingAgenticFlow() {
+		final var agents = Map.of(
+				"ToolCaller",
+				new Agent("ToolCaller",
+						AgentType.START_CONVERSATION,
+						ModelCategory.MEDIUM,
+						null,
+						"Use the provided tool when the user asks for weather information. After receiving tool results, respond using the forecast from the tool output.",
+						"What is the weather in Berlin, Germany? Use the tool.",
+						List.of(new ToolDefinition(
+								"get_weather",
+								"Gets the current weather for a given location.",
+								ToolParameters.create(Map.of("location", "City and country, for example Berlin, Germany")),
+								true)),
+						new ToolCallingAgentResponseHandler(
+								new TextAgentResponseHandler("answer"),
+								(completion, context, toolCallResults) -> {
+									if (completion.toolCalls().isEmpty()) {
+										return false;
+									}
+									context.setStringValue("toolName", completion.toolCalls().getFirst().name());
+									context.setStringValue("toolArguments", completion.toolCalls().getFirst().arguments());
+									toolCallResults.add(completion.toolCalls().getFirst(), ToolParameters.create().add("forecast", "Berlin is rainy and 21C"));
+									return true;
+								}),
+						null,
+						null,
+						null,
+						AgentNext::end));
+
+		final var context = new AgentContext(agents);
+		assertTrue(agents.get("ToolCaller").supportsToolCalling(context, this.clientService));
+
+		final var resultContexts = this.agentExecutor.walk(agents.get("ToolCaller"), context);
+		final var resultContext = resultContexts.getFirst();
+
+		assertEquals(1, resultContexts.size());
+		assertEquals("get_weather", resultContext.getStringValue("toolName"));
+		assertTrue(resultContext.getStringValue("toolArguments").contains("Berlin"));
+		assertTrue(Grader2.assessScoreBinary("Does the text say that Berlin is rainy and 21C?", resultContext.getStringValue("answer"), ModelCategory.MEDIUM, this.modelProfileService, this.clientService));
+	}
+
+	@Test
+	void toolCallsCanBeHandledByNextAgentConversation() {
+		final var weatherTool = new ToolDefinition(
+				"get_weather",
+				"Gets the current weather for a given location.",
+				ToolParameters.create(Map.of("location", "City and country, for example Berlin, Germany")),
+				true);
+		final BaseAgent toolCaller = new BaseAgent() {
+
+			@Override
+			public String name() {
+				return "ToolCaller";
+			}
+
+			@Override
+			public AgentType agentType(final AgentContext context) {
+				return AgentType.START_CONVERSATION;
+			}
+
+			@Override
+			public ModelCategory modelCategory(final AgentContext context) {
+				return ModelCategory.MEDIUM;
+			}
+
+			@Override
+			public String systemPrompt() {
+				return "You must call the provided tool for weather questions. Do not answer before the tool has been called.";
+			}
+
+			@Override
+			public String textTemplate() {
+				return "What is the weather in Berlin, Germany? Use the tool.";
+			}
+
+			@Override
+			public List<ToolDefinition> toolDefinitions(final AgentContext context) {
+				return List.of(weatherTool);
+			}
+
+			@Override
+			public ToolCallData toolCallData(final AgentContext context) {
+				return ToolCallData.required(List.of(weatherTool));
+			}
+
+			@Override
+			public boolean supportsToolCalling(final AgentContext context) {
+				return true;
+			}
+
+			@Override
+			public AgentNext chooseNextAgent(final AgentContext context) {
+				return new AgentNext("ToolResultResponder", null);
+			}
+
+			@Override
+			public de.extio.lmlib.agent.responsehandler.AgentResponseHandler responseHandler(final AgentContext context) {
+				return (completion, agentContext) -> true;
+			}
+		};
+		final BaseAgent toolResultResponder = new Agent("ToolResultResponder",
+				AgentType.CONVERSATION,
+				ModelCategory.MEDIUM,
+				null,
+				"Use the existing tool result in the conversation to answer the original weather question.",
+				"Answer the original question using the tool result already present in the conversation. Do not call any tool.",
+				null,
+				new TextAgentResponseHandler("answer"),
+				context -> {
+					final var conversation = context.getConversation();
+					final var assistantTurn = conversation.getConversation().getLast();
+					context.setStringValue("handoffTurnType", assistantTurn.type().name());
+					context.setStringValue("handoffToolName", assistantTurn.toolCalls().getFirst().name());
+					context.setStringValue("handoffToolArguments", assistantTurn.toolCalls().getFirst().arguments());
+					context.setStringValue("handoffToolCallId", assistantTurn.toolCalls().getFirst().id());
+					conversation.addTurn(new Conversation.Turn(Conversation.TurnType.TOOL, ToolParameters.create().add("forecast", "Berlin is rainy and 21C").json(), null, assistantTurn.toolCalls().getFirst().id()));
+				},
+				null,
+				null,
+				AgentNext::end);
+		final var agents = Map.of(
+				"ToolCaller", toolCaller,
+				"ToolResultResponder", toolResultResponder);
+
+		final var context = new AgentContext(agents);
+		final var resultContexts = this.agentExecutor.walk(toolCaller, context);
+		final var resultContext = resultContexts.getFirst();
+
+		assertEquals(1, resultContexts.size());
+		assertEquals("ASSISTANT", resultContext.getStringValue("handoffTurnType"));
+		assertEquals("get_weather", resultContext.getStringValue("handoffToolName"));
+		assertTrue(resultContext.getStringValue("handoffToolArguments").contains("Berlin"));
+		assertTrue(resultContext.getConversation().getConversation().stream().anyMatch(turn -> turn.type() == Conversation.TurnType.TOOL
+				&& resultContext.getStringValue("handoffToolCallId").equals(turn.toolCallId())
+				&& turn.text().contains("Berlin is rainy and 21C")));
+		assertTrue(Grader2.assessScoreBinary("Does the text say that Berlin is rainy and 21C?", resultContext.getStringValue("answer"), ModelCategory.MEDIUM, this.modelProfileService, this.clientService));
+	}
 	
 	@Test
 	void doubleBranch() {
@@ -187,6 +341,7 @@ public class AgentTest {
 						null,
 						"",
 						"Generate 5 random numbers from 1 to 10. Provide no preamble and no explanation. Return the response in JSON format with the following field: { \"numbers\": [\"Number 1\", \"Number 2\", ... ] }",
+						null,
 						new JsonAgentResponseHandler(),
 						null,
 						null,
@@ -200,6 +355,7 @@ public class AgentTest {
 						null,
 						"",
 						"Generate 5 random numbers from 1 to 10. The previous number was [[numbers]]. Provide no preamble and no explanation. Return the response in JSON format with the following field: { \"random\": [\"Number 1\", \"Number 2\", ... ] }",
+						null,
 						new JsonAgentResponseHandler(),
 						null,
 						null,
@@ -213,6 +369,7 @@ public class AgentTest {
 						null,
 						"",
 						"Add these 2 numbers: {{numbers}} + [[random]] ; Provide no preamble and no explanation. Return the response in JSON format with the following field: { \"result\": \"result\" }",
+						null,
 						new JsonAgentResponseHandler(),
 						null,
 						null,
@@ -226,6 +383,7 @@ public class AgentTest {
 						null,
 						"You are a helpful assistant.",
 						"If you add {{numbers}} marbles to {{random}} marbles, do you get {{result}} marbles as the result? Answer with 'yes' or 'no'",
+						null,
 						new TextAgentResponseHandler("grade"),
 						null,
 						null,

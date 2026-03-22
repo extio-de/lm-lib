@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
+import de.extio.lmlib.client.ToolCallData;
 
 public final class AgentContext {
 	
@@ -47,6 +48,8 @@ public final class AgentContext {
 	private volatile AgentNext nextAgent;
 	
 	private volatile Completion lastCompletion;
+
+	private volatile ToolCallData toolCallData;
 	
 	private Consumer<AgentContext> agentContextUpdateConsumer;
 	
@@ -79,6 +82,7 @@ public final class AgentContext {
 		this.nextAgent = other.nextAgent;
 		this.requestStatistic = other.requestStatistic;
 		this.lastCompletion = other.lastCompletion;
+		this.toolCallData = other.toolCallData;
 		this.agentContextUpdateConsumer = other.agentContextUpdateConsumer;
 		this.errorType = other.errorType;
 		this.errorException = other.errorException;
@@ -195,6 +199,14 @@ public final class AgentContext {
 	
 	void setLastCompletion(final Completion lastCompletion) {
 		this.lastCompletion = lastCompletion;
+	}
+
+	ToolCallData getToolCallData() {
+		return this.toolCallData;
+	}
+
+	void setToolCallData(final ToolCallData toolCallData) {
+		this.toolCallData = toolCallData;
 	}
 	
 	public boolean isError() {
