@@ -198,9 +198,6 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		final var content = response.getChoices().getFirst().getMessage().getContent();
 		final var reasoning = response.getChoices().getFirst().getMessage().getReasoningContent();
 		final var toolCalls = this.toToolCalls(response.getChoices().getFirst().getMessage().getToolCalls());
-		if ((content == null || content.isBlank()) && toolCalls.isEmpty()) {
-			throw new IllegalStateException("No parseable response content from server");
-		}
 		final var finishReason = this.mapFinishReason(choice.getFinishReason());
 		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), response.getTimings(), null, content, reasoning);
 		return new Completion(content, reasoning, finishReason, statistics, toolCalls);
