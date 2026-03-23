@@ -445,6 +445,7 @@ public interface BaseAgent {
 		if (toolCallData == null || !toolCallData.hasTools()) {
 			return;
 		}
+		LOGGER.debug("Tool calls: {}", toolCallData);
 		context.setToolCallData(toolCallData);
 	}
 
