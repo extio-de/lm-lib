@@ -146,7 +146,7 @@ public class CsvAgentResponseHandler implements AgentResponseHandler {
 		for (int i = 0; i < this.headings.size(); i++) {
 			final String key = this.keyPrefix + this.headings.get(i);
 			context.setStringValues(key, columnData.get(i));
-			LOGGER.debug("Stored {} values in context key '{}'", columnData.get(i).size(), key);
+			LOGGER.debug("Stored {} values in context key '{}': {}", columnData.get(i).size(), key, columnData.get(i));
 		}
 		
 		LOGGER.debug("Parsed {} CSV rows into {} columns", rowCount, this.headings.size());
