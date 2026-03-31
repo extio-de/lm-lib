@@ -5,11 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
 import de.extio.lmlib.agent.AgentContext;
+import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
 
@@ -364,6 +366,53 @@ public class JsonAgentResponseHandlerTest {
 		
 		assertTrue(result);
 		assertTrue(context.getContext().isEmpty());
+	}
+
+	@Test
+	public void testReasoningStreaming() {
+		final JsonAgentResponseHandler handler = new JsonAgentResponseHandler("stream");
+		final AgentContext context = new AgentContext();
+		context.setConversation(Conversation.create("test"));
+		context.setStringValue("stream_reasoning", "stale");
+
+		handler.beforeStream(context);
+		assertEquals(null, context.getStringValue("stream_reasoning"));
+
+		assertTrue(handler.handleChunk(new Chunk(null, "first"), context));
+		assertEquals("first", context.getStringValue("stream_reasoning"));
+
+		assertFalse(handler.handleChunk(new Chunk("{\"field\":\"value\"}", null), context));
+		assertEquals("first", context.getStringValue("stream_reasoning"));
+
+		assertTrue(handler.handleChunk(new Chunk(null, " second"), context));
+		assertEquals("first second", context.getStringValue("stream_reasoning"));
+	}
+
+	@Test
+	public void testAfterChunkUpdateCallback() {
+		final List<String> callbackReasoning = new ArrayList<>();
+		final List<String> callbackContent = new ArrayList<>();
+		final JsonAgentResponseHandler handler = new JsonAgentResponseHandler("stream",
+				(context, chunk) -> {
+					callbackReasoning.add(context.getStringValue("stream_reasoning"));
+					callbackContent.add(chunk.content());
+				});
+		final AgentContext context = new AgentContext();
+		context.setConversation(Conversation.create("test"));
+
+		handler.beforeStream(context);
+
+		assertTrue(handler.handleChunk(new Chunk(null, "first"), context));
+		assertEquals("first", context.getStringValue("stream_reasoning"));
+		assertEquals(1, callbackReasoning.size());
+		assertEquals("first", callbackReasoning.getFirst());
+		assertEquals(null, callbackContent.getFirst());
+
+		assertTrue(handler.handleChunk(new Chunk("{\"field\":\"value\"}", null), context));
+		assertEquals("first", context.getStringValue("stream_reasoning"));
+		assertEquals(2, callbackReasoning.size());
+		assertEquals("first", callbackReasoning.get(1));
+		assertEquals("{\"field\":\"value\"}", callbackContent.get(1));
 	}
 	
 }

@@ -4,11 +4,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import de.extio.lmlib.agent.AgentContext;
+import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.ToolCall;
 import de.extio.lmlib.client.ToolParameters;
 
-public class ToolCallingAgentResponseHandler implements AgentResponseHandler {
+public class ToolCallingAgentResponseHandler implements StreamedAgentResponseHandler {
 
 	@FunctionalInterface
 	public interface ToolCallHandler {
@@ -56,6 +57,21 @@ public class ToolCallingAgentResponseHandler implements AgentResponseHandler {
 	@Override
 	public boolean handle(final Completion completion, final AgentContext context) {
 		return this.delegate == null || this.delegate.handle(completion, context);
+	}
+
+	@Override
+	public void beforeStream(final AgentContext context) {
+		if (this.delegate instanceof final StreamedAgentResponseHandler streamedAgentResponseHandler) {
+			streamedAgentResponseHandler.beforeStream(context);
+		}
+	}
+
+	@Override
+	public boolean handleChunk(final Chunk chunk, final AgentContext context) {
+		if (this.delegate instanceof final StreamedAgentResponseHandler streamedAgentResponseHandler) {
+			return streamedAgentResponseHandler.handleChunk(chunk, context);
+		}
+		return true;
 	}
 
 	public boolean handleToolCalls(final Completion completion, final AgentContext context, final ToolCallResults toolCallResults) {

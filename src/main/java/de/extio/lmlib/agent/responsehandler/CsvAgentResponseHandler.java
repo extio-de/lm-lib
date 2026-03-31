@@ -2,17 +2,20 @@ package de.extio.lmlib.agent.responsehandler;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Pattern;
+import java.util.function.BiConsumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import de.extio.lmlib.agent.AgentContext;
+import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.util.TextUtils;
 
-public class CsvAgentResponseHandler implements AgentResponseHandler {
+public class CsvAgentResponseHandler implements StreamedAgentResponseHandler {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(CsvAgentResponseHandler.class);
 	
@@ -25,12 +28,20 @@ public class CsvAgentResponseHandler implements AgentResponseHandler {
 	private final String fieldSeparatorQuoted;
 	
 	private final String errorPromptSuffix;
+
+	private final String reasoningKey;
+
+	private final BiConsumer<AgentContext, Chunk> afterChunkUpdate;
 	
 	public CsvAgentResponseHandler(final List<String> headings, final String keyPrefix) {
 		this(headings, keyPrefix, ";");
 	}
 	
 	public CsvAgentResponseHandler(final List<String> headings, final String keyPrefix, final String fieldSeparator) {
+		this(headings, keyPrefix, fieldSeparator, null);
+	}
+
+	public CsvAgentResponseHandler(final List<String> headings, final String keyPrefix, final String fieldSeparator, final BiConsumer<AgentContext, Chunk> afterChunkUpdate) {
 		if (headings == null || headings.isEmpty()) {
 			throw new IllegalArgumentException("Headings list cannot be null or empty");
 		}
@@ -38,6 +49,8 @@ public class CsvAgentResponseHandler implements AgentResponseHandler {
 		this.keyPrefix = keyPrefix != null ? keyPrefix : "";
 		this.fieldSeparator = fieldSeparator;
 		this.fieldSeparatorQuoted = Pattern.quote(fieldSeparator);
+		this.reasoningKey = this.keyPrefix + "_reasoning";
+		this.afterChunkUpdate = afterChunkUpdate;
 		
 		this.errorPromptSuffix = "\n\nThe previous response could not be fully processed or validated. " +
 				"Please format the response as CSV with '" + fieldSeparator + "' as field separator.\n" +
@@ -67,6 +80,25 @@ public class CsvAgentResponseHandler implements AgentResponseHandler {
 			this.addCsvResponseErrorPrompt(context);
 			return false;
 		}
+	}
+
+	@Override
+	public void beforeStream(final AgentContext context) {
+		context.getContext().remove(this.reasoningKey);
+	}
+
+	@Override
+	public boolean handleChunk(final Chunk chunk, final AgentContext context) {
+		boolean handled = false;
+		if (chunk.reasoningContent() != null) {
+			context.setStringValue(this.reasoningKey, Objects.requireNonNullElseGet(context.getStringValue(this.reasoningKey), () -> "").concat(chunk.reasoningContent()));
+			handled = true;
+		}
+		if (this.afterChunkUpdate != null) {
+			this.afterChunkUpdate.accept(context, chunk);
+			return true;
+		}
+		return handled;
 	}
 	
 	private boolean parseCsv(final String csvText, final AgentContext context) {

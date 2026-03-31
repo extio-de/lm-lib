@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.BiConsumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,23 +18,34 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
 import de.extio.lmlib.agent.AgentContext;
+import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
 
-public class JsonAgentResponseHandler implements AgentResponseHandler {
+public class JsonAgentResponseHandler implements StreamedAgentResponseHandler {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(JsonAgentResponseHandler.class);
 	
 	private final ObjectMapper objectMapper;
 	
 	private final String prefixFields;
+
+	private final String reasoningKey;
+
+	private final BiConsumer<AgentContext, Chunk> afterChunkUpdate;
 	
 	public JsonAgentResponseHandler() {
-		this(null);
+		this(null, null);
 	}
 	
 	public JsonAgentResponseHandler(final String prefixFields) {
+		this(prefixFields, null);
+	}
+
+	public JsonAgentResponseHandler(final String prefixFields, final BiConsumer<AgentContext, Chunk> afterChunkUpdate) {
 		this.prefixFields = prefixFields == null ? "" : prefixFields;
+		this.reasoningKey = this.prefixFields + "_reasoning";
+		this.afterChunkUpdate = afterChunkUpdate;
 		
 		this.objectMapper = JsonMapper.builder()
 				.configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false)
@@ -54,6 +66,26 @@ public class JsonAgentResponseHandler implements AgentResponseHandler {
 				.enable(JsonReadFeature.ALLOW_TRAILING_DECIMAL_POINT_FOR_NUMBERS)
 				.enable(JsonReadFeature.ALLOW_UNQUOTED_PROPERTY_NAMES)
 				.build();
+	}
+
+	@Override
+	public void beforeStream(final AgentContext context) {
+		context.getContext().remove(this.reasoningKey);
+	}
+
+	@Override
+	public boolean handleChunk(final Chunk chunk, final AgentContext context) {
+		boolean handled = false;
+		if (chunk.reasoningContent() != null) {
+			final var existingReasoning = context.getStringValue(this.reasoningKey);
+			context.setStringValue(this.reasoningKey, (existingReasoning == null ? "" : existingReasoning).concat(chunk.reasoningContent()));
+			handled = true;
+		}
+		if (this.afterChunkUpdate != null) {
+			this.afterChunkUpdate.accept(context, chunk);
+			return true;
+		}
+		return handled;
 	}
 	
 	@Override
