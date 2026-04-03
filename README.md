@@ -105,12 +105,6 @@ If you disable a module that another module depends on, you must provide the mis
 | `lmlib.client.retry.backoff-interval-min` | Long | `125` | Minimum retry backoff in milliseconds. |
 | `lmlib.client.retry.backoff-interval-max` | Long | `2500` | Maximum retry backoff in milliseconds. |
 
-### Tokenizer Configuration
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `tokenizer.strategy` | String | `jTokkit` | Token counting strategy. Supported values are `jTokkit` and `llamaServer`. |
-
 ## Optional Dependencies
 
 ### Caching Support
@@ -148,7 +142,19 @@ For the recommended `jTokkit` tokenizer:
 </dependency>
 ```
 
-For `llamaServer`, no extra dependency is required because tokenization is delegated to the remote server.
+For `llamaServer`, no extra dependency is required because tokenization is delegated to the remote server through the configured model endpoint.
+
+Available built-in tokenizer names:
+
+- `jTokkit`
+- `llamaServer`
+- `fallback`
+
+### Tokenizer Configuration
+
+lm-lib registers tokenizer implementations as beans when their dependencies are available, then resolves the tokenizer at runtime from the active `ModelProfile`. Applications can implement the `Tokenizer` interface to inject their own Tokenizers.
+
+Tokenizer selection is configured per model profile with the `tokenizer` property. If a profile does not specify a tokenizer, lm-lib prefers `jTokkit` when the dependency is present and otherwise falls back to the built-in `fallback` tokenizer. The fallback tokenizer is deterministic and reversible, but it only provides approximate token counts.
 
 ## Model Profiles
 
@@ -194,6 +200,7 @@ Create a `ModelProfile` directly when you want full runtime control and do not w
 ```java
 final var modelProfile = new ModelProfile(
     "",                                    // prompts
+    "jTokkit",                            // tokenizer
     "cl100k_base",                        // tokenEncoding
     2000,                                  // maxTokens
     32768,                                 // maxContextLength
@@ -241,6 +248,7 @@ Each profile file is a `.properties` resource on the classpath.
 |----------|------|----------|-------------|---------|
 | `category` | String | No | Short profile label used in logging and graph traces. If omitted in the file, it is inferred from the `ModelCategory` used to load it. | `M`, `L`, `CUSTOM` |
 | `prompts` | String | Yes | Prompt strategy name for text completions. Use an empty value for chat completions. | `llama4`, `gpt-oss`, `no`, `` |
+| `tokenizer` | String | No | Tokenizer name used for counting and prompt trimming. Defaults to `jTokkit` when available, otherwise `fallback`. | `jTokkit`, `llamaServer`, `fallback` |
 | `tokenEncoding` | String | Yes | Token encoding scheme used for token counting. | `cl100k_base`, `none` |
 | `maxTokens` | Integer | Yes | Maximum response tokens. | `1500`, `2500` |
 | `maxContextLength` | Integer | Yes | Maximum total context length. | `16000`, `32768`, `128000` |
@@ -265,6 +273,7 @@ Notes:
 - `cost1MCachedInTokens` defaults to the normal input token cost when not provided.
 - `cost1MReasoningOutTokens` defaults to `0` when not provided.
 - Reasoning properties only apply to models that expose separate reasoning output.
+- `tokenEncoding` is primarily relevant for tokenizer implementations that support multiple encodings, such as `jTokkit`.
 
 ### Example Profile Files
 
@@ -273,6 +282,7 @@ Local chat completion:
 ```properties
 category=M
 prompts=
+tokenizer=llamaServer
 tokenEncoding=cl100k_base
 maxTokens=2500
 maxContextLength=16000
@@ -293,6 +303,7 @@ Local text completion:
 ```properties
 category=S
 prompts=gpt-oss
+tokenizer=llamaServer
 tokenEncoding=cl100k_base
 maxTokens=2500
 maxContextLength=16000

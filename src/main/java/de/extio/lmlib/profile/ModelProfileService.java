@@ -40,6 +40,9 @@ public class ModelProfileService {
 			final var promptTemplate = Optional.ofNullable(resource.getProperty("prompts"))
 					.map(Object::toString)
 					.orElse("");
+			final var tokenizer = Optional.ofNullable(resource.getProperty("tokenizer"))
+					.map(Object::toString)
+					.orElse(null);
 			final var tokenEncoding = Optional.ofNullable(resource.getProperty("tokenEncoding"))
 					.map(Object::toString)
 					.orElse("none");
@@ -109,7 +112,7 @@ public class ModelProfileService {
 						.orElse(null);
 			}
 			
-			return new ModelProfile(promptTemplate, tokenEncoding, maxTokens, maxContextLength, temperature, topP, modelProvider, modelNameCfg, url, apiKey, costPerInToken, costPerCachedInToken, costPerOutToken, costPerReasoningOutToken, reasoningEffort, reasoningSummaryDetails, category);
+			return new ModelProfile(promptTemplate, tokenizer, tokenEncoding, maxTokens, maxContextLength, temperature, topP, modelProvider, modelNameCfg, url, apiKey, costPerInToken, costPerCachedInToken, costPerOutToken, costPerReasoningOutToken, reasoningEffort, reasoningSummaryDetails, category);
 		}
 		catch (final IOException e) {
 			LOGGER.error("Error while reading model profile", e);

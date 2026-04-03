@@ -39,7 +39,7 @@ import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.profile.ModelProfileService;
-import de.extio.lmlib.token.Tokenizer;
+import de.extio.lmlib.token.TokenizerResolver;
 
 public abstract class AbstractCompletionClient implements Client, DisposableBean {
 	
@@ -50,7 +50,7 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 	protected RestClient.Builder restClientBuilder;
 	
 	@Autowired
-	protected Tokenizer tokenizer;
+	protected TokenizerResolver tokenizerResolver;
 	
 	@Autowired
 	protected ModelProfileService modelProfileService;
@@ -214,14 +214,14 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 		}
 		// Fallback to tokenizer estimation
 		if (inTokens <= 0 && prompt != null && !prompt.isBlank()) {
-			inTokens = this.tokenizer.count(prompt, modelProfile);
+			inTokens = this.tokenizerResolver.count(prompt, modelProfile);
 		}
 		if (reasoningOutTokens <= 0 && reasoning != null && !reasoning.isBlank()) {
-			reasoningOutTokens = this.tokenizer.count(reasoning, modelProfile);
+			reasoningOutTokens = this.tokenizerResolver.count(reasoning, modelProfile);
 			outTokens -= reasoningOutTokens;
 		}
 		if (outTokens <= 0 && response != null && !response.isBlank()) {
-			outTokens = this.tokenizer.count(response, modelProfile);
+			outTokens = this.tokenizerResolver.count(response, modelProfile);
 		}
 		
 		// Calculate cost - inTokens and outTokens are already exclusive of cached/reasoning tokens

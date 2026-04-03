@@ -1,6 +1,5 @@
 package de.extio.lmlib.token;
 
-import java.time.Duration;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -12,12 +11,19 @@ import de.extio.lmlib.profile.ModelProfile;
 
 final class LlamaServerTokenizer implements Tokenizer {
 	
+	static final String NAME = "llamaServer";
+	
 	private static final Logger LOGGER = LoggerFactory.getLogger(LlamaServerTokenizer.class);
 	
 	private final RestClient.Builder restClientBuilder;
 	
 	public LlamaServerTokenizer(final RestClient.Builder restClientBuilder) {
 		this.restClientBuilder = restClientBuilder;
+	}
+	
+	@Override
+	public String getName() {
+		return NAME;
 	}
 	
 	@Override

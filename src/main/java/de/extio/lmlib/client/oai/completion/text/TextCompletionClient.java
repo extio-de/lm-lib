@@ -200,12 +200,12 @@ public class TextCompletionClient extends AbstractCompletionClient {
 	private String createPrompt(final Conversation conversation, final ModelProfile modelProfile, final PromptStrategy promptStrategy) {
 		StringBuilder prompt = this.formatConversation(conversation, promptStrategy);
 		
-		List<Long> tokenized = this.tokenizer.tokenize(prompt.toString(), modelProfile);
+		List<Long> tokenized = this.tokenizerResolver.tokenize(prompt.toString(), modelProfile);
 		final int maxLength = modelProfile.maxContextLength() - modelProfile.maxTokens() - 15; // 15 is a margin for EOT and other special tokens
 		if (tokenized.size() > maxLength) {
 			LOGGER.warn("Prompt too long: {} tokens / {} max. Prompt will be cut!", tokenized.size(), maxLength);
 			tokenized = tokenized.subList(0, maxLength);
-			prompt = new StringBuilder(this.tokenizer.detokenize(tokenized, modelProfile));
+			prompt = new StringBuilder(this.tokenizerResolver.detokenize(tokenized, modelProfile));
 		}
 		
 		LOGGER.debug("Completion request for {}. Input tokens: {}", modelProfile.category(), tokenized.size());

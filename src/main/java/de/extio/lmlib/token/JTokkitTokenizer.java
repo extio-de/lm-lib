@@ -14,6 +14,8 @@ import de.extio.lmlib.profile.ModelProfile;
 
 final class JTokkitTokenizer implements Tokenizer {
 	
+	static final String NAME = "jTokkit";
+	
 	private static final EncodingRegistry registry;
 	
 	static {
@@ -27,9 +29,14 @@ final class JTokkitTokenizer implements Tokenizer {
 			});
 	
 	@Override
+	public String getName() {
+		return NAME;
+	}
+	
+	@Override
 	public List<Long> tokenize(final String txt, final ModelProfile modelProfile) {
 		return this.encodings
-				.get(modelProfile.tokenEncoding())
+				.get(this.getTokenEncoding(modelProfile))
 				.encodeOrdinary(txt)
 				.boxed()
 				.stream()
@@ -39,7 +46,7 @@ final class JTokkitTokenizer implements Tokenizer {
 	
 	@Override
 	public int count(final String txt, final ModelProfile modelProfile) {
-		return this.encodings.get(modelProfile.tokenEncoding()).countTokensOrdinary(txt);
+		return this.encodings.get(this.getTokenEncoding(modelProfile)).countTokensOrdinary(txt);
 	}
 	
 	@Override
@@ -47,7 +54,14 @@ final class JTokkitTokenizer implements Tokenizer {
 		final var ial = new IntArrayList(tokens.size());
 		tokens.forEach(t -> ial.add(t.intValue()));
 		return this.encodings
-				.get(modelProfile.tokenEncoding())
+				.get(this.getTokenEncoding(modelProfile))
 				.decode(ial);
+	}
+
+	private String getTokenEncoding(final ModelProfile modelProfile) {
+		if (modelProfile.tokenEncoding() == null || modelProfile.tokenEncoding().isBlank() || "none".equalsIgnoreCase(modelProfile.tokenEncoding())) {
+			return "cl100k_base"; // default encoding, used by most models. Will be used if the profile doesn't specify an encoding or specifies an invalid one.
+		}
+		return modelProfile.tokenEncoding();
 	}
 }

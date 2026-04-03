@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 public record ModelProfile(
 		String prompt,
+		String tokenizer,
 		String tokenEncoding,
 		int maxTokens,
 		int maxContextLength,
