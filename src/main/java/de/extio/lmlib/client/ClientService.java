@@ -32,6 +32,11 @@ public class ClientService {
 		return this.getClient(modelProfile);
 	}
 
+	public List<String> getModelNames(final ModelCategory category, final boolean forceReload) {
+		final var modelProfile = this.modelProfileService.getModelProfile(category.getModelProfile(), category);
+		return this.getModelNames(modelProfile, forceReload);
+	}
+
 	public boolean supportsToolCalling(final ModelCategory category) {
 		return this.getClient(category).supportsToolCalling();
 	}
@@ -44,6 +49,10 @@ public class ClientService {
 				.map(client -> this.cachedClientRepository == null ? client : new CachedClient(this.cachedClientRepository, this.modelProfileService, client))
 				.map(client -> this.completionInterceptors == null || this.completionInterceptors.isEmpty() ? client : new InterceptingClient(client, this.modelProfileService, this.completionInterceptors))
 				.orElseThrow(() -> new IllegalStateException("No client found for model profile " + modelProfile.modelName()));
+	}
+
+	public List<String> getModelNames(final ModelProfile modelProfile, final boolean forceReload) {
+		return this.getClient(modelProfile).getModelNames(modelProfile, forceReload);
 	}
 
 	public boolean supportsToolCalling(final ModelProfile modelProfile) {
@@ -100,6 +109,11 @@ public class ClientService {
 				completion = interceptor.after(modelProfile, conversation, completion);
 			}
 			return completion;
+		}
+
+		@Override
+		public List<String> getModelNames(final ModelProfile modelProfile, final boolean forceReload) {
+			return this.client.getModelNames(modelProfile, forceReload);
 		}
 		
 		@Override

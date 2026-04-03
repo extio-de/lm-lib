@@ -6,7 +6,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
-import de.extio.lmlib.client.oai.ModelNameSupplier;
 import de.extio.lmlib.client.oai.completion.chat.ChatCompletionClient;
 import de.extio.lmlib.client.oai.completion.text.TextCompletionClient;
 import de.extio.lmlib.profile.ProfileAutoConfiguration;
@@ -21,12 +20,6 @@ public class ClientAutoConfiguration {
 	@ConditionalOnMissingBean
 	ClientService clientService() {
 		return new ClientService();
-	}
-	
-	@Bean
-	@ConditionalOnMissingBean
-	ModelNameSupplier modelNameSupplier() {
-		return new ModelNameSupplier();
 	}
 	
 	@Bean

@@ -6,6 +6,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -65,6 +66,11 @@ public class CachedClient implements Client {
 		}
 		return response;
 	}
+
+	@Override
+	public List<String> getModelNames(final ModelProfile modelProfile, final boolean forceReload) {
+		return this.client.getModelNames(modelProfile, forceReload);
+	}
 	
 	@Override
 	public ModelProvider getModelProvider() {
@@ -117,7 +123,7 @@ public class CachedClient implements Client {
 		MessageDigest digest;
 		try {
 			digest = MessageDigest.getInstance("SHA-256");
-			digest.update(modelProfile.modelName().getBytes());
+			digest.update(this.resolvePrimaryModelName(modelProfile).getBytes());
 			digest.update(modelCategory != null ? modelCategory.shortName().getBytes() : modelProfile.category().getBytes());
 			digest.update(String.valueOf(modelProfile.modelProvider()).getBytes());
 			digest.update(String.valueOf(modelProfile.maxTokens()).getBytes());
@@ -134,6 +140,13 @@ public class CachedClient implements Client {
 		catch (final NoSuchAlgorithmException e) {
 			throw new RuntimeException("Error calculating hash", e);
 		}
+	}
+
+	private String resolvePrimaryModelName(final ModelProfile modelProfile) {
+		if (modelProfile.modelName() != null && !modelProfile.modelName().isBlank()) {
+			return modelProfile.modelName();
+		}
+		return this.client.getModelNames(modelProfile, false).stream().findFirst().orElse("");
 	}
 	
 }

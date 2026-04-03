@@ -1,5 +1,6 @@
 package de.extio.lmlib.client;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 import de.extio.lmlib.profile.ModelCategory;
@@ -15,6 +16,8 @@ public interface Client {
 	Completion streamConversation(ModelCategory modelCategory, Conversation conversation, Consumer<Chunk> chunkConsumer, ToolCallData toolCallData, boolean skipCache);
 	
 	Completion streamConversation(ModelProfile modelProfile, Conversation conversation, Consumer<Chunk> chunkConsumer, ToolCallData toolCallData, boolean skipCache);
+
+	List<String> getModelNames(ModelProfile modelProfile, boolean forceReload);
 	
 	ModelProvider getModelProvider();
 

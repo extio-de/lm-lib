@@ -50,7 +50,7 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		final var chat = createChats(conversation, modelProfile);
 		
 		final var request = new ChatCompletionRequest();
-		request.setModel(this.modelNameSupplier.getModelName(modelProfile));
+		request.setModel(this.getPrimaryModelName(modelProfile));
 		request.setMessages(chat);
 		request.setMaxTokens(modelProfile.maxTokens());
 		request.setMaxCompletionTokens(modelProfile.maxTokens());

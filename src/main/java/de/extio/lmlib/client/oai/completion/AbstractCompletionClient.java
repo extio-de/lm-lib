@@ -5,6 +5,9 @@ import java.text.DecimalFormat;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
@@ -13,7 +16,10 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpMethod;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.core.json.JsonReadFeature;
@@ -27,7 +33,8 @@ import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.ToolCallData;
-import de.extio.lmlib.client.oai.ModelNameSupplier;
+import de.extio.lmlib.client.oai.Model;
+import de.extio.lmlib.client.oai.ModelsResponse;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
@@ -43,9 +50,6 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 	protected RestClient.Builder restClientBuilder;
 	
 	@Autowired
-	protected ModelNameSupplier modelNameSupplier;
-	
-	@Autowired
 	protected Tokenizer tokenizer;
 	
 	@Autowired
@@ -54,6 +58,8 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 	@Value("${client.collectStatistics:false}")
 	protected boolean collectStatistics;
 	
+	protected final Map<String, List<String>> resolvedModelNames = new ConcurrentHashMap<>();
+
 	protected final CompletionStatistics totalStatistics = new CompletionStatistics();
 	
 	protected final ObjectMapper objectMapper;
@@ -107,8 +113,60 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 		
 		return this.requestCompletion(conversation, modelProfile, chunkConsumer, toolCallData);
 	}
+
+	@Override
+	public List<String> getModelNames(final ModelProfile modelProfile, final boolean forceReload) {
+		if (modelProfile == null || (modelProfile.modelProvider() != ModelProvider.OAI_TEXT_COMPLETION && modelProfile.modelProvider() != ModelProvider.OAI_CHAT_COMPLETION)) {
+			return List.of();
+		}
+		if (modelProfile.modelName() != null && !modelProfile.modelName().isBlank()) {
+			return List.of(modelProfile.modelName());
+		}
+		if (modelProfile.url() == null || modelProfile.url().isBlank()) {
+			return List.of();
+		}
+		
+		final var cacheKey = modelProfile.category() + "|" + modelProfile.url() + "|" + modelProfile.apiKey();
+		if (forceReload) {
+			final var modelNames = this.loadModelNames(modelProfile);
+			this.resolvedModelNames.put(cacheKey, modelNames);
+			return modelNames;
+		}
+		return this.resolvedModelNames.computeIfAbsent(cacheKey, key -> this.loadModelNames(modelProfile));
+	}
 	
 	protected abstract Completion requestCompletion(final Conversation conversation, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData);
+
+	protected String getPrimaryModelName(final ModelProfile modelProfile) {
+		return this.getModelNames(modelProfile, false).stream().findFirst().orElse("");
+	}
+
+	private List<String> loadModelNames(final ModelProfile modelProfile) {
+		try {
+			final var restClient = this.restClientBuilder.baseUrl(modelProfile.url()).build();
+			final var response = restClient
+					.method(HttpMethod.GET)
+					.uri(uriBuilder -> uriBuilder.path("/v1/models").build())
+					.retrieve()
+					.body(ModelsResponse.class);
+			return response == null || response.getData() == null ? List.of() : response.getData()
+					.stream()
+					.map(Model::getId)
+					.filter(modelName -> modelName != null && !modelName.isBlank())
+					.toList();
+		}
+		catch (final RestClientResponseException e) {
+			LOGGER.warn("Failed to load model names: {} {}", e.getStatusCode(), e.getStatusText());
+			return List.of();
+		}
+		catch (final RestClientException e) {
+			LOGGER.warn("Failed to load model names: {}", e.getMessage());
+			return List.of();
+		}
+		catch (final RuntimeException e) {
+			return List.of();
+		}
+	}
 	
 	protected CompletionFinishReason mapFinishReason(final String finishReason) {
 		return switch (finishReason) {
