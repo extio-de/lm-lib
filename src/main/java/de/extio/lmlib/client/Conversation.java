@@ -55,6 +55,23 @@ public final class Conversation {
 		}
 	}
 
+	public void appendToolCallRound(final Completion completion, final List<ToolResult> toolResults) {
+		if (completion == null) {
+			throw new IllegalArgumentException("completion must not be null");
+		}
+		this.appendToolCallRound(completion.response(), completion.toolCalls(), toolResults);
+	}
+
+	public void appendToolCallRound(final String assistantText, final List<ToolCall> toolCalls, final List<ToolResult> toolResults) {
+		this.addTurn(new Turn(TurnType.ASSISTANT, assistantText == null ? "" : assistantText, toolCalls, null));
+		if (toolResults == null || toolResults.isEmpty()) {
+			return;
+		}
+		for (final var toolResult : toolResults) {
+			this.addTurn(new Turn(TurnType.TOOL, toolResult.text(), null, toolResult.toolCallId()));
+		}
+	}
+
 	public void rewindTurn() {
 		synchronized (this.conversation) {
 			if (this.conversation.size() > 1) {
@@ -91,6 +108,13 @@ public final class Conversation {
 
 		public Turn(final TurnType type, final String text) {
 			this(type, text, List.of(), null);
+		}
+	}
+
+	public record ToolResult(String text, String toolCallId) {
+
+		public ToolResult {
+			text = text == null ? "" : text;
 		}
 	}
 	

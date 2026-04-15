@@ -27,6 +27,10 @@ public record ToolCallData(List<ToolDefinition> tools, String toolChoice, String
 		return new ToolCallData(List.copyOf(tools), null, forcedToolName, null);
 	}
 
+	public ToolCallData withParallelToolCalls(final boolean parallelToolCalls) {
+		return new ToolCallData(this.tools, this.toolChoice, this.forcedToolName, parallelToolCalls);
+	}
+
 	public boolean hasTools() {
 		return !this.tools.isEmpty();
 	}

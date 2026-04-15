@@ -382,24 +382,32 @@ final var weatherTool = new ToolDefinition(
     true
 );
 
-final var toolCallData = ToolCallData.required(List.of(weatherTool));
+final var trafficTool = new ToolDefinition(
+    "get_traffic",
+    "Gets the current traffic for a given location.",
+    ToolParameters.create(Map.of("location", "City and country, for example Berlin, Germany")),
+    true
+);
+
+final var toolCallData = ToolCallData.required(List.of(weatherTool, trafficTool)).withParallelToolCalls(true);
 final var completion = client.conversation(ModelCategory.MEDIUM, conversation, toolCallData, false);
 
 if (completion.finishReason() == CompletionFinishReason.TOOL_CALLS) {
-    final var toolCall = completion.toolCalls().getFirst();
-
-    conversation.addTurn(new Conversation.Turn(Conversation.TurnType.ASSISTANT, "", completion.toolCalls(), null));
-    conversation.addTurn(new Conversation.Turn(
-        Conversation.TurnType.TOOL,
-        ToolParameters.create().add("forecast", "Berlin is rainy and 21C").json(),
-        null,
-        toolCall.id()
+    conversation.appendToolCallRound(completion, List.of(
+        new Conversation.ToolResult(
+            ToolParameters.create().add("forecast", "Berlin is rainy and 21C").json(),
+            completion.toolCalls().getFirst().id()
+        ),
+        new Conversation.ToolResult(
+            ToolParameters.create().add("traffic", "Berlin traffic is congested").json(),
+            completion.toolCalls().get(1).id()
+        )
     ));
 
     final var finalCompletion = client.conversation(
         ModelCategory.MEDIUM,
         conversation,
-        ToolCallData.auto(List.of(weatherTool)),
+        ToolCallData.auto(List.of(weatherTool, trafficTool)),
         false
     );
 }
@@ -408,8 +416,13 @@ if (completion.finishReason() == CompletionFinishReason.TOOL_CALLS) {
 `ToolCallData` helpers:
 
 - `ToolCallData.auto(...)`: model may decide whether to call a tool
-- `ToolCallData.required(...)`: model must choose one of the provided tools
+- `ToolCallData.required(...)`: model must call one or more of the provided tools
 - `ToolCallData.force(...)`: model must call a specific named tool
+- `toolCallData.withParallelToolCalls(true)`: asks OpenAI-compatible backends for multiple independent tool calls in one turn when the server and model support `parallel_tool_calls`
+
+If a model returns multiple tool calls, append one assistant turn containing the returned `toolCalls()`, then append one tool turn per returned `tool_call_id` before requesting the follow-up completion.
+
+`Conversation.appendToolCallRound(...)` wraps that handoff into one call by appending the assistant turn with the returned tool calls and then one tool turn per provided `Conversation.ToolResult`.
 
 The returned `Completion` now exposes `toolCalls()` in addition to `response()`, `reasoning()`, `finishReason()`, and `statistics()`.
 
@@ -422,7 +435,7 @@ Both streaming and non-streaming execution paths are supported.
 - Each `Chunk` exposes both `content()` and `reasoningContent()`.
 - Final `Completion` objects expose `response()`, `reasoning()`, `finishReason()`, `statistics()`, and `toolCalls()`.
 
-If a chat completion decides to call a tool, `finishReason()` is `CompletionFinishReason.TOOL_CALLS` and `toolCalls()` contains the requested function calls. Streaming chat completions also aggregate tool calls into the final `Completion`.
+If a chat completion decides to call a tool, `finishReason()` is `CompletionFinishReason.TOOL_CALLS` and `toolCalls()` contains the requested function calls. Streaming chat completions also aggregate tool calls into the final `Completion`, including multi-tool responses when `parallel_tool_calls` is enabled and supported by the backend.
 
 This lets you stream visible output while still capturing final structured accounting data.
 

@@ -307,10 +307,9 @@ public interface BaseAgent {
 	}
 
 	private void appendToolCallResults(final Conversation conversation, final Completion completion, final List<ToolCallingAgentResponseHandler.ToolCallResult> toolCallResults) {
-		conversation.addTurn(new Conversation.Turn(TurnType.ASSISTANT, completion.response() == null ? "" : completion.response(), completion.toolCalls(), null));
-		for (final var toolCallResult : toolCallResults) {
-			conversation.addTurn(new Conversation.Turn(TurnType.TOOL, toolCallResult.output(), null, toolCallResult.toolCallId()));
-		}
+		conversation.appendToolCallRound(completion, toolCallResults.stream()
+				.map(toolCallResult -> new Conversation.ToolResult(toolCallResult.output(), toolCallResult.toolCallId()))
+				.toList());
 	}
 	
 	private List<Split> applyTemplate(final AgentContext context) {

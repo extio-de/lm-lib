@@ -27,6 +27,7 @@ import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
+import de.extio.lmlib.client.ToolCall;
 import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.ToolDefinition;
 import de.extio.lmlib.client.ToolParameters;
@@ -153,15 +154,20 @@ public class CompletionClientTest {
 	@Test
 	void toolCallingChatCompletion() throws Exception {
 		final var modelProfile = this.modelProfileService.getModelProfile("profile.model.chatcompletion");
-		final var toolDefinition = new ToolDefinition(
+		final var weatherToolDefinition = new ToolDefinition(
 				"get_weather",
 				"Gets the current weather for a given location.",
 				ToolParameters.create(Map.of("location", "City and country, for example Berlin, Germany")),
 				true);
+		final var trafficToolDefinition = new ToolDefinition(
+			"get_traffic",
+			"Gets the current traffic for a given location.",
+			ToolParameters.create(Map.of("location", "City and country, for example Berlin, Germany")),
+			true);				
 		final var conversation = Conversation.create(
-				"You are a helpful assistant. Use the provided tool when the user asks for weather information. After receiving tool results, answer using the forecast from the tool output.",
-				"What is the weather in Berlin, Germany? Use the tool.");
-		final var toolCallData = ToolCallData.required(List.of(toolDefinition));
+				"You are a helpful assistant. Use the provided tools when the user asks for location information. After receiving tool results, answer the question from the tool output.",
+				"What is the weather and how is the traffic in Berlin, Germany? Use the tool.");
+		final var toolCallData = ToolCallData.required(List.of(weatherToolDefinition, trafficToolDefinition)).withParallelToolCalls(true);
 		final var completion = this.chatCompletionclient.conversation(
 				modelProfile,
 				conversation,
@@ -172,16 +178,22 @@ public class CompletionClientTest {
 		assertFalse(this.textCompletionClient.supportsToolCalling());
 		assertTrue(this.clientService.supportsToolCalling(modelProfile));
 		assertTrue(completion.finishReason() == CompletionFinishReason.TOOL_CALLS);
-		assertFalse(completion.toolCalls().isEmpty());
-		assertEquals("get_weather", completion.toolCalls().getFirst().name());
-		assertTrue(completion.toolCalls().getFirst().arguments().contains("Berlin"));
+		assertEquals(2, completion.toolCalls().size());
+		final var weatherToolCall = this.findToolCall(completion.toolCalls(), "get_weather");
+		final var trafficToolCall = this.findToolCall(completion.toolCalls(), "get_traffic");
+		assertTrue(weatherToolCall.arguments().contains("Berlin"));
 
-		conversation.addTurn(new Turn(TurnType.ASSISTANT, "", completion.toolCalls(), null));
-		conversation.addTurn(new Turn(TurnType.TOOL, ToolParameters.create().add("forecast", "Berlin is rainy and 21C").json(), null, completion.toolCalls().getFirst().id()));
+		conversation.appendToolCallRound(completion, List.of(
+				new Conversation.ToolResult(ToolParameters.create()
+						.add("forecast", "Berlin is rainy and 21C")
+						.json(), weatherToolCall.id()),
+				new Conversation.ToolResult(ToolParameters.create()
+						.add("traffic", "Berlin Autobahn is congested")
+						.json(), trafficToolCall.id())));
 
-		final var finalCompletion = this.chatCompletionclient.conversation(modelProfile, conversation, ToolCallData.auto(List.of(toolDefinition)), false);
+		final var finalCompletion = this.chatCompletionclient.conversation(modelProfile, conversation, ToolCallData.auto(List.of(weatherToolDefinition, trafficToolDefinition)), false);
 		assertTrue(finalCompletion.finishReason() == CompletionFinishReason.DONE);
-		assertTrue(Grader2.assessScoreBinary("Does the text say that Berlin is rainy and 21C?", finalCompletion.response(), modelProfile, this.clientService));
+		assertTrue(Grader2.assessScoreBinary("Does the text say that Berlin is rainy and 21C and that traffic in Berlin is congested?", finalCompletion.response(), modelProfile, this.clientService));
 	}
 	
 	@Test
@@ -197,11 +209,12 @@ public class CompletionClientTest {
 				"Gets the current CPU utilization.",
 				ToolParameters.create(Map.of("cpu", "CPU identifier, for example CPU0. Use CPU for overall utilization.")),
 				true);
+		final var conversation = Conversation.create(
+				"You are a helpful assistant. Use the provided tools when applicable. If multiple independent tools are needed, call them in the same turn.",
+				"What is the weather and how high is the current CPU utilization in Berlin, Germany? Use the tools.");
 		final var completion = this.chatCompletionclient.streamConversation(
 				modelProfile,
-				Conversation.create(
-						"You are a helpful assistant. Use the provided tool when applicable.",
-						"How high is the current CPU utilization?"),
+				conversation,
 				chunk -> {
 					if (chunk.reasoningContent() != null) {
 						System.out.print(chunk.reasoningContent());
@@ -210,16 +223,30 @@ public class CompletionClientTest {
 						System.out.print(chunk.content());
 					}
 				},
-				ToolCallData.required(List.of(getWeather, getCpu)),
+				ToolCallData.required(List.of(getWeather, getCpu)).withParallelToolCalls(true),
 				false);
 		
 		assertTrue(this.chatCompletionclient.supportsToolCalling());
 		assertFalse(this.textCompletionClient.supportsToolCalling());
 		assertTrue(this.clientService.supportsToolCalling(modelProfile));
 		assertTrue(completion.finishReason() == CompletionFinishReason.TOOL_CALLS);
-		assertFalse(completion.toolCalls().isEmpty());
-		assertEquals("get_cpu", completion.toolCalls().getFirst().name());
-		assertTrue(completion.toolCalls().getFirst().arguments().contains("CPU"));
+		assertEquals(2, completion.toolCalls().size());
+		final var weatherToolCall = this.findToolCall(completion.toolCalls(), "get_weather");
+		final var cpuToolCall = this.findToolCall(completion.toolCalls(), "get_cpu");
+		assertTrue(weatherToolCall.arguments().contains("Berlin"));
+		assertTrue(cpuToolCall.arguments().contains("CPU"));
+
+		conversation.appendToolCallRound(completion, List.of(
+				new Conversation.ToolResult(ToolParameters.create()
+						.add("forecast", "Berlin is rainy and 21C")
+						.json(), weatherToolCall.id()),
+				new Conversation.ToolResult(ToolParameters.create()
+						.add("cpu", "CPU is at 37 percent utilization")
+						.json(), cpuToolCall.id())));
+
+		final var finalCompletion = this.chatCompletionclient.conversation(modelProfile, conversation, ToolCallData.auto(List.of(getWeather, getCpu)), false);
+		assertTrue(finalCompletion.finishReason() == CompletionFinishReason.DONE);
+		assertTrue(Grader2.assessScoreBinary("Does the text say that Berlin is rainy and 21C and that CPU utilization is 37 percent?", finalCompletion.response(), modelProfile, this.clientService));
 	}
 	
 	@Disabled
@@ -276,6 +303,13 @@ public class CompletionClientTest {
 		tasks.task4.run();
 		
 		LOGGER.info("Duration: " + java.time.Duration.between(start, LocalDateTime.now()));
+	}
+
+	private ToolCall findToolCall(final List<ToolCall> toolCalls, final String toolName) {
+		return toolCalls.stream()
+				.filter(toolCall -> toolName.equals(toolCall.name()))
+				.findFirst()
+				.orElseThrow(() -> new IllegalStateException("Missing tool call: " + toolName));
 	}
 	
 	private Tasks createTasks() {
