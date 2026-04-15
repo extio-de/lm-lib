@@ -913,3 +913,49 @@ AgentRequestStatistic [requests=8, cachedPrompts=0, inTokens=27393, outTokens=48
 ```
 
 This trace shows a typical pattern: summarize, identify multiple features, fan out into parallel analysis, merge results, and generate a final answer while preserving usage statistics.
+
+---
+
+# Example Output of Unit Test AgentTest#agenticFlow
+
+## Announcing the New `BaseAgent` Framework: High-Performance, Context-Aware AI Orchestration
+
+We are thrilled to introduce the new **`BaseAgent`** framework, a robust Java-based abstraction designed to streamline complex AI workflows. Built on proven patterns similar to LangChain, this framework empowers developers to create scalable, multi-path agent systems with minimal boilerplate.
+
+At its core, `BaseAgent` provides a standardized lifecycle for interacting with LLMs, handling everything from dynamic prompt generation to sophisticated tool usage and state management. It is engineered to handle high-concurrency workloads while maintaining precise control over conversation history and execution flow.
+
+## Key Capabilities
+
+### 🚀 Parallel Execution with Automatic Aggregation
+Stop managing multiple agent instances manually. The framework automatically decomposes a single agent context into parallel execution paths using **`Split` objects**.
+*   **Concurrency:** Leverages `CompletableFuture` and `ExecutorService` to run agent variations simultaneously.
+*   **Aggregation:** Automatically filters errors, sorts results, and merges successful outputs before determining the next workflow step.
+*   **Visualization:** Includes built-in graph markers to visually track parallel branches and merge points during execution.
+
+### 🌿 Conditional Prompt Branching
+Ditch code duplication for multi-scenario prompts. The framework detects special placeholders (e.g., `[[key]]`) in your templates and dynamically generates distinct execution threads based on context variable values.
+*   **Dynamic Paths:** Automatically creates separate agent runs for each unique value in a list (e.g., processing different user IDs or product options in parallel).
+*   **Hidden Logic:** Supports "hidden" branches (`[[key|hidden]]`) to influence execution flow without exposing internal logic to the LLM.
+*   **Smart Limits:** Calculates branch counts based on the smallest variable list to ensure balanced parallel execution.
+
+### 🔁 Iterative Tool Calling with Retry Logic
+Enable agents to perform complex, multi-step tasks autonomously. The framework implements a robust "Plan-Act-Observed" loop within the execution engine.
+*   **Automatic Injection:** Detects tool calls, executes them, and seamlessly appends results back into the conversation history for the LLM to read in the next turn.
+*   **Safety Limits:** Prevents infinite loops by capping tool call rounds (default: 4) and retry attempts for parsing failures (default: 2).
+*   **Resilience:** Gracefully handles malformed responses or parsing errors, marking specific splits as failed while allowing others to succeed.
+
+### 💬 Dynamic Conversation State Management
+Maintain perfect context awareness across multi-agent chains without manual state tracking.
+*   **Smart Initialization:** Automatically constructs conversation histories based on `AgentType`, handling system prompts, new starts, and continuations.
+*   **Seamless Transitions:** intelligently merges system prompts into user turns or clears history when switching to completion-only agents.
+*   **State Propagation:** Ensures tool call data and conversation turns are correctly preserved or cleared as the workflow moves between agents.
+
+### 🔄 Intelligent Agent Chaining and Routing
+Navigate complex workflows with automatic decision-making based on execution outcomes.
+*   **Outcome-Based Routing:** The `nextAgent` logic dynamically selects the subsequent agent based on the current context and agent type (e.g., routing to a `COMPLETION` agent after a `PROCESSING_ONLY` step).
+*   **Flexible Types:** Supports diverse agent roles including `START_CONVERSATION`, `CONVERSATION`, `COMPLETION`, and `PROCESSING_ONLY`.
+*   **Error Containment:** Isolates execution errors within specific splits, preventing a single failure from halting the entire workflow.
+
+Qwen3.5-9B-Q8_0
+[M, CodeSummarizer, (19184 ms), ↴, M, FeatureIdentifier, (5273 ms), →, ⇉ 1/5, M, FeatureAnalyzer, (52686 ms), 5↣1, →, M, AnswerGenerator, (20392 ms)]
+AgentRequestStatistic [requests=8, cachedPrompts=0, inTokens=28281, cachedInTokens=13498, outTokens=6677, reasoningOutTokens=0, requestDuration=PT4M11.98566101S, getEffectiveDuration()=PT2M32.67066665S, getTps()=228.98, getOutTps()=43.73, getCost()=0]

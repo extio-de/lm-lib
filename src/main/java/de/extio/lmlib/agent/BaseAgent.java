@@ -68,6 +68,10 @@ public interface BaseAgent {
 	}
 
 	default ToolCallData toolCallData(final AgentContext context) {
+		final var configuredToolCallData = context.getValue("_toolCallData", ToolCallData.class);
+		if (configuredToolCallData != null) {
+			return configuredToolCallData;
+		}
 		final var toolDefinitions = this.toolDefinitions(context);
 		if (toolDefinitions == null || toolDefinitions.isEmpty()) {
 			final var rememberedToolCallData = context.getToolCallData();
@@ -157,7 +161,7 @@ public interface BaseAgent {
 						final boolean skipCache = split.context().isSkipCache() || split.context().isAlwaysSkipCache();
 						split.context().setSkipCache(false);
 						final var conversation = this.setupConversation(split);
-						final var toolCallData = completionClient.supportsToolCalling() ? this.toolCallData(split.context()) : null;
+						var toolCallData = completionClient.supportsToolCalling() ? this.toolCallData(split.context()) : null;
 						this.rememberToolCallData(split.context(), toolCallData);
 						
 						boolean parseable = false;
@@ -214,6 +218,9 @@ public interface BaseAgent {
 								if (toolCallingAgentResponseHandler.handleToolCalls(completion, split.context(), toolCallResults)) {
 									toolCallRounds++;
 									this.appendToolCallResults(conversation, completion, toolCallResults.results());
+									if (toolCallData != null && toolCallData.hasTools()) {
+										toolCallData = ToolCallData.auto(toolCallData.tools());
+									}
 									continue;
 								}
 							}
@@ -450,6 +457,7 @@ public interface BaseAgent {
 
 	private void clearRememberedToolCallData(final AgentContext context) {
 		context.setToolCallData(null);
+		context.setValue("_toolCallData", null);
 	}
 	
 	private void nextAgent(final AgentContext context, final boolean skipCompletion) {
