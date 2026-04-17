@@ -6,12 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -220,8 +220,7 @@ public class AgentTest {
 									if (completion.toolCalls().isEmpty()) {
 										return false;
 									}
-									agentContext.setStringValues("toolNames", completion.toolCalls().stream().map(ToolCall::name).toList());
-									agentContext.setStringValues("toolArguments", completion.toolCalls().stream().map(toolCall -> toolCall.arguments() == null ? "" : toolCall.arguments()).toList());
+									this.recordToolCalls(agentContext, completion.toolCalls());
 									var handledToolCall = false;
 									for (final var toolCall : completion.toolCalls()) {
 										if ("get_weather".equals(toolCall.name())) {
@@ -248,6 +247,75 @@ public class AgentTest {
 		final var answer = resultContext.getStringValue("answer");
 
 		assertEquals(1, resultContexts.size());
+		assertTrue(this.hasToolCall(resultContext, "get_weather", "Berlin"));
+		assertTrue(this.hasToolCall(resultContext, "get_traffic", "Berlin"));
+		assertTrue(Grader2.assessScoreBinary("Does the text say that Berlin is rainy and 21C?", answer, ModelCategory.MEDIUM, this.modelProfileService, this.clientService));
+		assertTrue(Grader2.assessScoreBinary("Does the text say that traffic in Berlin is congested?", answer, ModelCategory.MEDIUM, this.modelProfileService, this.clientService));
+	}
+
+	@Test
+	void sequentialToolCallingAgenticFlow() {
+		final var weatherTool = new ToolDefinition(
+				"get_weather",
+				"Gets the current weather for a given location.",
+				ToolParameters.create(Map.of("location", "City and country, for example Berlin, Germany")),
+				true);
+		final var trafficTool = new ToolDefinition(
+				"get_traffic",
+				"Gets the current traffic for a given location.",
+				ToolParameters.create(Map.of("location", "City and country, for example Berlin, Germany")),
+				true);
+		final var agents = Map.of(
+				"ToolCaller",
+				new Agent("ToolCaller",
+						AgentType.START_CONVERSATION,
+						ModelCategory.MEDIUM,
+						null,
+						"You must call both provided tools for this request, but never in the same turn. Call exactly one tool per assistant turn. After the first tool result is available, call the remaining tool in the next turn. After both tool results are available, answer in one sentence that explicitly includes the exact facts from both tool outputs.",
+						"What is the weather and how is the traffic in Berlin, Germany? Call the tools one after another, one tool per turn.",
+						List.of(weatherTool, trafficTool),
+						new ToolCallingAgentResponseHandler(
+								new TextAgentResponseHandler("answer"),
+								(completion, agentContext, toolCallResults) -> {
+									if (completion.toolCalls().isEmpty()) {
+										return false;
+									}
+									this.recordToolCalls(agentContext, completion.toolCalls());
+									var handledToolCall = false;
+									for (final var toolCall : completion.toolCalls()) {
+										if ("get_weather".equals(toolCall.name())) {
+											toolCallResults.add(toolCall, ToolParameters.create().add("forecast", "Berlin is rainy and 21C"));
+											handledToolCall = true;
+										}
+										else if ("get_traffic".equals(toolCall.name())) {
+											toolCallResults.add(toolCall, ToolParameters.create().add("traffic", "Berlin traffic is congested"));
+											handledToolCall = true;
+										}
+									}
+									return handledToolCall;
+								}),
+						context -> context.setValue("_toolCallData", ToolCallData.required(List.of(weatherTool, trafficTool)).withParallelToolCalls(false)),
+						null,
+						null,
+						AgentNext::end));
+
+		final var context = new AgentContext(agents);
+		assertTrue(agents.get("ToolCaller").supportsToolCalling(context, this.clientService));
+
+		final var resultContexts = this.agentExecutor.walk(agents.get("ToolCaller"), context);
+		final var resultContext = resultContexts.getFirst();
+		final var answer = resultContext.getStringValue("answer");
+		final var assistantToolCallTurns = resultContext.getConversation().getConversation().stream()
+				.filter(turn -> turn.type() == Conversation.TurnType.ASSISTANT && !turn.toolCalls().isEmpty())
+				.toList();
+
+		assertEquals(1, resultContexts.size());
+		assertEquals(2, assistantToolCallTurns.size());
+		assertEquals(1, assistantToolCallTurns.getFirst().toolCalls().size());
+		assertEquals(1, assistantToolCallTurns.getLast().toolCalls().size());
+		assertTrue(assistantToolCallTurns.stream().map(turn -> turn.toolCalls().getFirst().name()).toList().contains("get_weather"));
+		assertTrue(assistantToolCallTurns.stream().map(turn -> turn.toolCalls().getFirst().name()).toList().contains("get_traffic"));
+		assertEquals(2L, resultContext.getConversation().getConversation().stream().filter(turn -> turn.type() == Conversation.TurnType.TOOL).count());
 		assertTrue(this.hasToolCall(resultContext, "get_weather", "Berlin"));
 		assertTrue(this.hasToolCall(resultContext, "get_traffic", "Berlin"));
 		assertTrue(Grader2.assessScoreBinary("Does the text say that Berlin is rainy and 21C?", answer, ModelCategory.MEDIUM, this.modelProfileService, this.clientService));
@@ -436,6 +504,25 @@ public class AgentTest {
 			assertEquals(expected, Integer.parseInt(resultContext.getContext().get("result").getFirst().toString().strip()));
 			LOGGER.info(number0 + " + " + number1 + " = " + expected + "; " + resultContext.getGraph().toString() + " " + resultContext.getRequestStatistic().toString());
 		}
+	}
+
+	private void recordToolCalls(final AgentContext context, final List<ToolCall> toolCalls) {
+		final var toolNames = new ArrayList<String>();
+		final var existingToolNames = context.getStringValues("toolNames");
+		if (existingToolNames != null) {
+			toolNames.addAll(existingToolNames);
+		}
+		final var toolArguments = new ArrayList<String>();
+		final var existingToolArguments = context.getStringValues("toolArguments");
+		if (existingToolArguments != null) {
+			toolArguments.addAll(existingToolArguments);
+		}
+		for (final var toolCall : toolCalls) {
+			toolNames.add(toolCall.name());
+			toolArguments.add(toolCall.arguments() == null ? "" : toolCall.arguments());
+		}
+		context.setStringValues("toolNames", toolNames);
+		context.setStringValues("toolArguments", toolArguments);
 	}
 
 	private boolean hasToolCall(final AgentContext context, final String toolName, final String requiredArgumentPart) {
