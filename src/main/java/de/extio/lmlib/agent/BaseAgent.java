@@ -210,7 +210,7 @@ public interface BaseAgent {
 							split.context().setLastCompletion(completion);
 							split.context().getRequestStatistic().add(completion);
 							if (!completion.toolCalls().isEmpty() && responseHandler instanceof final ToolCallingAgentResponseHandler toolCallingAgentResponseHandler) {
-								if (toolCallRounds >= 4) {
+								if (toolCallRounds >= 6) {
 									parseException = new IllegalStateException("Too many tool call rounds");
 									break;
 								}
