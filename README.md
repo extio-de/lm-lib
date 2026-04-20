@@ -702,6 +702,19 @@ final var blogPostAgent = new Agent(
 
 Agents can declare tool definitions directly. For simple in-agent tool execution loops, wrap a normal response handler with `ToolCallingAgentResponseHandler`.
 
+`ToolCallingAgentResponseHandler` takes two arguments:
+
+- **delegate**: the response handler that runs after the tool-call loop ends and processes the final natural-language answer.
+- **ToolCallHandler**: a lambda called every time the model returns one or more tool calls. It receives the current `Completion`, the `AgentContext`, and a `ToolCallResults` collector. The lambda must populate `toolCallResults` with a result for every returned tool call and then return a boolean that controls loop continuation:
+  - Return `true` to append the tool results to the conversation and let the model continue with another turn.
+  - Return `false` to stop the tool-call loop. The framework then passes the last completion to the delegate handler for normal response processing.
+
+The tool-call loop is capped at six rounds. If the model returns no tool calls, `ToolCallHandler` is not invoked and the completion goes directly to the delegate.
+
+#### Single tool call per turn (sequential)
+
+When the model is prompted to call tools one at a time, the handler iterates the returned calls, adds a result for each, and returns `true` to trigger the next turn. It returns `false` when `toolCalls()` is empty, signalling that all tools have been called and the model can now produce its final answer.
+
 ```java
 final var weatherAgent = new Agent(
     "WeatherAgent",
@@ -730,6 +743,35 @@ final var weatherAgent = new Agent(
     AgentNext::end
 );
 ```
+
+#### Multiple tool calls per turn (parallel)
+
+When `ToolCallData.withParallelToolCalls(true)` is configured and the model and backend support it, all tool calls may arrive in a single turn. In that case there is no need for an additional turn, so the handler adds results for every returned call and returns `false` immediately. Returning `true` would unnecessarily send the model through another tool-call round.
+
+```java
+new ToolCallingAgentResponseHandler(
+    new TextAgentResponseHandler("answer"),
+    (completion, context, toolCallResults) -> {
+        if (completion.toolCalls().isEmpty()) {
+            return false;
+        }
+        for (final var toolCall : completion.toolCalls()) {
+            if ("get_weather".equals(toolCall.name())) {
+                toolCallResults.add(toolCall, ToolParameters.create().add("forecast", "Berlin is rainy and 21C"));
+            } else if ("get_traffic".equals(toolCall.name())) {
+                toolCallResults.add(toolCall, ToolParameters.create().add("traffic", "Berlin traffic is congested"));
+            }
+        }
+        // If multiple tool calls came back at once, parallel tool calling is active and
+        // all results are already collected — return false to stop the loop.
+        // If only one came back, the model is calling tools sequentially — return true
+        // to continue and collect the remaining tools in the next turn.
+        return completion.toolCalls().size() < 2;
+    }
+)
+```
+
+#### Delegated tool call handling
 
 If you do not want the current agent to resolve tool calls itself, the conversation handoff now preserves assistant tool-call turns so the next `CONVERSATION` or `PROCESSING_ONLY` agent can inspect them in `preProcess()` and decide how to continue.
 
