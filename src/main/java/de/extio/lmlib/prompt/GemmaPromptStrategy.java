@@ -30,7 +30,7 @@ public class GemmaPromptStrategy implements PromptStrategy {
 	
 	@Override
 	public String getPromptName() {
-		return "gemma";
+		return "gemma2,3";
 	}
 	
 }

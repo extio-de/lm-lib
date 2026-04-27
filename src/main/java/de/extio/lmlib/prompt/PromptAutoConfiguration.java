@@ -37,6 +37,12 @@ public class PromptAutoConfiguration {
 	
 	@Bean
 	@ConditionalOnMissingBean
+	Gemma4PromptStrategy gemma4PromptStrategy() {
+		return new Gemma4PromptStrategy();
+	}
+	
+	@Bean
+	@ConditionalOnMissingBean
 	GptOssPromptStrategy gptOssPromptStrategy() {
 		return new GptOssPromptStrategy();
 	}
@@ -87,6 +93,12 @@ public class PromptAutoConfiguration {
 	@ConditionalOnMissingBean
 	Qwen3PromptStrategy qwen3PromptStrategy() {
 		return new Qwen3PromptStrategy();
+	}
+	
+	@Bean
+	@ConditionalOnMissingBean
+	Qwen35PromptStrategy qwen35PromptStrategy() {
+		return new Qwen35PromptStrategy();
 	}
 	
 	@Bean
