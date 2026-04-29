@@ -15,6 +15,7 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.ClientService;
@@ -29,6 +30,7 @@ public class AgentExecutorService implements InitializingBean, DisposableBean {
 	@Autowired
 	private ClientService clientService;
 	
+	@Lazy
 	@Autowired(required = false)
 	private List<BaseAgent> allAgents;
 	
