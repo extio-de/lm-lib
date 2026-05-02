@@ -426,6 +426,7 @@ public interface BaseAgent {
 				final var lastUserTurn = conversation.getConversation().getLast();
 				conversation.replaceTurn(new Turn(TurnType.USER, lastUserTurn.text() + "\n" + split.text()));
 			}
+			conversation.setMetadata("Agent: " + this.name());
 		}
 		return conversation;
 	}
