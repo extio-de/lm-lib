@@ -36,6 +36,8 @@ public final class Conversation {
 	}
 	
 	private final List<Turn> conversation = Collections.synchronizedList(new ArrayList<>());
+
+	private String metadata; // Optional metadata that can be used to store additional information about the conversation, e.g. conversation id, user id, etc.
 	
 	private Conversation() {
 	}
@@ -92,8 +94,20 @@ public final class Conversation {
 		final StringBuilder builder = new StringBuilder();
 		builder.append("Conversation [conversation=");
 		builder.append(this.conversation);
+		if (this.metadata != null) {
+			builder.append(", metadata=");
+			builder.append(this.metadata);
+		}
 		builder.append("]");
 		return builder.toString();
+	}
+
+	public String getMetadata() {
+		return metadata;
+	}
+
+	public void setMetadata(final String metadata) {
+		this.metadata = metadata;
 	}
 	
 	public enum TurnType {

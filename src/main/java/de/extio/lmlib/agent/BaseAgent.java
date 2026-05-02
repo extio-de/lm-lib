@@ -384,20 +384,21 @@ public interface BaseAgent {
 	private Conversation setupConversation(final Split split) {
 		var conversation = split.context().getConversation();
 		if (conversation == null || conversation.getConversation().isEmpty()) {
-			conversation = Conversation.create(this.systemPrompt(), split.text());
+			conversation = this.createConversation(this.systemPrompt(), split.text());
 			split.context().setConversation(conversation);
 		}
 		else if (this.agentType(split.context()) == AgentType.START_CONVERSATION) {
-			if (this.systemPrompt() == null || this.systemPrompt().isEmpty()) {
-				conversation = Conversation.create(split.text());
+			final var system = this.systemPrompt();
+			if (system == null || system.isEmpty()) {
+				conversation = this.createConversation(null, split.text());
 			}
 			else {
-				conversation = Conversation.create(this.systemPrompt() + "\n" + split.text());
+				conversation = this.createConversation(null, system + "\n" + split.text());
 			}
 			split.context().setConversation(conversation);
 		}
 		else if (this.agentType(split.context()) == AgentType.START_CONVERSATION_WITH_SYSTEM_PROMPT) {
-			conversation = Conversation.create(this.systemPrompt(), split.text());
+			conversation = this.createConversation(this.systemPrompt(), split.text());
 			split.context().setConversation(conversation);
 		}
 		else {
@@ -409,7 +410,7 @@ public interface BaseAgent {
 					mergedSysAndUser = conversation.getConversation().get(0).text();
 				}
 				
-				final var newConversation = Conversation.create(mergedSysAndUser);
+				final var newConversation = this.createConversation(null, mergedSysAndUser);
 				for (int n = 2; n < conversation.getConversation().size(); n++) {
 					newConversation.addTurn(conversation.getConversation().get(n));
 				}
@@ -429,6 +430,12 @@ public interface BaseAgent {
 		return conversation;
 	}
 
+	private Conversation createConversation(String system, String user) {
+		var conversation = Conversation.create(system, user);
+		conversation.setMetadata("Agent: " + this.name());
+		return conversation;
+	}
+	
 	private void appendLastCompletionToConversation(final AgentContext context, final boolean skipCompletion) {
 		if (skipCompletion || context.getConversation() == null || context.getLastCompletion() == null) {
 			return;
