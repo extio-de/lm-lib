@@ -47,7 +47,7 @@ The published artifacts are hosted on Maven Central, so no additional repository
 <dependency>
     <groupId>de.extio</groupId>
     <artifactId>lm-lib</artifactId>
-    <version>2.5.13</version>
+    <version>2.6.0</version>
 </dependency>
 ```
 
