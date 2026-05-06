@@ -1,22 +1,25 @@
-# This workflow will build a package using Maven and then publish it to GitHub packages when a release is created
-# For more information see: https://github.com/actions/setup-java/blob/main/docs/advanced-usage.md#apache-maven-with-a-settings-path
+# This workflow derives the next release version from the repository, tags it,
+# updates the published release, and deploys the artifact to Maven Central.
 
-name: Maven Package
+name: Release To Maven Central
 
 on:
   release:
-    types: [created]
+    types: [published]
 
 jobs:
-  build:
+  publish:
+    if: ${{ !github.event.release.prerelease }}
 
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: write
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: ${{ github.event.repository.default_branch }}
     - name: Set up JDK 25
       uses: actions/setup-java@v4
       with:
@@ -27,12 +30,71 @@ jobs:
         server-password: MAVEN_PASSWORD
         gpg-private-key: ${{ secrets.GPG_SIGNING_KEY }}
         gpg-passphrase: MAVEN_GPG_PASSPHRASE
-    - name: Set version
-      run: mvn versions:set -DnewVersion=${{ github.event.release.tag_name }}
-    - name: Build with Maven
-      run: mvn -B package --file pom.xml
+    - name: Configure Git
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+    - name: Calculate release version
+      id: version
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        current_version="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n 1 | tr -d '\r')"
+        base_version="${current_version%-SNAPSHOT}"
+
+        if [[ ! "$base_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+          echo "Unsupported project version format: $current_version" >&2
+          exit 1
+        fi
+
+        major="${BASH_REMATCH[1]}"
+        minor="${BASH_REMATCH[2]}"
+        release_version="${major}.$((minor + 1)).0"
+
+        echo "current_version=$current_version" >> "$GITHUB_OUTPUT"
+        echo "release_version=$release_version" >> "$GITHUB_OUTPUT"
+        echo "release_tag=$release_version" >> "$GITHUB_OUTPUT"
+    - name: Update release files
+      env:
+        RELEASE_VERSION: ${{ steps.version.outputs.release_version }}
+      run: |
+        set -euo pipefail
+
+        mvn -B versions:set -DnewVersion="$RELEASE_VERSION" -DgenerateBackupPoms=false
+        perl -0pi -e 's{<version>\d+\.\d+\.\d+</version>}{<version>'"$RELEASE_VERSION"'</version>}g' README.md
+    - name: Commit release version
+      env:
+        RELEASE_VERSION: ${{ steps.version.outputs.release_version }}
+      run: |
+        set -euo pipefail
+
+        git add pom.xml README.md
+        git commit -m "chore: release $RELEASE_VERSION"
+        git push origin HEAD:${{ github.event.repository.default_branch }}
+    - name: Create release tag
+      env:
+        RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+      run: |
+        set -euo pipefail
+
+        git tag "$RELEASE_TAG"
+        git push origin "$RELEASE_TAG"
+    - name: Retarget GitHub release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RELEASE_ID: ${{ github.event.release.id }}
+        RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+      run: |
+        set -euo pipefail
+
+        gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
+          --method PATCH \
+          -f tag_name="$RELEASE_TAG" \
+          -f target_commitish="${{ github.event.repository.default_branch }}" \
+          -f name="$RELEASE_TAG"
     - name: Publish package
-      run: mvn -P release --batch-mode deploy -DskipTests
+      run: mvn -B -P release deploy -DskipTests
       env:
         MAVEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
         MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}

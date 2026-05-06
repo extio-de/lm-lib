@@ -41,25 +41,13 @@ The current built-in client set supports both chat completions and legacy text c
 
 ## Setup
 
-The published artifacts are hosted in the external Maven repository, so consuming applications must add that repository in addition to Maven Central:
+The published artifacts are hosted on Maven Central, so no additional repository configuration is required:
 
 ```xml
-<repositories>
-    <repository>
-        <id>spacecraft-tactics-releases</id>
-        <name>Spacecraft Tactics Repository</name>
-        <url>https://spacecraft-tactics.com/repository/releases</url>
-    </repository>
-    <repository>
-        <id>Central</id>
-        <url>https://repo1.maven.org/maven2/</url>
-    </repository>
-</repositories>
-
 <dependency>
     <groupId>de.extio</groupId>
     <artifactId>lm-lib</artifactId>
-    <version>${lmlib.version}</version>
+    <version>2.5.13</version>
 </dependency>
 ```
 
