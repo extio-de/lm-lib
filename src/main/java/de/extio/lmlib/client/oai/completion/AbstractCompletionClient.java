@@ -156,16 +156,12 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 		return this.getOpenAiProviderDialect().sendReasoning(modelProfile);
 	}
 
-	protected boolean sendMaxCompletionTokens(final ModelProfile modelProfile) {
-		return this.getOpenAiProviderDialect().sendMaxCompletionTokens(modelProfile);
+	protected OpenAiProviderDialect.ChatTokenLimitParameterMode chatTokenLimitParameterMode(final ModelProfile modelProfile) {
+		return this.getOpenAiProviderDialect().chatTokenLimitParameterMode(modelProfile);
 	}
 
-	protected String reasoningEffort(final ModelProfile modelProfile) {
+	protected OpenAiProviderDialect.ReasoningEffort reasoningEffort(final ModelProfile modelProfile) {
 		return this.getOpenAiProviderDialect().reasoningEffort(modelProfile);
-	}
-
-	protected String reasoningSummaryDetails(final ModelProfile modelProfile) {
-		return this.getOpenAiProviderDialect().reasoningSummaryDetails(modelProfile);
 	}
 
 	protected String getPrimaryModelName(final ModelProfile modelProfile) {

@@ -14,26 +14,26 @@ import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 class TextCompletionClientRequestTest {
 
 	@Test
-	void defaultsToUsageWhenNoDialectIsConfigured() {
+	void omitsUsageWhenNoDialectIsConfigured() {
 		final var client = new TestTextCompletionClient();
 		final var request = client.createRequest("prompt", this.createProfile(), false);
 
-		assertTrue(request.getUsage());
+		assertNull(request.getUsage());
 	}
 
 	@Test
-	void omitsUsageWhenDialectDisablesIt() {
+	void includesUsageWhenDialectEnablesIt() {
 		final var client = new TestTextCompletionClient();
 		client.setDialect(new OpenAiProviderDialect() {
 			@Override
 			public boolean sendUsage(final ModelProfile modelProfile) {
-				return false;
+				return true;
 			}
 		});
 
 		final var request = client.createRequest("prompt", this.createProfile(), false);
 
-		assertNull(request.getUsage());
+		assertTrue(request.getUsage());
 	}
 
 	private ModelProfile createProfile() {

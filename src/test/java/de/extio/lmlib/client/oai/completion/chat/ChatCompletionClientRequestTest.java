@@ -2,7 +2,6 @@ package de.extio.lmlib.client.oai.completion.chat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -18,7 +17,7 @@ import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 class ChatCompletionClientRequestTest {
 
 	@Test
-	void defaultsToAllRequestFieldsWhenNoDialectIsConfigured() {
+	void defaultsToOfficialRequestFieldsWhenNoDialectIsConfigured() {
 		final var client = new TestChatCompletionClient();
 		final var request = client.createRequest(
 				List.of(new ChatMessage("user", "hello", null)),
@@ -26,30 +25,24 @@ class ChatCompletionClientRequestTest {
 				false,
 				null);
 
-		assertTrue(request.getUsage());
-		assertNotNull(request.getReasoning());
-		assertEquals(ChatCompletionRequest.ChatCompletionsRequestReasoningEffort.medium, request.getReasoning().getEffort());
-		assertEquals("concise", request.getReasoning().getSummary());
+		assertNull(request.getUsage());
+		assertEquals(OpenAiProviderDialect.ReasoningEffort.MEDIUM, request.getReasoningEffort());
 		assertEquals(2048, request.getMaxCompletionTokens());
+		assertNull(request.getMaxTokens());
 	}
 
 	@Test
-	void omitsDialectDisabledRequestFields() {
+	void omitsDialectDisabledReasoningAndUsesLegacyMaxTokens() {
 		final var client = new TestChatCompletionClient();
 		client.setDialect(new OpenAiProviderDialect() {
-			@Override
-			public boolean sendUsage(final ModelProfile modelProfile) {
-				return false;
-			}
-
 			@Override
 			public boolean sendReasoning(final ModelProfile modelProfile) {
 				return false;
 			}
 
 			@Override
-			public boolean sendMaxCompletionTokens(final ModelProfile modelProfile) {
-				return false;
+			public ChatTokenLimitParameterMode chatTokenLimitParameterMode(final ModelProfile modelProfile) {
+				return ChatTokenLimitParameterMode.MAX_TOKENS;
 			}
 		});
 
@@ -60,24 +53,19 @@ class ChatCompletionClientRequestTest {
 				null);
 
 		assertNull(request.getUsage());
-		assertNull(request.getReasoning());
+		assertNull(request.getReasoningEffort());
 		assertNull(request.getMaxCompletionTokens());
 		assertEquals(2048, request.getMaxTokens());
 		assertFalse(request.isStream());
 	}
 
 	@Test
-	void usesDialectProvidedReasoningDefaults() {
+	void usesDialectProvidedReasoningEffort() {
 		final var client = new TestChatCompletionClient();
 		client.setDialect(new OpenAiProviderDialect() {
 			@Override
-			public String reasoningEffort(final ModelProfile modelProfile) {
-				return "high";
-			}
-
-			@Override
-			public String reasoningSummaryDetails(final ModelProfile modelProfile) {
-				return "detailed";
+			public ReasoningEffort reasoningEffort(final ModelProfile modelProfile) {
+				return ReasoningEffort.HIGH;
 			}
 		});
 
@@ -87,9 +75,33 @@ class ChatCompletionClientRequestTest {
 				false,
 				null);
 
-		assertNotNull(request.getReasoning());
-		assertEquals(ChatCompletionRequest.ChatCompletionsRequestReasoningEffort.high, request.getReasoning().getEffort());
-		assertEquals("detailed", request.getReasoning().getSummary());
+		assertEquals(OpenAiProviderDialect.ReasoningEffort.HIGH, request.getReasoningEffort());
+	}
+
+	@Test
+	void canEnableUsageAndSendBothTokenLimitFields() {
+		final var client = new TestChatCompletionClient();
+		client.setDialect(new OpenAiProviderDialect() {
+			@Override
+			public boolean sendUsage(final ModelProfile modelProfile) {
+				return true;
+			}
+
+			@Override
+			public ChatTokenLimitParameterMode chatTokenLimitParameterMode(final ModelProfile modelProfile) {
+				return ChatTokenLimitParameterMode.BOTH;
+			}
+		});
+
+		final var request = client.createRequest(
+				List.of(new ChatMessage("user", "hello", null)),
+				this.createProfile(),
+				false,
+				null);
+
+		assertTrue(request.getUsage());
+		assertEquals(2048, request.getMaxCompletionTokens());
+		assertEquals(2048, request.getMaxTokens());
 	}
 
 	private ModelProfile createProfile() {

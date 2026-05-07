@@ -202,8 +202,6 @@ final var modelProfile = new ModelProfile(
     new BigDecimal("0.125").divide(new BigDecimal(1000000)),
     new BigDecimal("10.0").divide(new BigDecimal(1000000)),
     BigDecimal.ZERO,
-    null,
-    null,
     "DYNAMIC"
 );
 
@@ -317,25 +315,31 @@ Tool calling is currently supported only for chat completion models. `TextComple
 
 These built-in providers are OpenAI-compatible today, but that is an implementation detail of the current client set, not a hard architectural limit of the library. Additional provider integrations can be added in the library itself, and applications can plug in their own client implementations where needed.
 
-If you need to adapt request shaping for a specific OpenAI-compatible provider, you can optionally register an `OpenAiProviderDialect` bean. This allows applications to suppress request fields that a provider does not support while keeping `ModelProfile` provider-agnostic and runtime-driven.
+If you need to adapt request shaping for a specific OpenAI-compatible provider, you can optionally register an `OpenAiProviderDialect` bean. This allows applications to suppress or switch request fields that a provider does not support while keeping `ModelProfile` provider-agnostic and runtime-driven.
 
 The default dialect behavior is:
 
-- `sendUsage(...) = true`
+- `sendUsage(...) = false`
 - `sendReasoning(...) = true`
-- `sendMaxCompletionTokens(...) = true`
-- `reasoningEffort(...) = "medium"`
-- `reasoningSummaryDetails(...) = "concise"`
+- `chatTokenLimitParameterMode(...) = ChatTokenLimitParameterMode.MAX_COMPLETION_TOKENS`
+- `reasoningEffort(...) = ReasoningEffort.MEDIUM`
+
+Notes:
+
+- `usage` is a llama-server style extension and is therefore disabled unless a dialect explicitly enables it.
+- `reasoning_effort` is sent as a top-level request field when reasoning is enabled.
+- `max_completion_tokens` is the default because it matches the current OpenAI recommendation.
+- Some older OpenAI-compatible servers still require `max_tokens`, which can be selected through the dialect.
 
 Example:
 
 ```java
 @Bean
-OpenAiProviderDialect azureOpenAiProviderDialect() {
+OpenAiProviderDialect legacyOpenAiProviderDialect() {
     return new OpenAiProviderDialect() {
         @Override
         public boolean sendUsage(final ModelProfile modelProfile) {
-            return false;
+            return true;
         }
 
         @Override
@@ -344,24 +348,19 @@ OpenAiProviderDialect azureOpenAiProviderDialect() {
         }
 
         @Override
-        public boolean sendMaxCompletionTokens(final ModelProfile modelProfile) {
-            return false;
+        public ChatTokenLimitParameterMode chatTokenLimitParameterMode(final ModelProfile modelProfile) {
+            return ChatTokenLimitParameterMode.MAX_TOKENS;
         }
 
         @Override
-        public String reasoningEffort(final ModelProfile modelProfile) {
-            return "medium";
-        }
-
-        @Override
-        public String reasoningSummaryDetails(final ModelProfile modelProfile) {
-            return "concise";
+        public ReasoningEffort reasoningEffort(final ModelProfile modelProfile) {
+            return ReasoningEffort.MEDIUM;
         }
     };
 }
 ```
 
-If no `OpenAiProviderDialect` bean is present, all OpenAI-compatible request features remain enabled by default.
+If no `OpenAiProviderDialect` bean is present, lm-lib follows the official-oriented defaults above, with `usage` left disabled unless you opt in.
 
 For text completions, select a prompt strategy with the `prompts` property. lm-lib ships built-in strategies for common model families including Llama, GPT-OSS, Gemma, Mistral, Phi, Qwen, Vicuna, ChatML, Alpaca, and a no-formatting strategy.
 
