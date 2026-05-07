@@ -48,45 +48,7 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 	@Override
 	protected Completion requestCompletion(final Conversation conversation, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData) {
 		final var chat = createChats(conversation, modelProfile);
-		
-		final var request = new ChatCompletionRequest();
-		request.setModel(this.getPrimaryModelName(modelProfile));
-		request.setMessages(chat);
-		request.setMaxTokens(modelProfile.maxTokens());
-		request.setMaxCompletionTokens(modelProfile.maxTokens());
-		request.setTemperature(modelProfile.temperature());
-		request.setTopP(modelProfile.topP());
-		request.setStream(chunkConsumer != null);
-		if (chunkConsumer != null) {
-			this.configureStreamOptions(true, request::setStreamOptions);
-		} else {
-			request.setUsage(true);
-		}
-		if (modelProfile.reasoningEffort() != null && !modelProfile.reasoningEffort().isBlank()) {
-			request.setReasoning(new ChatCompletionRequest.ChatCompletionsRequestReasoning());
-			try {
-				request.getReasoning().setEffort(ChatCompletionRequest.ChatCompletionsRequestReasoningEffort.valueOf(modelProfile.reasoningEffort()));
-			}
-			catch (final IllegalArgumentException e) {
-				throw new IllegalArgumentException("Invalid reasoning effort in the model profile: " + modelProfile.reasoningEffort(), e);
-			}
-		}
-		if (modelProfile.reasoningSummaryDetails() != null && !modelProfile.reasoningSummaryDetails().isBlank()) {
-			if (request.getReasoning() == null) {
-				request.setReasoning(new ChatCompletionRequest.ChatCompletionsRequestReasoning());
-			}
-			try {
-				request.getReasoning().setSummary(ChatCompletionRequest.ChatCompletionsRequestReasoningSummaryDetails.valueOf(modelProfile.reasoningSummaryDetails()).name());
-			}
-			catch (final IllegalArgumentException e) {
-				throw new IllegalArgumentException("Invalid reasoning summary details in the model profile: " + modelProfile.reasoningSummaryDetails(), e);
-			}
-		}
-		if (toolCallData != null && toolCallData.hasTools()) {
-			request.setTools(this.createTools(toolCallData.tools()));
-			request.setToolChoice(this.createToolChoice(toolCallData));
-			request.setParallelToolCalls(toolCallData.parallelToolCalls());
-		}
+		final var request = this.createRequest(chat, modelProfile, chunkConsumer != null, toolCallData);
 		
 		String requestBody;
 		try {
@@ -201,6 +163,53 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		final var finishReason = this.mapFinishReason(choice.getFinishReason());
 		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), response.getTimings(), null, content, reasoning);
 		return new Completion(content, reasoning, finishReason, statistics, toolCalls);
+	}
+
+	ChatCompletionRequest createRequest(final List<ChatMessage> chat, final ModelProfile modelProfile, final boolean streaming, final ToolCallData toolCallData) {
+		final var request = new ChatCompletionRequest();
+		request.setModel(this.getPrimaryModelName(modelProfile));
+		request.setMessages(chat);
+		request.setMaxTokens(modelProfile.maxTokens());
+		if (this.sendMaxCompletionTokens(modelProfile)) {
+			request.setMaxCompletionTokens(modelProfile.maxTokens());
+		}
+		request.setTemperature(modelProfile.temperature());
+		request.setTopP(modelProfile.topP());
+		request.setStream(streaming);
+		if (streaming) {
+			this.configureStreamOptions(true, request::setStreamOptions);
+		}
+		else if (this.sendUsage(modelProfile)) {
+			request.setUsage(true);
+		}
+		final var reasoningEffort = this.reasoningEffort(modelProfile);
+		if (this.sendReasoning(modelProfile) && reasoningEffort != null && !reasoningEffort.isBlank()) {
+			request.setReasoning(new ChatCompletionRequest.ChatCompletionsRequestReasoning());
+			try {
+				request.getReasoning().setEffort(ChatCompletionRequest.ChatCompletionsRequestReasoningEffort.valueOf(reasoningEffort));
+			}
+			catch (final IllegalArgumentException e) {
+				throw new IllegalArgumentException("Invalid reasoning effort for the current OAI provider dialect: " + reasoningEffort, e);
+			}
+		}
+		final var reasoningSummaryDetails = this.reasoningSummaryDetails(modelProfile);
+		if (this.sendReasoning(modelProfile) && reasoningSummaryDetails != null && !reasoningSummaryDetails.isBlank()) {
+			if (request.getReasoning() == null) {
+				request.setReasoning(new ChatCompletionRequest.ChatCompletionsRequestReasoning());
+			}
+			try {
+				request.getReasoning().setSummary(ChatCompletionRequest.ChatCompletionsRequestReasoningSummaryDetails.valueOf(reasoningSummaryDetails).name());
+			}
+			catch (final IllegalArgumentException e) {
+				throw new IllegalArgumentException("Invalid reasoning summary details for the current OAI provider dialect: " + reasoningSummaryDetails, e);
+			}
+		}
+		if (toolCallData != null && toolCallData.hasTools()) {
+			request.setTools(this.createTools(toolCallData.tools()));
+			request.setToolChoice(this.createToolChoice(toolCallData));
+			request.setParallelToolCalls(toolCallData.parallelToolCalls());
+		}
+		return request;
 	}
 
 	private List<ChatCompletionRequest.ChatCompletionTool> createTools(final List<ToolDefinition> toolDefinitions) {

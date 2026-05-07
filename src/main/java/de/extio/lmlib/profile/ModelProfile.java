@@ -18,8 +18,6 @@ public record ModelProfile(
 		BigDecimal costPerCachedInToken,
 		BigDecimal costPerOutToken,
 		BigDecimal costPerReasoningOutToken,
-		String reasoningEffort,
-		String reasoningSummaryDetails,
 		String category) {
 	
 	public ModelProfile {
