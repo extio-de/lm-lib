@@ -53,19 +53,7 @@ public class TextCompletionClient extends AbstractCompletionClient {
 		}
 		
 		final var prompt = this.createPrompt(conversation, modelProfile, promptStrategy);
-		
-		final var request = new CompletionRequest();
-		request.setModel(this.getPrimaryModelName(modelProfile));
-		request.setPrompt(prompt);
-		request.setMaxTokens(modelProfile.maxTokens());
-		request.setTemperature(modelProfile.temperature());
-		request.setTopP(modelProfile.topP());
-		request.setStream(chunkConsumer != null);
-		if (chunkConsumer != null) {
-			this.configureStreamOptions(true, request::setStreamOptions);
-		} else {
-			request.setUsage(true);
-		}
+		final var request = this.createRequest(prompt, modelProfile, chunkConsumer != null);
 		
 		String requestBody;
 		try {
@@ -195,6 +183,23 @@ public class TextCompletionClient extends AbstractCompletionClient {
 		
 		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), response.getTimings(), prompt, content, reasoning);
 		return new Completion(content, reasoning, finishReason, statistics);
+	}
+
+	CompletionRequest createRequest(final String prompt, final ModelProfile modelProfile, final boolean streaming) {
+		final var request = new CompletionRequest();
+		request.setModel(this.getPrimaryModelName(modelProfile));
+		request.setPrompt(prompt);
+		request.setMaxTokens(modelProfile.maxTokens());
+		request.setTemperature(modelProfile.temperature());
+		request.setTopP(modelProfile.topP());
+		request.setStream(streaming);
+		if (streaming) {
+			this.configureStreamOptions(true, request::setStreamOptions);
+		}
+		else if (this.sendUsage(modelProfile)) {
+			request.setUsage(true);
+		}
+		return request;
 	}
 	
 	private String createPrompt(final Conversation conversation, final ModelProfile modelProfile, final PromptStrategy promptStrategy) {

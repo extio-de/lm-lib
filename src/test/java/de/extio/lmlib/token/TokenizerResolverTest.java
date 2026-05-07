@@ -55,8 +55,6 @@ public class TokenizerResolverTest {
 				BigDecimal.ZERO,
 				BigDecimal.ZERO,
 				BigDecimal.ZERO,
-				null,
-				null,
 				"TEST");
 	}
 	
