@@ -1,5 +1,7 @@
 package de.extio.lmlib.client.oai.completion;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.time.Duration;
@@ -17,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
@@ -166,6 +169,15 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 
 	protected String getPrimaryModelName(final ModelProfile modelProfile) {
 		return this.getModelNames(modelProfile, false).stream().findFirst().orElse("");
+	}
+
+	protected void logErrorResponse(final HttpStatusCode statusCode, final InputStream responseBody) {
+		try {
+			LOGGER.warn("Error response from server: {} {}", statusCode, new String(responseBody.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+		}
+		catch (final IOException e) {
+			LOGGER.warn("Error response from server: {} <failed to read response body: {}>", statusCode, e.getMessage());
+		}
 	}
 
 	private List<String> loadModelNames(final ModelProfile modelProfile) {

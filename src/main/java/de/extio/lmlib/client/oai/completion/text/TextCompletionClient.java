@@ -77,6 +77,7 @@ public class TextCompletionClient extends AbstractCompletionClient {
 				.body(requestBody)
 				.exchange((clientRequest, clientResponse) -> {
 					if (clientResponse.getStatusCode().isError()) {
+						this.logErrorResponse(clientResponse.getStatusCode(), clientResponse.getBody());
 						throw new IllegalStateException("Error response from server: " + clientResponse.getStatusCode());
 					}
 					
