@@ -1,16 +1,18 @@
-# This workflow derives the next release version from the repository, tags it,
-# updates the published release, and deploys the artifact to Maven Central.
+# This workflow creates a release from a manually supplied version,
+# commits the release-version files first, tags that exact commit, and deploys to Maven Central.
 
 name: Release To Maven Central
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, for example 2.6.0 or v2.6.0
+        required: true
+        type: string
 
 jobs:
   publish:
-    if: ${{ !github.event.release.prerelease }}
-
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -34,27 +36,28 @@ jobs:
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-    - name: Calculate release version
+    - name: Read release version input
       id: version
       shell: bash
       run: |
         set -euo pipefail
 
-        current_version="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n 1 | tr -d '\r')"
-        base_version="${current_version%-SNAPSHOT}"
+        requested_version="${{ inputs.version }}"
+        release_tag="$requested_version"
+        release_version="${requested_version#v}"
 
-        if [[ ! "$base_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-          echo "Unsupported project version format: $current_version" >&2
+        if [[ ! "$release_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+          echo "Unsupported release version format: $requested_version" >&2
           exit 1
         fi
 
-        major="${BASH_REMATCH[1]}"
-        minor="${BASH_REMATCH[2]}"
-        release_version="${major}.$((minor + 1)).0"
+        if git ls-remote --exit-code --tags origin "refs/tags/$release_tag" >/dev/null 2>&1; then
+          echo "Tag already exists on origin: $release_tag" >&2
+          exit 1
+        fi
 
-        echo "current_version=$current_version" >> "$GITHUB_OUTPUT"
         echo "release_version=$release_version" >> "$GITHUB_OUTPUT"
-        echo "release_tag=$release_version" >> "$GITHUB_OUTPUT"
+        echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
     - name: Update release files
       env:
         RELEASE_VERSION: ${{ steps.version.outputs.release_version }}
@@ -66,13 +69,18 @@ jobs:
     - name: Commit release version
       env:
         RELEASE_VERSION: ${{ steps.version.outputs.release_version }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       run: |
         set -euo pipefail
 
         git add pom.xml README.md
-        git commit -m "chore: release $RELEASE_VERSION"
-        git push origin HEAD:${{ github.event.repository.default_branch }}
-    - name: Create release tag
+        if git diff --cached --quiet; then
+          echo "Repository version already matches $RELEASE_VERSION"
+        else
+          git commit -m "chore: release $RELEASE_VERSION"
+          git push origin HEAD:"$DEFAULT_BRANCH"
+        fi
+    - name: Create and push release tag
       env:
         RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
       run: |
@@ -80,22 +88,19 @@ jobs:
 
         git tag "$RELEASE_TAG"
         git push origin "$RELEASE_TAG"
-    - name: Retarget GitHub release
-      env:
-        GH_TOKEN: ${{ github.token }}
-        RELEASE_ID: ${{ github.event.release.id }}
-        RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
-      run: |
-        set -euo pipefail
-
-        gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
-          --method PATCH \
-          -f tag_name="$RELEASE_TAG" \
-          -f target_commitish="${{ github.event.repository.default_branch }}" \
-          -f name="$RELEASE_TAG"
     - name: Publish package
       run: mvn -B -P release deploy -DskipTests
       env:
         MAVEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
         MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
         MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_SIGNING_KEY_PASSWORD }}
+    - name: Create GitHub release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+      run: |
+        set -euo pipefail
+
+        gh release create "$RELEASE_TAG" \
+          --title "$RELEASE_TAG" \
+          --generate-notes
