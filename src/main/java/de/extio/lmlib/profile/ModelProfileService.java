@@ -90,12 +90,6 @@ public class ModelProfileService {
 					.map(Object::toString)
 					.map(value -> new BigDecimal(value).divide(new BigDecimal(1000000.0)))
 					.orElse(BigDecimal.ZERO);
-			final var reasoningEffort = Optional.ofNullable(resource.getProperty("reasoningEffort"))
-					.map(Object::toString)
-					.orElse(null);
-			final var reasoningSummaryDetails = Optional.ofNullable(resource.getProperty("reasoningSummaryDetails"))
-					.map(Object::toString)
-					.orElse(null);
 			final var category = Optional
 					.ofNullable(modelCategory)
 					.map(ModelCategory::getShortName)
@@ -112,7 +106,7 @@ public class ModelProfileService {
 						.orElse(null);
 			}
 			
-			return new ModelProfile(promptTemplate, tokenizer, tokenEncoding, maxTokens, maxContextLength, temperature, topP, modelProvider, modelNameCfg, url, apiKey, costPerInToken, costPerCachedInToken, costPerOutToken, costPerReasoningOutToken, reasoningEffort, reasoningSummaryDetails, category);
+			return new ModelProfile(promptTemplate, tokenizer, tokenEncoding, maxTokens, maxContextLength, temperature, topP, modelProvider, modelNameCfg, url, apiKey, costPerInToken, costPerCachedInToken, costPerOutToken, costPerReasoningOutToken, category);
 		}
 		catch (final IOException e) {
 			LOGGER.error("Error while reading model profile", e);

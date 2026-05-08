@@ -5,6 +5,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.*;
 
+import de.extio.lmlib.client.oai.OpenAiProviderDialect.ReasoningEffort;
 import de.extio.lmlib.client.oai.completion.AbstractCompletionRequest;
 
 final class ChatCompletionRequest extends AbstractCompletionRequest {
@@ -13,7 +14,7 @@ final class ChatCompletionRequest extends AbstractCompletionRequest {
 	
 	private Integer maxCompletionTokens;
 
-	private ChatCompletionsRequestReasoning reasoning;
+	private ReasoningEffort reasoningEffort;
 
 	private List<ChatCompletionTool> tools;
 
@@ -39,13 +40,13 @@ final class ChatCompletionRequest extends AbstractCompletionRequest {
 		this.maxCompletionTokens = maxCompletionTokens;
 	}
 	
-	@JsonProperty("reasoning")
-	public ChatCompletionsRequestReasoning getReasoning() {
-		return this.reasoning;
+	@JsonProperty("reasoning_effort")
+	public ReasoningEffort getReasoningEffort() {
+		return this.reasoningEffort;
 	}
 
-	public void setReasoning(final ChatCompletionsRequestReasoning reasoning) {
-		this.reasoning = reasoning;
+	public void setReasoningEffort(final ReasoningEffort reasoningEffort) {
+		this.reasoningEffort = reasoningEffort;
 	}
 
 	@JsonProperty("tools")
@@ -73,40 +74,6 @@ final class ChatCompletionRequest extends AbstractCompletionRequest {
 
 	public void setParallelToolCalls(final Boolean parallelToolCalls) {
 		this.parallelToolCalls = parallelToolCalls;
-	}
-
-	final static class ChatCompletionsRequestReasoning {
-
-		private ChatCompletionsRequestReasoningEffort effort;
-
-		private String summary;
-
-		@JsonProperty("effort")
-		public ChatCompletionsRequestReasoningEffort getEffort() {
-			return this.effort;
-		}
-
-		public void setEffort(final ChatCompletionsRequestReasoningEffort effort) {
-			this.effort = effort;
-		}
-
-		@JsonProperty("summary")
-		public String getSummary() {
-			return this.summary;
-		}
-
-		public void setSummary(final String summary) {
-			this.summary = summary;
-		}
-
-	}
-
-	static enum ChatCompletionsRequestReasoningEffort {
-		minimal, low, medium, high
-	}
-
-	static enum ChatCompletionsRequestReasoningSummaryDetails {
-		auto, concise, detailed
 	}
 
 	static final class ChatCompletionTool {

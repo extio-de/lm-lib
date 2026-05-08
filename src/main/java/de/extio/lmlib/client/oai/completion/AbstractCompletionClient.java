@@ -35,6 +35,7 @@ import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.oai.Model;
 import de.extio.lmlib.client.oai.ModelsResponse;
+import de.extio.lmlib.client.oai.OpenAiProviderDialect;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
@@ -44,6 +45,9 @@ import de.extio.lmlib.token.TokenizerResolver;
 public abstract class AbstractCompletionClient implements Client, DisposableBean {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(AbstractCompletionClient.class);
+
+	private static final OpenAiProviderDialect DEFAULT_OPENAI_PROVIDER_DIALECT = new OpenAiProviderDialect() {
+	};
 	
 	@Autowired
 	@Qualifier("lmLibRestClientBuilder")
@@ -54,6 +58,9 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 	
 	@Autowired
 	protected ModelProfileService modelProfileService;
+
+	@Autowired(required = false)
+	protected OpenAiProviderDialect openAiProviderDialect;
 	
 	@Value("${client.collectStatistics:false}")
 	protected boolean collectStatistics;
@@ -136,6 +143,26 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 	}
 	
 	protected abstract Completion requestCompletion(final Conversation conversation, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData);
+
+	protected OpenAiProviderDialect getOpenAiProviderDialect() {
+		return this.openAiProviderDialect == null ? DEFAULT_OPENAI_PROVIDER_DIALECT : this.openAiProviderDialect;
+	}
+
+	protected boolean sendUsage(final ModelProfile modelProfile) {
+		return this.getOpenAiProviderDialect().sendUsage(modelProfile);
+	}
+
+	protected boolean sendReasoning(final ModelProfile modelProfile) {
+		return this.getOpenAiProviderDialect().sendReasoning(modelProfile);
+	}
+
+	protected OpenAiProviderDialect.ChatTokenLimitParameterMode chatTokenLimitParameterMode(final ModelProfile modelProfile) {
+		return this.getOpenAiProviderDialect().chatTokenLimitParameterMode(modelProfile);
+	}
+
+	protected OpenAiProviderDialect.ReasoningEffort reasoningEffort(final ModelProfile modelProfile) {
+		return this.getOpenAiProviderDialect().reasoningEffort(modelProfile);
+	}
 
 	protected String getPrimaryModelName(final ModelProfile modelProfile) {
 		return this.getModelNames(modelProfile, false).stream().findFirst().orElse("");
