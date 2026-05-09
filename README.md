@@ -121,7 +121,7 @@ public CacheManager cacheManager() {
 
 ### Tokenizer Dependencies
 
-For the recommended `jTokkit` tokenizer:
+For the `jTokkit` tokenizer:
 
 ```xml
 <dependency>
@@ -130,6 +130,14 @@ For the recommended `jTokkit` tokenizer:
 </dependency>
 ```
 
+## Tokenizers
+
+lm-lib registers tokenizer implementations as beans when their dependencies are available, then resolves the tokenizer at runtime from the active `ModelProfile`. Applications can implement the `Tokenizer` interface to inject their own Tokenizers.
+
+Tokenizer selection is configured per model profile with the `tokenizer` property. If a profile does not specify a tokenizer, lm-lib prefers `jTokkit` when the dependency is present and otherwise falls back to the built-in `fallback` tokenizer. The fallback tokenizer is deterministic and reversible, but it only provides approximate token counts.
+
+As an alternative, the library supports Hugging Face-style /tokenize and /detokenize endpoints (`llamaServer`). These endpoints must be available below base URL from the modelProfile.
+These endpoints are provided, for example, by llama.cpp llama-server and vLLM.
 For `llamaServer`, no extra dependency is required because tokenization is delegated to the remote server through the configured model endpoint.
 
 Available built-in tokenizer names:
@@ -137,12 +145,6 @@ Available built-in tokenizer names:
 - `jTokkit`
 - `llamaServer`
 - `fallback`
-
-### Tokenizer Configuration
-
-lm-lib registers tokenizer implementations as beans when their dependencies are available, then resolves the tokenizer at runtime from the active `ModelProfile`. Applications can implement the `Tokenizer` interface to inject their own Tokenizers.
-
-Tokenizer selection is configured per model profile with the `tokenizer` property. If a profile does not specify a tokenizer, lm-lib prefers `jTokkit` when the dependency is present and otherwise falls back to the built-in `fallback` tokenizer. The fallback tokenizer is deterministic and reversible, but it only provides approximate token counts.
 
 ## Model Profiles
 

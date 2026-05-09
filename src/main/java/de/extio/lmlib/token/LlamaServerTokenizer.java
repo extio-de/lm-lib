@@ -1,5 +1,7 @@
 package de.extio.lmlib.token;
 
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -36,10 +38,17 @@ final class LlamaServerTokenizer implements Tokenizer {
 				.uri("/tokenize")
 				.body(request)
 				.retrieve()
+				.onStatus(status -> {
+					if (status.getStatusCode().isError()) {
+						LOGGER.error("Tokenization request failed with status code {} {}: {}", status.getStatusCode(), status.getStatusText(), new String(status.getBody().readAllBytes(), StandardCharsets.UTF_8));
+						throw new RuntimeException("Tokenization request failed with status code " + status.getStatusCode() + " " + status.getStatusText());
+					}
+					return false;
+				})
 				.body(TokenizeResponse.class);
 		return response.tokens();
 	}
-	
+
 	@Override
 	public int count(final String txt, final ModelProfile modelProfile) {
 		return this.tokenize(txt, modelProfile).size();
@@ -55,6 +64,13 @@ final class LlamaServerTokenizer implements Tokenizer {
 				.uri("/detokenize")
 				.body(request)
 				.retrieve()
+				.onStatus(status -> {
+					if (status.getStatusCode().isError()) {
+						LOGGER.error("Detokenization request failed with status code {} {}: {}", status.getStatusCode(), status.getStatusText(), new String(status.getBody().readAllBytes(), StandardCharsets.UTF_8));
+						throw new RuntimeException("Detokenization request failed with status code " + status.getStatusCode() + " " + status.getStatusText());
+					}
+					return false;
+				})				
 				.body(DetokenizeResponse.class);
 		return response.content();
 	}
