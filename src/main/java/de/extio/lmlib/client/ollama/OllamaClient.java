@@ -40,6 +40,7 @@ import de.extio.lmlib.client.ToolCall;
 import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.ToolDefinition;
 import de.extio.lmlib.client.oai.completion.FinishReasons;
+import de.extio.lmlib.client.ollama.OllamaDialect.ThinkMode;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
@@ -203,7 +204,7 @@ public class OllamaClient implements Client {
 		request.setStream(streaming);
 		final var think = this.createThinkRequestValue(modelProfile, modelDetails);
 		if (think != null) {
-			request.setThink(think);
+			request.setThink(think.getWireValue());
 		}
 		request.setOptions(this.createOptions(modelProfile));
 		if (toolCallData != null && toolCallData.hasTools()) {
@@ -217,9 +218,9 @@ public class OllamaClient implements Client {
 		return request;
 	}
 
-	private Object createThinkRequestValue(final ModelProfile modelProfile, final OllamaShowResponse modelDetails) {
+	private ThinkMode createThinkRequestValue(final ModelProfile modelProfile, final OllamaShowResponse modelDetails) {
 		final var thinkMode = this.getOllamaDialect().think(modelProfile);
-		if (thinkMode == null || !thinkMode.isEnabled()) {
+		if (thinkMode == null) {
 			return null;
 		}
 		if (!this.supportsThinkingCapability(modelDetails)) {

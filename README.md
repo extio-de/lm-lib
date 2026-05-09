@@ -303,7 +303,7 @@ Local Ollama chat completion:
 ```properties
 category=M
 prompts=
-tokenizer=jtokkit
+tokenizer=jTokkit
 tokenEncoding=cl100k_base
 maxTokens=2500
 maxContextLength=32768
@@ -337,7 +337,7 @@ modelProvider=OLLAMA
 
 Use `OAI_CHAT_COMPLETION` for cloud APIs such as OpenAI itself and for local or self-hosted servers that expose a compatible `/v1/chat/completions` interface. This is the preferred default because lm-lib can send the conversation directly, supports streaming, and exposes tool calls through the standard chat-completion flow.
 
-Use `OAI_TEXT_COMPLETION` when you need explicit prompt templating or must target instruct-style models that still depend on raw prompt construction rather than structured chat messages. This is mainly useful for older compatible backends or local servers configured around prompt templates.
+Use `OAI_TEXT_COMPLETION` when you need explicit prompt templating or must target instruct-style models that still depend on raw prompt construction rather than structured chat messages. This is mainly useful for older compatible backends, local servers configured around prompt templates, or if you need full control over the raw prompt that is sent to the LLM.
 
 OpenAI-compatible deployments commonly fall into two operational patterns:
 
@@ -403,7 +403,7 @@ lm-lib caches `/api/show` model details per resolved model. Thinking and tool de
 
 Tool calling is exposed through the same lm-lib API across providers that support it. The capability is model-aware rather than purely provider-wide, so callers should check `supportsToolCalling(modelProfile)` or `supportsToolCalling(modelCategory)` on `Client` or `ClientService` before enabling tool-aware flows.
 
-In practice, text-completion clients do not support tools, while chat-oriented clients may support them depending on the resolved backend and model. For Ollama, lm-lib probes cached `/api/show` capability metadata. For OpenAI-compatible chat providers, support is determined by the selected client type.
+In practice, text-completion clients do not support tools via api (but you have full control over the raw prompt), while chat-oriented clients may support them depending on the resolved backend and model. For Ollama, lm-lib probes cached `/api/show` capability metadata. For OpenAI-compatible chat providers, support is determined by the selected client type.
 
 The library keeps the caller-facing tool-calling flow uniform even when providers differ internally. You still pass `ToolDefinition` and `ToolCallData`, inspect `CompletionFinishReason.TOOL_CALLS`, and append tool results through the same conversation API. If a backend does not expose every request-side control, lm-lib keeps the public API stable and applies those controls on a best-effort basis.
 

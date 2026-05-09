@@ -23,10 +23,6 @@ public interface OllamaDialect {
 			this.wireValue = wireValue;
 		}
 
-		public boolean isEnabled() {
-			return (this.wireValue instanceof final Boolean val && val) || (this.wireValue instanceof final String str && !str.isBlank());
-		}
-
 		@JsonValue
 		public Object getWireValue() {
 			return this.wireValue;
