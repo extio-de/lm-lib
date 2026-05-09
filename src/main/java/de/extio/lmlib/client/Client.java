@@ -21,5 +21,7 @@ public interface Client {
 	
 	ModelProvider getModelProvider();
 
-	boolean supportsToolCalling();
+	boolean supportsToolCalling(ModelCategory modelCategory);
+
+	boolean supportsToolCalling(ModelProfile modelProfile);
 }

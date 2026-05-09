@@ -38,7 +38,7 @@ public class ClientService {
 	}
 
 	public boolean supportsToolCalling(final ModelCategory category) {
-		return this.getClient(category).supportsToolCalling();
+		return this.getClient(category).supportsToolCalling(category);
 	}
 	
 	@Cacheable("clients")
@@ -56,7 +56,7 @@ public class ClientService {
 	}
 
 	public boolean supportsToolCalling(final ModelProfile modelProfile) {
-		return this.getClient(modelProfile).supportsToolCalling();
+		return this.getClient(modelProfile).supportsToolCalling(modelProfile);
 	}
 	
 	private static class InterceptingClient implements Client {
@@ -122,8 +122,13 @@ public class ClientService {
 		}
 
 		@Override
-		public boolean supportsToolCalling() {
-			return this.client.supportsToolCalling();
+		public boolean supportsToolCalling(final ModelCategory modelCategory) {
+			return this.client.supportsToolCalling(modelCategory);
+		}
+
+		@Override
+		public boolean supportsToolCalling(final ModelProfile modelProfile) {
+			return this.client.supportsToolCalling(modelProfile);
 		}
 		
 	}

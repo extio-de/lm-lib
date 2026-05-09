@@ -28,7 +28,7 @@ import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.context.annotation.PropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 
@@ -45,7 +45,7 @@ import de.extio.lmlib.profile.ModelCategory;
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
 @EnableAutoConfiguration
-@PropertySource("classpath:/application-test.properties")
+@TestPropertySource("classpath:/application-test.properties")
 @TestInstance(Lifecycle.PER_CLASS)
 public class GraderTest {
 

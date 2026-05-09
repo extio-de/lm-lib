@@ -16,7 +16,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.PropertySource;
+import org.springframework.test.context.TestPropertySource;
 
 import de.extio.lmlib.client.ClientService;
 import de.extio.lmlib.client.Conversation;
@@ -29,7 +29,7 @@ import de.extio.lmlib.profile.ModelCategory;
 @SpringBootConfiguration
 @EnableAutoConfiguration
 @Import({ TestCachedClientRepository.Config.class })
-@PropertySource("classpath:/application-test.properties")
+@TestPropertySource("classpath:/application-test.properties")
 public class CachedClientTest {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(CachedClientTest.class);

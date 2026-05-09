@@ -78,8 +78,13 @@ public class CachedClient implements Client {
 	}
 
 	@Override
-	public boolean supportsToolCalling() {
-		return this.client.supportsToolCalling();
+	public boolean supportsToolCalling(final ModelCategory modelCategory) {
+		return this.client.supportsToolCalling(modelCategory);
+	}
+
+	@Override
+	public boolean supportsToolCalling(final ModelProfile modelProfile) {
+		return this.client.supportsToolCalling(modelProfile);
 	}
 	
 	private Completion getCachedResponse(final ModelCategory modelCategory, final ModelProfile modelProfile, final boolean skipCache, final Supplier<Completion> supplier, final String... keys) {

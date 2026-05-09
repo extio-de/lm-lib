@@ -23,6 +23,7 @@ import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.oai.completion.AbstractCompletionClient;
+import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.prompt.PromptStrategy;
@@ -41,7 +42,12 @@ public class TextCompletionClient extends AbstractCompletionClient {
 	}
 	
 	@Override
-	public boolean supportsToolCalling() {
+	public boolean supportsToolCalling(final ModelCategory modelCategory) {
+		return false;
+	}
+
+	@Override
+	public boolean supportsToolCalling(final ModelProfile modelProfile) {
 		return false;
 	}
 

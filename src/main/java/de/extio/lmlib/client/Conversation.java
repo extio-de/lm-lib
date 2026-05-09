@@ -61,7 +61,8 @@ public final class Conversation {
 		if (completion == null) {
 			throw new IllegalArgumentException("completion must not be null");
 		}
-		this.appendToolCallRound(completion.response(), completion.toolCalls(), toolResults);
+		final var assistantText = completion.toolCalls().isEmpty() ? completion.response() : "";
+		this.appendToolCallRound(assistantText, completion.toolCalls(), toolResults);
 	}
 
 	public void appendToolCallRound(final String assistantText, final List<ToolCall> toolCalls, final List<ToolResult> toolResults) {

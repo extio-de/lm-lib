@@ -45,6 +45,6 @@ public record ModelProfile(
 	}
 	
 	public static enum ModelProvider {
-		OAI_TEXT_COMPLETION, OAI_CHAT_COMPLETION;
+		OAI_TEXT_COMPLETION, OAI_CHAT_COMPLETION, OLLAMA;
 	}
 }

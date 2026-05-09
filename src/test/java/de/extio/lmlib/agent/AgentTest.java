@@ -21,7 +21,7 @@ import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.context.annotation.PropertySource;
+import org.springframework.test.context.TestPropertySource;
 
 import de.extio.lmlib.agent.responsehandler.JsonAgentResponseHandler;
 import de.extio.lmlib.agent.responsehandler.TextAgentResponseHandler;
@@ -43,7 +43,7 @@ import de.extio.lmlib.profile.ModelProfileService;
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
 @EnableAutoConfiguration
-@PropertySource("classpath:/application-test.properties")
+@TestPropertySource("classpath:/application-test.properties")
 public class AgentTest {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(AgentTest.class);
@@ -367,7 +367,7 @@ public class AgentTest {
 			}
 
 			@Override
-			public boolean supportsToolCalling(final AgentContext context) {
+			public boolean supportsToolCalling(final AgentContext context, final ClientService clientService) {
 				return true;
 			}
 

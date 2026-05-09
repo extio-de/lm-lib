@@ -20,7 +20,7 @@ import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.context.annotation.PropertySource;
+import org.springframework.test.context.TestPropertySource;
 
 import de.extio.lmlib.client.ClientService;
 import de.extio.lmlib.client.CompletionFinishReason;
@@ -41,7 +41,7 @@ import de.extio.lmlib.profile.ModelProfileService;
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
 @EnableAutoConfiguration
-@PropertySource("classpath:/application-test.properties")
+@TestPropertySource("classpath:/application-test.properties")
 public class CompletionClientTest {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(CompletionClientTest.class);
@@ -174,8 +174,8 @@ public class CompletionClientTest {
 				toolCallData,
 				false);
 		
-		assertTrue(this.chatCompletionclient.supportsToolCalling());
-		assertFalse(this.textCompletionClient.supportsToolCalling());
+		assertTrue(this.chatCompletionclient.supportsToolCalling(modelProfile));
+		assertFalse(this.textCompletionClient.supportsToolCalling(this.modelProfileService.getModelProfile("profile.model.textcompletion")));
 		assertTrue(this.clientService.supportsToolCalling(modelProfile));
 		assertTrue(completion.finishReason() == CompletionFinishReason.TOOL_CALLS);
 		assertEquals(2, completion.toolCalls().size());
@@ -226,8 +226,8 @@ public class CompletionClientTest {
 				ToolCallData.required(List.of(getWeather, getCpu)).withParallelToolCalls(true),
 				false);
 		
-		assertTrue(this.chatCompletionclient.supportsToolCalling());
-		assertFalse(this.textCompletionClient.supportsToolCalling());
+		assertTrue(this.chatCompletionclient.supportsToolCalling(modelProfile));
+		assertFalse(this.textCompletionClient.supportsToolCalling(this.modelProfileService.getModelProfile("profile.model.textcompletion")));
 		assertTrue(this.clientService.supportsToolCalling(modelProfile));
 		assertTrue(completion.finishReason() == CompletionFinishReason.TOOL_CALLS);
 		assertEquals(2, completion.toolCalls().size());

@@ -1,9 +1,6 @@
 package de.extio.lmlib.token;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.math.BigDecimal;
 
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -13,7 +10,7 @@ import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.context.annotation.PropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.client.RestClient;
 
 import de.extio.lmlib.profile.ModelCategory;
@@ -22,7 +19,7 @@ import de.extio.lmlib.profile.ModelProfileService;
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @SpringBootConfiguration
 @EnableAutoConfiguration
-@PropertySource("classpath:/application-test.properties")
+@TestPropertySource("classpath:/application-test.properties")
 public class TokenizerTest {
 	
 	private static final String TEXT = "Hello this is a text! How are you doing? The weather is great today! Super sunny shiny!!!";

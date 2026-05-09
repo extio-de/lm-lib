@@ -13,13 +13,13 @@ lm-lib is published under the Apache License 2.0.
 
 lm-lib is designed for applications that need more than single prompt-response calls. Its center of gravity is the agent framework: structured multi-step flows such as classification, planning, fan-out analysis, synthesis, grading, feedback loops, and other graph-based execution patterns.
 
-It also supports direct completion use cases through a client abstraction layer. The built-in clients currently target OpenAI-compatible endpoints, including local servers that expose the same API shape, but the library is intentionally structured so additional client implementations can be added over time. Applications can also provide their own client implementations by implementing the relevant interfaces.
+It also supports direct completion use cases through a client abstraction layer. The built-in clients currently cover OpenAI-compatible chat and text completion endpoints as well as Ollama's native chat API, and the abstraction remains open for additional provider implementations over time. Applications can also provide their own client implementations by implementing the relevant interfaces.
 
-The current built-in client set supports both chat completions and legacy text completions, with model-specific prompt strategies for text completion models.
+The current built-in client set supports OpenAI-compatible chat completions, legacy text completions, and native Ollama chat completions, with model-specific prompt strategies for text completion models.
 
 ## Key Capabilities
 
-- OpenAI-compatible chat and text completions
+- OpenAI-compatible chat and text completions plus native Ollama chat completions
 - Chat-completion tool calling with tool definitions, returned tool calls, and tool-result follow-up rounds
 - Streaming and non-streaming APIs
 - Separate reasoning capture for models that expose reasoning output
@@ -240,7 +240,7 @@ Each profile file is a `.properties` resource on the classpath.
 | `maxContextLength` | Integer | Yes | Maximum total context length. | `16000`, `32768`, `128000` |
 | `temperature` | Double | Yes | Sampling temperature. Must be greater than zero. | `0.2`, `0.4`, `0.7` |
 | `topP` | Double | Yes | Nucleus sampling parameter. Must be greater than zero. | `1.0`, `0.9` |
-| `modelProvider` | Enum | Yes | Completion client type. | `OAI_CHAT_COMPLETION`, `OAI_TEXT_COMPLETION` |
+| `modelProvider` | Enum | Yes | Completion client type. | `OAI_CHAT_COMPLETION`, `OAI_TEXT_COMPLETION`, `OLLAMA` |
 | `modelName` | String | No | Model name or deployment. Can be empty for endpoints where the model should be auto-detected. | `gpt-4`, `Llama-3.3-70B-Instruct`, `` |
 | `url` | String | Yes | Base API URL. | `https://api.openai.com/v1`, `http://localhost:5001` |
 | `apiKey` | String | No | Bearer token or Spring placeholder. Can be empty for local servers. | `sk-...`, `${apikey}`, `` |
@@ -298,6 +298,27 @@ cost1MInTokens=0
 cost1MOutTokens=0
 ```
 
+Local Ollama chat completion:
+
+```properties
+category=M
+prompts=
+tokenizer=jtokkit
+tokenEncoding=cl100k_base
+maxTokens=2500
+maxContextLength=32768
+temperature=0.4
+topP=1.0
+modelProvider=OLLAMA
+modelName=
+url=http://localhost:11434
+apiKey=
+cost1MInTokens=0
+cost1MOutTokens=0
+```
+
+Direct Ollama cloud access uses the same provider with `url=https://ollama.com/api` and a Bearer token in `apiKey`. Local Ollama access usually does not require authentication.
+
 ## Client Implementations
 
 lm-lib exposes a client abstraction intended to support multiple backend implementations.
@@ -307,17 +328,25 @@ The built-in provider implementations currently support these types:
 ```properties
 modelProvider=OAI_CHAT_COMPLETION
 modelProvider=OAI_TEXT_COMPLETION
+modelProvider=OLLAMA
 ```
 
-Chat completions are the preferred default. They are simpler to use because the library only needs to send the conversation. Text completions are still useful when you need explicit prompt formatting or must work with instruct models that depend on raw prompt structure.
+### OpenAI-Compatible Providers
 
-Tool calling is currently supported only for chat completion models. `TextCompletionClient` does not support tools, and `supportsToolCalling()` can be used on `Client`, `ClientService`, and `BaseAgent` to detect availability before enabling tool-aware flows.
+`OAI_CHAT_COMPLETION` and `OAI_TEXT_COMPLETION` target the OpenAI-style API surface.
 
-These built-in providers are OpenAI-compatible today, but that is an implementation detail of the current client set, not a hard architectural limit of the library. Additional provider integrations can be added in the library itself, and applications can plug in their own client implementations where needed.
+Use `OAI_CHAT_COMPLETION` for cloud APIs such as OpenAI itself and for local or self-hosted servers that expose a compatible `/v1/chat/completions` interface. This is the preferred default because lm-lib can send the conversation directly, supports streaming, and exposes tool calls through the standard chat-completion flow.
+
+Use `OAI_TEXT_COMPLETION` when you need explicit prompt templating or must target instruct-style models that still depend on raw prompt construction rather than structured chat messages. This is mainly useful for older compatible backends or local servers configured around prompt templates.
+
+OpenAI-compatible deployments commonly fall into two operational patterns:
+
+- Cloud endpoints: hosted APIs with a fixed base URL such as `https://api.openai.com/v1`, normally with a Bearer API key.
+- Local or self-hosted endpoints: llama-server, vLLM-compatible gateways, or other OpenAI-style frontends exposed on an internal URL such as `http://localhost:5001`.
 
 If you need to adapt request shaping for a specific OpenAI-compatible provider, you can optionally register an `OpenAiProviderDialect` bean. This allows applications to suppress or switch request fields that a provider does not support while keeping `ModelProfile` provider-agnostic and runtime-driven.
 
-The default dialect behavior is:
+The default OpenAI dialect behavior is:
 
 - `sendUsage(...) = false`
 - `sendReasoning(...) = true`
@@ -360,17 +389,23 @@ OpenAiProviderDialect legacyOpenAiProviderDialect() {
 }
 ```
 
-If no `OpenAiProviderDialect` bean is present, lm-lib follows the official-oriented defaults above, with `usage` left disabled unless you opt in.
+### Ollama Provider
 
-For text completions, select a prompt strategy with the `prompts` property. lm-lib ships built-in strategies for common model families including Llama, GPT-OSS, Gemma, Mistral, Phi, Qwen, Vicuna, ChatML, Alpaca, and a no-formatting strategy.
+`OLLAMA` targets Ollama's native API surface rather than the OpenAI-compatible transport.
 
-Example:
+The Ollama provider uses `/api/chat` for completions, `/api/tags` for model discovery, and `/api/show` for capability discovery. It supports local Ollama installations at `http://localhost:11434` as well as direct cloud access at `https://ollama.com/api` with Bearer authentication.
 
-```properties
-prompts=llama3
-```
+If you need to shape Ollama thinking behavior, you can optionally register an `OllamaDialect` bean. Its `think(...)` hook controls whether lm-lib requests separate thinking output and whether it uses the generic boolean mode or Ollama's string levels such as `low`, `medium`, or `high`.
 
-Use `jTokkit` or `llamaServer` for tokenization depending on your deployment model.
+lm-lib caches `/api/show` model details per resolved model. Thinking and tool definitions are sent only when the model advertises the corresponding capability, and `supportsToolCalling(modelProfile)` probes the same cached capability data.
+
+### Tool Calling Support
+
+Tool calling is exposed through the same lm-lib API across providers that support it. The capability is model-aware rather than purely provider-wide, so callers should check `supportsToolCalling(modelProfile)` or `supportsToolCalling(modelCategory)` on `Client` or `ClientService` before enabling tool-aware flows.
+
+In practice, text-completion clients do not support tools, while chat-oriented clients may support them depending on the resolved backend and model. For Ollama, lm-lib probes cached `/api/show` capability metadata. For OpenAI-compatible chat providers, support is determined by the selected client type.
+
+The library keeps the caller-facing tool-calling flow uniform even when providers differ internally. You still pass `ToolDefinition` and `ToolCallData`, inspect `CompletionFinishReason.TOOL_CALLS`, and append tool results through the same conversation API. If a backend does not expose every request-side control, lm-lib keeps the public API stable and applies those controls on a best-effort basis.
 
 ## Usage
 
@@ -391,7 +426,7 @@ final var completion = client.conversation(ModelCategory.MEDIUM, conversation, n
 
 ### Tool Calling
 
-Tool calling lets chat completion models return one or more structured tool invocations instead of a final natural-language answer. The library exposes this in both the direct client API and the agent runtime.
+Tool calling lets chat completion models return one or more structured tool invocations instead of a final natural-language answer. The library exposes this in both the direct client API and the agent runtime across OpenAI-compatible chat providers and the native Ollama client.
 
 The main tool-calling types are:
 
@@ -446,7 +481,7 @@ if (completion.finishReason() == CompletionFinishReason.TOOL_CALLS) {
 - `ToolCallData.auto(...)`: model may decide whether to call a tool
 - `ToolCallData.required(...)`: model must call one or more of the provided tools
 - `ToolCallData.force(...)`: model must call a specific named tool
-- `toolCallData.withParallelToolCalls(true)`: asks OpenAI-compatible backends for multiple independent tool calls in one turn when the server and model support `parallel_tool_calls`
+- `toolCallData.withParallelToolCalls(true)`: asks the backend for multiple independent tool calls in one turn when the provider exposes such a control; providers that do not expose a parallel flag treat this as a best-effort no-op while still returning multiple tool calls when the model emits them
 
 If a model returns multiple tool calls, append one assistant turn containing the returned `toolCalls()`, then append one tool turn per returned `tool_call_id` before requesting the follow-up completion.
 
@@ -465,7 +500,7 @@ Both streaming and non-streaming execution paths are supported.
 
 If a chat completion decides to call a tool, `finishReason()` is `CompletionFinishReason.TOOL_CALLS` and `toolCalls()` contains the requested function calls. Streaming chat completions also aggregate tool calls into the final `Completion`, including multi-tool responses when `parallel_tool_calls` is enabled and supported by the backend.
 
-This lets you stream visible output while still capturing final structured accounting data.
+Provider-specific streaming formats are normalized into the same `Chunk` and `Completion` objects. This lets you stream visible output while still capturing final structured accounting data, regardless of whether the backend is OpenAI-compatible or Ollama-native.
 
 ## Completions Cache
 

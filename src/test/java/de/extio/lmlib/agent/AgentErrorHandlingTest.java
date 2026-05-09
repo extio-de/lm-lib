@@ -34,6 +34,7 @@ import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.ToolDefinition;
 import de.extio.lmlib.client.ToolParameters;
 import de.extio.lmlib.profile.ModelCategory;
+import de.extio.lmlib.profile.ModelProfile;
 
 class AgentErrorHandlingTest {
 
@@ -98,7 +99,8 @@ class AgentErrorHandlingTest {
 	@Test
 	void toolCallDataIsRetainedForFollowUpConversationRequests() {
 		final var client = mock(Client.class);
-		when(client.supportsToolCalling()).thenReturn(true);
+		when(client.supportsToolCalling(any(ModelProfile.class))).thenReturn(true);
+		when(client.supportsToolCalling(any(ModelCategory.class))).thenReturn(true);
 		final var requestCounter = new AtomicInteger();
 		final var firstRequestToolCallData = new AtomicReference<ToolCallData>();
 		final var secondRequestToolCallData = new AtomicReference<ToolCallData>();

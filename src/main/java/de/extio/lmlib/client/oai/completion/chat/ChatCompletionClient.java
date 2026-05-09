@@ -24,6 +24,7 @@ import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.ToolDefinition;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.oai.completion.AbstractCompletionClient;
+import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 
@@ -36,8 +37,14 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 	}
 	
 	@Override
-	public boolean supportsToolCalling() {
-		return true;
+	public boolean supportsToolCalling(final ModelCategory modelCategory) {
+		final var modelProfile = this.modelProfileService.getModelProfile(modelCategory.getModelProfile(), modelCategory);
+		return this.supportsToolCalling(modelProfile);
+	}
+
+	@Override
+	public boolean supportsToolCalling(final ModelProfile modelProfile) {
+		return modelProfile != null && modelProfile.modelProvider() == ModelProvider.OAI_CHAT_COMPLETION;
 	}
 
 	@Override

@@ -31,7 +31,6 @@ import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
-import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 
 public interface BaseAgent {
 	
@@ -83,15 +82,7 @@ public interface BaseAgent {
 		return ToolCallData.auto(toolDefinitions);
 	}
 
-	default boolean supportsToolCalling(final AgentContext context) {
-		final var modelProfile = this.modelProfile(context);
-		return modelProfile != null && modelProfile.modelProvider() == ModelProvider.OAI_CHAT_COMPLETION;
-	}
-
 	default boolean supportsToolCalling(final AgentContext context, final ClientService clientService) {
-		if (clientService == null) {
-			return this.supportsToolCalling(context);
-		}
 		final var modelProfile = this.modelProfile(context);
 		if (modelProfile != null) {
 			return clientService.supportsToolCalling(modelProfile);
@@ -161,7 +152,9 @@ public interface BaseAgent {
 						final boolean skipCache = split.context().isSkipCache() || split.context().isAlwaysSkipCache();
 						split.context().setSkipCache(false);
 						final var conversation = this.setupConversation(split);
-						var toolCallData = completionClient.supportsToolCalling() ? this.toolCallData(split.context()) : null;
+						final var requestedModelProfile = this.modelProfile(split.context());
+						final var supportsToolCalling = requestedModelProfile != null ? completionClient.supportsToolCalling(requestedModelProfile) : completionClient.supportsToolCalling(this.modelCategory(split.context()));
+						var toolCallData = supportsToolCalling ? this.toolCallData(split.context()) : null;
 						this.rememberToolCallData(split.context(), toolCallData);
 						
 						boolean parseable = false;
