@@ -1,7 +1,5 @@
 package de.extio.lmlib.client.oai.completion;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.time.Duration;
@@ -19,12 +17,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import tools.jackson.core.JacksonException;
 import tools.jackson.core.json.JsonReadFeature;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
@@ -171,13 +169,17 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 		return this.getModelNames(modelProfile, false).stream().findFirst().orElse("");
 	}
 
-	protected void logErrorResponse(final HttpStatusCode statusCode, final InputStream responseBody) {
+	protected String getErrorMessage(final String errorBody) {
 		try {
-			LOGGER.warn("Error response from server: {} {}", statusCode, new String(responseBody.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+			final var errorResponse = this.objectMapper.readValue(errorBody, ErrorResponse.class);
+			if (errorResponse != null && errorResponse.error() != null && errorResponse.error().message() != null && !errorResponse.error().message().isBlank()) {
+				return errorResponse.error().message();
+			}
 		}
-		catch (final IOException e) {
-			LOGGER.warn("Error response from server: {} <failed to read response body: {}>", statusCode, e.getMessage());
+		catch (final JacksonException e) {
+			LOGGER.debug("Failed to parse error response body", e);
 		}
+		return errorBody;
 	}
 
 	private List<String> loadModelNames(final ModelProfile modelProfile) {

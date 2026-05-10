@@ -130,7 +130,7 @@ public class OllamaClient implements Client {
 				.exchange((clientRequest, clientResponse) -> {
 					if (clientResponse.getStatusCode().isError()) {
 						this.logErrorResponse(clientResponse.getStatusCode(), clientResponse.getBody());
-						throw new IllegalStateException("Error response from server: " + clientResponse.getStatusCode());
+						throw new IllegalStateException("Error response from server: " + clientResponse.getStatusCode() + " " + clientResponse.getBody());
 					}
 					if (chunkConsumer == null) {
 						final var ollamaResponse = this.objectMapper.readValue(clientResponse.getBody(), OllamaChatResponse.class);

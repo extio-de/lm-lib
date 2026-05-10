@@ -106,15 +106,6 @@ public class OpenRouterClient extends ChatCompletionClient {
 		return metadata == null ? OpenAiProviderDialect.ChatTokenLimitParameterMode.MAX_COMPLETION_TOKENS : metadata.tokenLimitParameterMode();
 	}
 
-	@Override
-	protected OpenAiProviderDialect.ReasoningEffort reasoningEffort(final ModelProfile modelProfile) {
-		if (!this.sendReasoning(modelProfile)) {
-			return null;
-		}
-		final var reasoningEffort = super.reasoningEffort(modelProfile);
-		return reasoningEffort == null ? OpenAiProviderDialect.ReasoningEffort.MEDIUM : reasoningEffort;
-	}
-
 	private OpenRouterModelDiscovery.ResolvedOpenRouterModelMetadata resolveMetadata(final ModelProfile modelProfile) {
 		if (modelProfile == null || modelProfile.modelProvider() != ModelProvider.OPENROUTER) {
 			return null;

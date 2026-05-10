@@ -83,8 +83,10 @@ public class TextCompletionClient extends AbstractCompletionClient {
 				.body(requestBody)
 				.exchange((clientRequest, clientResponse) -> {
 					if (clientResponse.getStatusCode().isError()) {
-						this.logErrorResponse(clientResponse.getStatusCode(), clientResponse.getBody());
-						throw new IllegalStateException("Error response from server: " + clientResponse.getStatusCode());
+						final var errorBody = new String(clientResponse.getBody().readAllBytes(), StandardCharsets.UTF_8);
+						final var errorMessage = this.getErrorMessage(errorBody);
+						LOGGER.warn("Error response from server: {} {}", clientResponse.getStatusCode(), errorMessage);
+						throw new IllegalStateException("Error response from server: " + clientResponse.getStatusCode() + " " + errorMessage);
 					}
 					
 					if (chunkConsumer == null) {
