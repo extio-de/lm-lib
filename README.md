@@ -899,6 +899,10 @@ Each context accumulates a graph trace that documents the path through the flow.
 | `M`, `S`, `L`, `HOT`, `COLD` | Model category short name |
 | agent name | Executed agent |
 | `○` | Completion skipped |
+| `⏹` | Completion stopped because the token limit was reached |
+| `⛔` | Completion stopped because the content was filtered |
+| `🔧` | Completion stopped because the model returned tool calls |
+| `❌` | Completion stopped because of an remote error |
 | `⇉ x/n` | Branch split x of n |
 | `size↣merged` | Merge size summary |
 | `→` | Next agent is a `COMPLETION` agent |
