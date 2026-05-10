@@ -6,6 +6,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
+import de.extio.lmlib.client.openrouter.OpenRouterClient;
+import de.extio.lmlib.client.openrouter.OpenRouterModelDiscovery;
 import de.extio.lmlib.client.ollama.OllamaClient;
 import de.extio.lmlib.client.oai.completion.chat.ChatCompletionClient;
 import de.extio.lmlib.client.oai.completion.text.TextCompletionClient;
@@ -33,6 +35,18 @@ public class ClientAutoConfiguration {
 	@ConditionalOnMissingBean
 	ChatCompletionClient chatCompletionClient() {
 		return new ChatCompletionClient();
+	}
+
+	@Bean
+	@ConditionalOnMissingBean
+	OpenRouterModelDiscovery openRouterModelDiscovery() {
+		return new OpenRouterModelDiscovery();
+	}
+
+	@Bean
+	@ConditionalOnMissingBean
+	OpenRouterClient openRouterClient() {
+		return new OpenRouterClient();
 	}
 
 	@Bean

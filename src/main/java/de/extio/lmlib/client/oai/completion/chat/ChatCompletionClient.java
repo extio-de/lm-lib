@@ -101,6 +101,9 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 								if (line.startsWith("data: ")) {
 									line = line.substring(6).trim();
 								}
+								if (line.startsWith(":")) {
+									continue;
+								}
 								if (line.isEmpty()) {
 									continue;
 								}

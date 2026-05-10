@@ -21,11 +21,11 @@ public record ModelProfile(
 		String category) {
 	
 	public ModelProfile {
-		if (maxTokens <= 0) {
-			throw new IllegalArgumentException("Model profile maxTokens must be greater than zero");
+		if (maxTokens < 0) {
+			throw new IllegalArgumentException("Model profile maxTokens must be greater than or equal to zero");
 		}
-		if (maxContextLength <= 0) {
-			throw new IllegalArgumentException("Model profile maxContextLength must be greater than zero");
+		if (maxContextLength < 0) {
+			throw new IllegalArgumentException("Model profile maxContextLength must be greater than or equal to zero");
 		}
 		if (temperature <= 0) {
 			throw new IllegalArgumentException("Model profile temperature must be greater than zero");
@@ -36,15 +36,12 @@ public record ModelProfile(
 		if (modelProvider == null) {
 			throw new IllegalArgumentException("Model profile modelProvider is mandatory and cannot be null");
 		}
-		if (url == null || url.isBlank()) {
-			throw new IllegalArgumentException("Model profile url is mandatory and cannot be empty");
-		}
 		if (category == null || category.isBlank()) {
 			throw new IllegalArgumentException("Model profile category is mandatory and cannot be empty");
 		}
 	}
 	
 	public static enum ModelProvider {
-		OAI_TEXT_COMPLETION, OAI_CHAT_COMPLETION, OLLAMA;
+		OAI_TEXT_COMPLETION, OAI_CHAT_COMPLETION, OPENROUTER, OLLAMA;
 	}
 }

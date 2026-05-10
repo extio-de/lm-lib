@@ -265,13 +265,10 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 			outTokens = this.tokenizerResolver.count(response, modelProfile);
 		}
 		
-		// Calculate cost - inTokens and outTokens are already exclusive of cached/reasoning tokens
-		BigDecimal cost = BigDecimal.ZERO;
-		cost = cost.add(new BigDecimal(inTokens).multiply(modelProfile.costPerInToken()));
-		cost = cost.add(new BigDecimal(cachedInTokens).multiply(modelProfile.costPerCachedInToken()));
-		cost = cost.add(new BigDecimal(outTokens).multiply(modelProfile.costPerOutToken()));
-		cost = cost.add(new BigDecimal(reasoningOutTokens).multiply(modelProfile.costPerReasoningOutToken()));
-		
+		var cost = this.getUsageCost(usage);
+		if (cost.compareTo(BigDecimal.ZERO) <= 0) {
+			cost = this.calculateTokenCost(modelProfile, inTokens, cachedInTokens, outTokens, reasoningOutTokens);
+		}
 		final var statistics = new de.extio.lmlib.client.CompletionStatistics(
 				1,
 				Duration.between(start, LocalDateTime.now()),
@@ -286,6 +283,51 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 			this.totalStatistics.add(statistics.duration(), inTokens, cachedInTokens, outTokens, reasoningOutTokens, statistics.cost());
 		}
 		return statistics;
+	}
+
+	private BigDecimal getUsageCost(final Usage usage) {
+		if (usage == null) {
+			return BigDecimal.ZERO;
+		}
+		
+		if (usage.getCost() != null && usage.getCost().compareTo(BigDecimal.ZERO) > 0) {
+			return usage.getCost();
+		}
+		
+		final var costDetails = usage.getCostDetails();
+		if (costDetails != null) {
+			if (costDetails.getUpstreamInferenceCost() != null) {
+				return costDetails.getUpstreamInferenceCost();
+			}
+			
+			var cost = BigDecimal.ZERO;
+			if (costDetails.getUpstreamInferencePromptCost() != null) {
+				cost = cost.add(costDetails.getUpstreamInferencePromptCost());
+			}
+			if (costDetails.getUpstreamInferenceCompletionsCost() != null) {
+				cost = cost.add(costDetails.getUpstreamInferenceCompletionsCost());
+			}
+			if (costDetails.getUpstreamInferenceInputCost() != null) {
+				cost = cost.add(costDetails.getUpstreamInferenceInputCost());
+			}
+			if (costDetails.getUpstreamInferenceOutputCost() != null) {
+				cost = cost.add(costDetails.getUpstreamInferenceOutputCost());
+			}
+			if (cost.compareTo(BigDecimal.ZERO) > 0) {
+				return cost;
+			}
+		}
+
+		return BigDecimal.ZERO;
+	}
+	
+	private BigDecimal calculateTokenCost(final ModelProfile modelProfile, int inTokens, int cachedInTokens, int outTokens, int reasoningOutTokens) {
+		var cost = BigDecimal.ZERO;
+		cost = cost.add(new BigDecimal(inTokens).multiply(modelProfile.costPerInToken()));
+		cost = cost.add(new BigDecimal(cachedInTokens).multiply(modelProfile.costPerCachedInToken()));
+		cost = cost.add(new BigDecimal(outTokens).multiply(modelProfile.costPerOutToken()));
+		cost = cost.add(new BigDecimal(reasoningOutTokens).multiply(modelProfile.costPerReasoningOutToken()));
+		return cost;
 	}
 	
 	@Override

@@ -13,13 +13,13 @@ lm-lib is published under the Apache License 2.0.
 
 lm-lib is designed for applications that need more than single prompt-response calls. Its center of gravity is the agent framework: structured multi-step flows such as classification, planning, fan-out analysis, synthesis, grading, feedback loops, and other graph-based execution patterns.
 
-It also supports direct completion use cases through a client abstraction layer. The built-in clients currently cover OpenAI-compatible chat and text completion endpoints as well as Ollama's native chat API, and the abstraction remains open for additional provider implementations over time. Applications can also provide their own client implementations by implementing the relevant interfaces.
+It also supports direct completion use cases through a client abstraction layer. The built-in clients currently cover OpenAI-compatible chat and text completion endpoints, OpenRouter's OpenAI-compatible routing API, and Ollama's native chat API, and the abstraction remains open for additional provider implementations over time. Applications can also provide their own client implementations by implementing the relevant interfaces.
 
-The current built-in client set supports OpenAI-compatible chat completions, legacy text completions, and native Ollama chat completions, with model-specific prompt strategies for text completion models.
+The current built-in client set supports OpenAI-compatible chat completions, OpenRouter chat completions with cached metadata discovery, legacy text completions, and native Ollama chat completions, with model-specific prompt strategies for text completion models.
 
 ## Key Capabilities
 
-- OpenAI-compatible chat and text completions plus native Ollama chat completions
+- OpenAI-compatible chat and text completions, OpenRouter chat completions, plus native Ollama chat completions
 - Chat-completion tool calling with tool definitions, returned tool calls, and tool-result follow-up rounds
 - Streaming and non-streaming APIs
 - Separate reasoning capture for models that expose reasoning output
@@ -242,7 +242,7 @@ Each profile file is a `.properties` resource on the classpath.
 | `maxContextLength` | Integer | Yes | Maximum total context length. | `16000`, `32768`, `128000` |
 | `temperature` | Double | Yes | Sampling temperature. Must be greater than zero. | `0.2`, `0.4`, `0.7` |
 | `topP` | Double | Yes | Nucleus sampling parameter. Must be greater than zero. | `1.0`, `0.9` |
-| `modelProvider` | Enum | Yes | Completion client type. | `OAI_CHAT_COMPLETION`, `OAI_TEXT_COMPLETION`, `OLLAMA` |
+| `modelProvider` | Enum | Yes | Completion client type. | `OAI_CHAT_COMPLETION`, `OAI_TEXT_COMPLETION`, `OPENROUTER`, `OLLAMA` |
 | `modelName` | String | No | Model name or deployment. Can be empty for endpoints where the model should be auto-detected. | `gpt-4`, `Llama-3.3-70B-Instruct`, `` |
 | `url` | String | Yes | Base API URL. | `https://api.openai.com/v1`, `http://localhost:5001` |
 | `apiKey` | String | No | Bearer token or Spring placeholder. Can be empty for local servers. | `sk-...`, `${apikey}`, `` |
@@ -330,6 +330,7 @@ The built-in provider implementations currently support these types:
 ```properties
 modelProvider=OAI_CHAT_COMPLETION
 modelProvider=OAI_TEXT_COMPLETION
+modelProvider=OPENROUTER
 modelProvider=OLLAMA
 ```
 
@@ -391,6 +392,40 @@ OpenAiProviderDialect legacyOpenAiProviderDialect() {
 }
 ```
 
+### OpenRouter Provider
+
+`OPENROUTER` targets OpenRouter's chat-completions API and its richer model discovery endpoints.
+
+The OpenRouter provider uses `/v1/chat/completions` for completions and caches metadata from `/v1/models`, `/v1/models/user`, and `/v1/models/{author}/{slug}/endpoints`. The cached metadata is used to avoid repeating discovery calls on every request and to derive model-aware routing behavior such as tool support, reasoning support, token-limit parameter selection, context limits, and pricing.
+
+Use `OPENROUTER` when you want OpenRouter's model catalog, user-filtered model availability, or provider-aggregated pricing and capability metadata while keeping the standard lm-lib chat-completion API.
+
+Typical profile:
+
+```properties
+category=L
+prompts=
+tokenizer=jTokkit
+tokenEncoding=cl100k_base
+maxTokens=4000
+maxContextLength=128000
+temperature=0.7
+topP=0.95
+modelProvider=OPENROUTER
+modelName=
+url=
+apiKey=${openrouter.apiKey}
+cost1MInTokens=0
+cost1MCachedInTokens=0
+cost1MOutTokens=0
+cost1MReasoningOutTokens=0
+```
+
+* `modelName` is the OpenRouter model id (example: `openai/gpt-chat-latest`). If `modelName` is left empty, lm-lib will use the first available free model.
+* The `url` field is ignored by the OpenRouter client and always targets `https://openrouter.ai/api`. 
+* Token pricing is overridden by OpenRouter's model metadata
+* `maxTokens` and `maxContextLength` are clamped at the actual model capabilities. Leave it 0 to use the model limits from OpenRouter's metadata.
+
 ### Ollama Provider
 
 `OLLAMA` targets Ollama's native API surface rather than the OpenAI-compatible transport.
@@ -405,7 +440,7 @@ lm-lib caches `/api/show` model details per resolved model. Thinking and tool de
 
 Tool calling is exposed through the same lm-lib API across providers that support it. The capability is model-aware rather than purely provider-wide, so callers should check `supportsToolCalling(modelProfile)` or `supportsToolCalling(modelCategory)` on `Client` or `ClientService` before enabling tool-aware flows.
 
-In practice, text-completion clients do not support tools via api (but you have full control over the raw prompt), while chat-oriented clients may support them depending on the resolved backend and model. For Ollama, lm-lib probes cached `/api/show` capability metadata. For OpenAI-compatible chat providers, support is determined by the selected client type.
+In practice, text-completion clients do not support tools via api (but you have full control over the raw prompt), while chat-oriented clients may support them depending on the resolved backend and model. For Ollama, lm-lib probes cached `/api/show` capability metadata. For OpenRouter, lm-lib probes cached model and endpoint metadata from the OpenRouter model APIs. For OpenAI-compatible chat providers, support is determined by the selected client type.
 
 The library keeps the caller-facing tool-calling flow uniform even when providers differ internally. You still pass `ToolDefinition` and `ToolCallData`, inspect `CompletionFinishReason.TOOL_CALLS`, and append tool results through the same conversation API. If a backend does not expose every request-side control, lm-lib keeps the public API stable and applies those controls on a best-effort basis.
 

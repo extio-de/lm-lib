@@ -49,11 +49,11 @@ public class ModelProfileService {
 			final var maxTokens = Optional.ofNullable(resource.getProperty("maxTokens"))
 					.map(Object::toString)
 					.map(Integer::parseInt)
-					.orElseThrow(() -> new IllegalStateException("No model maxTokens found for model: " + modelName));
+					.orElse(Integer.valueOf(0));
 			final var maxContextLength = Optional.ofNullable(resource.getProperty("maxContextLength"))
 					.map(Object::toString)
 					.map(Integer::parseInt)
-					.orElseThrow(() -> new IllegalStateException("No model maxContextLength found for model: " + modelName));
+					.orElse(Integer.valueOf(0));
 			final var temperature = Optional.ofNullable(resource.getProperty("temperature"))
 					.map(Object::toString)
 					.map(Double::parseDouble)
@@ -71,7 +71,7 @@ public class ModelProfileService {
 					.orElse(null);
 			final var url = Optional.ofNullable(resource.getProperty("url"))
 					.map(Object::toString)
-					.orElseThrow(() -> new IllegalStateException("No model url found for model: " + modelName));
+					.orElse(null);
 			final var costPerInToken = Optional.ofNullable(resource.getProperty("cost1MInTokens"))
 					.map(Object::toString)
 					.map(value -> new BigDecimal(value))
