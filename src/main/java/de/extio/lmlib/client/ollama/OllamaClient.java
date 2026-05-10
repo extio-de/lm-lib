@@ -452,16 +452,16 @@ public class OllamaClient implements Client {
 							.toList();
 		}
 		catch (final RestClientResponseException e) {
-			LOGGER.warn("Failed to load Ollama model names: {} {}", e.getStatusCode(), e.getStatusText());
-			return List.of();
+			LOGGER.error("Failed to load Ollama model names: {} {}", e.getStatusCode(), e.getStatusText());
+			throw new IllegalStateException("Failed to load Ollama model names: " + e.getStatusCode() + " " + e.getStatusText(), e);
 		}
 		catch (final RestClientException e) {
-			LOGGER.warn("Failed to load Ollama model names: {}", e.getMessage());
-			return List.of();
+			LOGGER.error("Failed to load Ollama model names: {}", e.getMessage());
+			throw new IllegalStateException("Failed to load Ollama model names: " + e.getMessage(), e);
 		}
 		catch (final RuntimeException e) {
-			LOGGER.warn("Failed to load Ollama model names", e);
-			return List.of();
+			LOGGER.error("Failed to load Ollama model names", e);
+			throw new IllegalStateException("Failed to load Ollama model names: " + e.getMessage(), e);
 		}
 	}
 
