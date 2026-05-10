@@ -203,6 +203,7 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 			return List.of();
 		}
 		catch (final RuntimeException e) {
+			LOGGER.warn("Failed to load model names", e);
 			return List.of();
 		}
 	}
@@ -212,6 +213,7 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 			case FinishReasons.FINISH_REASON_CONTENT_FILTER -> CompletionFinishReason.CONTENT_FILTERED;
 			case FinishReasons.FINISH_REASON_LENGTH -> CompletionFinishReason.TOKEN_LIMIT_REACHED;
 			case FinishReasons.FINISH_REASON_TOOL_CALLS -> CompletionFinishReason.TOOL_CALLS;
+			case FinishReasons.FINISH_REASON_ERROR -> CompletionFinishReason.ERROR;
 			default -> CompletionFinishReason.DONE;
 		};
 	}

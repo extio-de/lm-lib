@@ -20,6 +20,11 @@ public enum CompletionFinishReason {
 	/**
 	 * Completion stopped because the model emitted one or more tool calls.
 	 */
-	TOOL_CALLS
+	TOOL_CALLS,
+
+	/**
+	 * Completion stopped because of an error. You may continue the conversation.
+	 */
+	ERROR
 
 }

@@ -379,6 +379,7 @@ public class OllamaClient implements Client {
 			case FinishReasons.FINISH_REASON_LENGTH -> CompletionFinishReason.TOKEN_LIMIT_REACHED;
 			case FinishReasons.FINISH_REASON_CONTENT_FILTER -> CompletionFinishReason.CONTENT_FILTERED;
 			case FinishReasons.FINISH_REASON_TOOL_CALLS -> CompletionFinishReason.TOOL_CALLS;
+			case FinishReasons.FINISH_REASON_ERROR -> CompletionFinishReason.ERROR;
 			default -> CompletionFinishReason.DONE;
 		};
 	}
