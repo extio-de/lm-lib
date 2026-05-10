@@ -4,7 +4,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-final class OpenRouterModelsResponse {
+public final class OpenRouterModelsResponse {
 	
 	private List<OpenRouterModel> data;
 	
@@ -17,7 +17,7 @@ final class OpenRouterModelsResponse {
 		this.data = data;
 	}
 	
-	static final class OpenRouterModel {
+	public static final class OpenRouterModel {
 		
 		private String id;
 		
@@ -180,7 +180,7 @@ final class OpenRouterModelsResponse {
 		
 	}
 	
-	static final class OpenRouterModelArchitecture {
+	public static final class OpenRouterModelArchitecture {
 		
 		private String tokenizer;
 		
@@ -243,7 +243,7 @@ final class OpenRouterModelsResponse {
 		}
 	}
 	
-	static final class OpenRouterPricing {
+	public static final class OpenRouterPricing {
 		
 		private String prompt;
 		
@@ -328,7 +328,7 @@ final class OpenRouterModelsResponse {
 		}
 	}
 	
-	static final class OpenRouterTopProviderInfo {
+	public static final class OpenRouterTopProviderInfo {
 		
 		private Integer contextLength;
 		
@@ -369,7 +369,7 @@ final class OpenRouterModelsResponse {
 		}
 	}
 	
-	static final class OpenRouterPerRequestLimits {
+	public static final class OpenRouterPerRequestLimits {
 		
 		private Integer promptTokens;
 		
@@ -400,7 +400,7 @@ final class OpenRouterModelsResponse {
 		
 	}
 	
-	static final class OpenRouterModelLinks {
+	public static final class OpenRouterModelLinks {
 		
 		private String details;
 		

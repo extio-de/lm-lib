@@ -4,7 +4,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-final class OpenRouterModelEndpointsResponse {
+public final class OpenRouterModelEndpointsResponse {
 
 	private OpenRouterModelEndpoints data;
 
@@ -17,7 +17,7 @@ final class OpenRouterModelEndpointsResponse {
 		this.data = data;
 	}
 
-	static final class OpenRouterModelEndpoints {
+	public static final class OpenRouterModelEndpoints {
 
 		private String id;
 
@@ -86,7 +86,7 @@ final class OpenRouterModelEndpointsResponse {
 		}
 	}
 
-	static final class OpenRouterEndpoint {
+	public static final class OpenRouterEndpoint {
 
 		private String name;
 
