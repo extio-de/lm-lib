@@ -202,21 +202,23 @@ public interface BaseAgent {
 							split.context().getGraph().add("(" + durationMs + " ms)");
 							split.context().setLastCompletion(completion);
 							split.context().getRequestStatistic().add(completion);
-							switch (completion.finishReason()) {
-								case TOKEN_LIMIT_REACHED:
-									split.context().getGraph().add("⏹");
-									break;
-								case CONTENT_FILTERED:
-									split.context().getGraph().add("⛔");
-									break;
-								case TOOL_CALLS:
-									split.context().getGraph().add("🔧");
-									break;
-								case ERROR:
-									split.context().getGraph().add("❌");
-									continue;
-								default:
-									break;
+							if (completion.finishReason() != null) {
+								switch (completion.finishReason()) {
+									case TOKEN_LIMIT_REACHED:
+										split.context().getGraph().add("⏹");
+										break;
+									case CONTENT_FILTERED:
+										split.context().getGraph().add("⛔");
+										break;
+									case TOOL_CALLS:
+										split.context().getGraph().add("🔧");
+										break;
+									case ERROR:
+										split.context().getGraph().add("❌");
+										continue;
+									default:
+										break;
+								}
 							}
 							
 							if (!completion.toolCalls().isEmpty() && responseHandler instanceof final ToolCallingAgentResponseHandler toolCallingAgentResponseHandler) {
