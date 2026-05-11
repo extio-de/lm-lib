@@ -49,7 +49,8 @@ final class ChatMessage {
 		return reasoningContent;
 	}
 	
-	@JsonProperty("reasoning")
+	@JsonProperty("reasoning_content")
+	@JsonAlias("reasoning")
 	public void setReasoningContent(final String reasoningContent) {
 		this.reasoningContent = reasoningContent;
 	}
