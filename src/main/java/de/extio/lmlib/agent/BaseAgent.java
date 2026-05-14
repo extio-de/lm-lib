@@ -37,6 +37,8 @@ public interface BaseAgent {
 	static final Logger LOGGER = LoggerFactory.getLogger(BaseAgent.class);
 	
 	static final ObjectMapper objectMapper = new ObjectMapper();
+
+	int MAX_TOOL_CALL_ROUNDS = 6;
 	
 	default String name() {
 		throw new UnsupportedOperationException("Name must be implemented in the agent");
@@ -222,7 +224,7 @@ public interface BaseAgent {
 							}
 							
 							if (!completion.toolCalls().isEmpty() && responseHandler instanceof final ToolCallingAgentResponseHandler toolCallingAgentResponseHandler) {
-								if (toolCallRounds >= 6) {
+								if (toolCallRounds >= MAX_TOOL_CALL_ROUNDS) {
 									parseException = new IllegalStateException("Too many tool call rounds");
 									break;
 								}

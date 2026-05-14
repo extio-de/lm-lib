@@ -65,6 +65,21 @@ public interface OpenAiResponsesApiDialect {
 	}
 
 	/**
+	 * Controls whether encrypted reasoning payloads should be requested for
+	 * stateless replay.
+	 * <p>
+	 * lm-lib defaults this to {@code true} so existing Responses tool-call loops keep
+	 * working without additional configuration.
+	 *
+	 * @param modelProfile the resolved model profile for the request
+	 * @return {@code true} to include encrypted reasoning content when replay is
+	 *         stateless, otherwise {@code false}
+	 */
+	default boolean includeEncryptedReasoningContent(final ModelProfile modelProfile) {
+		return true;
+	}
+
+	/**
 	 * Caps the number of built-in tool calls the Responses API may execute during a
 	 * single request.
 	 *

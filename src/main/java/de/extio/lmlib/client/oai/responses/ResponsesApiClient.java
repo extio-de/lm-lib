@@ -879,7 +879,7 @@ public class ResponsesApiClient implements Client{
 
 	private List<String> createIncludeList(final ModelProfile modelProfile, final boolean store) {
 		final var include = new LinkedHashSet<>(this.responsesDialect().include(modelProfile));
-		if (!store) {
+		if (!store && this.responsesDialect().includeEncryptedReasoningContent(modelProfile)) {
 			include.add(OpenAiResponsesApiDialect.INCLUDE_REASONING_ENCRYPTED_CONTENT);
 		}
 		return List.copyOf(include);
