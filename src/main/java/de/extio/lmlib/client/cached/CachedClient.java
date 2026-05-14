@@ -92,12 +92,12 @@ public class CachedClient implements Client {
 		
 		final var cachedCompletion = skipCache ? null : this.cacheRepository.get(key);
 		if (cachedCompletion != null) {
-			return new Completion(cachedCompletion.response(), cachedCompletion.reasoning(), cachedCompletion.finishReason(), new CompletionStatistics(0, Duration.ZERO, cachedCompletion.inTokens(), cachedCompletion.cachedInTokens(), cachedCompletion.outTokens(), cachedCompletion.reasoningOutTokens(), BigDecimal.ZERO, true), cachedCompletion.toolCalls());
+			return new Completion(cachedCompletion.response(), cachedCompletion.reasoning(), cachedCompletion.finishReason(), new CompletionStatistics(0, Duration.ZERO, cachedCompletion.inTokens(), cachedCompletion.cachedInTokens(), cachedCompletion.outTokens(), cachedCompletion.reasoningOutTokens(), BigDecimal.ZERO, true), cachedCompletion.toolCalls(), cachedCompletion.outputItems());
 		}
 		
 		final var completion = supplier.get();
 		if (completion != null) {
-			this.cacheRepository.put(key, new CachedCompletion(completion.response(), completion.reasoning(), completion.finishReason(), completion.toolCalls(), completion.statistics().inTokens(), completion.statistics().cachedInTokens(), completion.statistics().outTokens(), completion.statistics().reasoningOutTokens(), OffsetDateTime.now()));
+			this.cacheRepository.put(key, new CachedCompletion(completion.response(), completion.reasoning(), completion.finishReason(), completion.toolCalls(), completion.outputItems(), completion.statistics().inTokens(), completion.statistics().cachedInTokens(), completion.statistics().outTokens(), completion.statistics().reasoningOutTokens(), OffsetDateTime.now()));
 		}
 		return completion;
 	}

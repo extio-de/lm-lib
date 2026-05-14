@@ -1,4 +1,4 @@
-package de.extio.lmlib.client.oai;
+package de.extio.lmlib.client.oai.completion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

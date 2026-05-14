@@ -13,13 +13,13 @@ lm-lib is published under the Apache License 2.0.
 
 lm-lib is designed for applications that need more than single prompt-response calls. Its center of gravity is the agent framework: structured multi-step flows such as classification, planning, fan-out analysis, synthesis, grading, feedback loops, and other graph-based execution patterns.
 
-It also supports direct completion use cases through a client abstraction layer. The built-in clients currently cover OpenAI-compatible chat and text completion endpoints, OpenRouter's OpenAI-compatible routing API, and Ollama's native chat API, and the abstraction remains open for additional provider implementations over time. Applications can also provide their own client implementations by implementing the relevant interfaces.
+It also supports direct completion use cases through a client abstraction layer. The built-in clients currently cover OpenAI-compatible chat completion endpoints, the newer OpenAI-compatible Responses API, legacy text completion endpoints, OpenRouter's OpenAI-compatible routing API, and Ollama's native chat API, and the abstraction remains open for additional provider implementations over time. Applications can also provide their own client implementations by implementing the relevant interfaces.
 
-The current built-in client set supports OpenAI-compatible chat completions, OpenRouter chat completions with cached metadata discovery, legacy text completions, and native Ollama chat completions, with model-specific prompt strategies for text completion models.
+The current built-in client set supports OpenAI-compatible chat completions, OpenAI-compatible Responses, OpenRouter chat completions with cached metadata discovery, legacy text completions, and native Ollama chat completions, with model-specific prompt strategies for text completion models.
 
 ## Key Capabilities
 
-- OpenAI-compatible chat and text completions, OpenRouter chat completions, plus native Ollama chat completions
+- OpenAI-compatible chat completions, OpenAI-compatible Responses, legacy text completions, OpenRouter chat completions, plus native Ollama chat completions
 - Chat-completion tool calling with tool definitions, returned tool calls, and tool-result follow-up rounds
 - Streaming and non-streaming APIs
 - Separate reasoning capture for models that expose reasoning output
@@ -242,7 +242,7 @@ Each profile file is a `.properties` resource on the classpath.
 | `maxContextLength` | Integer | Yes | Maximum total context length. | `16000`, `32768`, `128000` |
 | `temperature` | Double | Yes | Sampling temperature. Must be greater than zero. | `0.2`, `0.4`, `0.7` |
 | `topP` | Double | Yes | Nucleus sampling parameter. Must be greater than zero. | `1.0`, `0.9` |
-| `modelProvider` | Enum | Yes | Completion client type. | `OAI_CHAT_COMPLETION`, `OAI_TEXT_COMPLETION`, `OPENROUTER`, `OLLAMA` |
+| `modelProvider` | Enum | Yes | Completion client type. | `OAI_CHAT_COMPLETION`, `OAI_RESPONSES`, `OAI_TEXT_COMPLETION`, `OPENROUTER`, `OLLAMA` |
 | `modelName` | String | No | Model name or deployment. Can be empty for endpoints where the model should be auto-detected. | `gpt-4`, `Llama-3.3-70B-Instruct`, `` |
 | `url` | String | Yes | Base API URL. | `https://api.openai.com/v1`, `http://localhost:5001` |
 | `apiKey` | String | No | Bearer token or Spring placeholder. Can be empty for local servers. | `sk-...`, `${apikey}`, `` |
@@ -300,6 +300,27 @@ cost1MInTokens=0
 cost1MOutTokens=0
 ```
 
+OpenAI Responses:
+
+```properties
+category=M
+prompts=
+tokenizer=jTokkit
+tokenEncoding=cl100k_base
+maxTokens=2500
+maxContextLength=128000
+temperature=0.4
+topP=1.0
+modelProvider=OAI_RESPONSES
+modelName=gpt-4.1
+url=https://api.openai.com
+apiKey=${OPENAI_API_KEY:}
+cost1MInTokens=0
+cost1MCachedInTokens=0
+cost1MOutTokens=0
+cost1MReasoningOutTokens=0
+```
+
 Local Ollama chat completion:
 
 ```properties
@@ -329,6 +350,7 @@ The built-in provider implementations currently support these types:
 
 ```properties
 modelProvider=OAI_CHAT_COMPLETION
+modelProvider=OAI_RESPONSES
 modelProvider=OAI_TEXT_COMPLETION
 modelProvider=OPENROUTER
 modelProvider=OLLAMA
@@ -336,9 +358,11 @@ modelProvider=OLLAMA
 
 ### OpenAI-Compatible Providers
 
-`OAI_CHAT_COMPLETION` and `OAI_TEXT_COMPLETION` target the OpenAI-style API surface.
+`OAI_CHAT_COMPLETION`, `OAI_RESPONSES`, and `OAI_TEXT_COMPLETION` target the OpenAI-style API surface.
 
 Use `OAI_CHAT_COMPLETION` for cloud APIs such as OpenAI itself and for local or self-hosted servers that expose a compatible `/v1/chat/completions` interface. This is the preferred default because lm-lib can send the conversation directly, supports streaming, and exposes tool calls through the standard chat-completion flow.
+
+Use `OAI_RESPONSES` when you want to keep the same lm-lib `Client` and `Conversation` API while targeting `/v1/responses` instead of `/v1/chat/completions`. This provider translates lm-lib conversation turns into Responses input items, supports streaming, supports function tool calling, and stays stateless by replaying the full lm-lib conversation on each request.
 
 Use `OAI_TEXT_COMPLETION` when you need explicit prompt templating or must target instruct-style models that still depend on raw prompt construction rather than structured chat messages. This is mainly useful for older compatible backends, local servers configured around prompt templates, or if you need full control over the raw prompt that is sent to the LLM.
 
@@ -347,7 +371,9 @@ OpenAI-compatible deployments commonly fall into two operational patterns:
 - Cloud endpoints: hosted APIs with a fixed base URL such as `https://api.openai.com/v1`, normally with a Bearer API key.
 - Local or self-hosted endpoints: llama-server, vLLM-compatible gateways, or other OpenAI-style frontends exposed on an internal URL such as `http://localhost:5001`.
 
-If you need to adapt request shaping for a specific OpenAI-compatible provider, you can optionally register an `OpenAiProviderDialect` bean. This allows applications to suppress or switch request fields that a provider does not support while keeping `ModelProfile` provider-agnostic and runtime-driven.
+If you need to adapt request shaping for a specific chat-completions compatible provider, you can optionally register an `OpenAiProviderDialect` bean. This applies to the `OAI_CHAT_COMPLETION` and `OAI_TEXT_COMPLETION` providers.
+
+`OAI_RESPONSES` is implemented as a separate standalone client and uses its own optional `OpenAiResponsesApiDialect` hook.
 
 The default OpenAI dialect behavior is:
 
@@ -356,12 +382,30 @@ The default OpenAI dialect behavior is:
 - `chatTokenLimitParameterMode(...) = ChatTokenLimitParameterMode.MAX_COMPLETION_TOKENS`
 - `reasoningEffort(...) = ReasoningEffort.MEDIUM`
 
+The default Responses dialect behavior is:
+
+- `store(...) = false`
+- `reasoning(...) = new ResponsesReasoning(ReasoningEffort.MEDIUM, null, null)`
+- `include(...) = []`, with `reasoning.encrypted_content` added automatically for stateless reasoning replay
+- `background(...) = null`
+- `maxToolCalls(...) = null`
+- `metadata(...) = {}`
+- `promptCacheKey(...) = null`
+- `promptCacheRetention(...) = null`
+- `safetyIdentifier(...) = null`
+- `serviceTier(...) = null`
+- `text(...) = null`
+- `topLogprobs(...) = null`
+- `truncation(...) = null`
+- `streamOptions(...) = null`
+
 Notes:
 
 - `usage` is a llama-server style extension and is therefore disabled unless a dialect explicitly enables it.
 - `reasoning_effort` is sent as a top-level request field when reasoning is enabled.
 - `max_completion_tokens` is the default because it matches the current OpenAI recommendation.
 - Some older OpenAI-compatible servers still require `max_tokens`, which can be selected through the dialect.
+- Responses reasoning requests are sent in the native `reasoning` object and the client preserves raw response output items so tool-call loops can replay reasoning items, encrypted reasoning payloads, and assistant `phase` values on the next stateless request.
 
 Example:
 
@@ -387,6 +431,35 @@ OpenAiProviderDialect legacyOpenAiProviderDialect() {
         @Override
         public ReasoningEffort reasoningEffort(final ModelProfile modelProfile) {
             return ReasoningEffort.MEDIUM;
+        }
+    };
+}
+```
+
+Example Responses dialect:
+
+```java
+@Bean
+OpenAiResponsesApiDialect openAiResponsesApiDialect() {
+    return new OpenAiResponsesApiDialect() {
+        @Override
+        public ResponsesReasoning reasoning(final ModelProfile modelProfile) {
+            return new ResponsesReasoning(ReasoningEffort.HIGH, ReasoningSummaryGenerateMode.AUTO, ReasoningSummary.CONCISE);
+        }
+
+        @Override
+        public List<String> include(final ModelProfile modelProfile) {
+            return List.of(OpenAiResponsesApiDialect.INCLUDE_REASONING_ENCRYPTED_CONTENT);
+        }
+
+        @Override
+        public ServiceTier serviceTier(final ModelProfile modelProfile) {
+            return ServiceTier.FLEX;
+        }
+
+        @Override
+        public Truncation truncation(final ModelProfile modelProfile) {
+            return Truncation.AUTO;
         }
     };
 }

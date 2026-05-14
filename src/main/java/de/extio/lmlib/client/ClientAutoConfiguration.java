@@ -11,6 +11,7 @@ import de.extio.lmlib.client.openrouter.OpenRouterModelDiscovery;
 import de.extio.lmlib.client.ollama.OllamaClient;
 import de.extio.lmlib.client.oai.completion.chat.ChatCompletionClient;
 import de.extio.lmlib.client.oai.completion.text.TextCompletionClient;
+import de.extio.lmlib.client.oai.responses.ResponsesApiClient;
 import de.extio.lmlib.profile.ProfileAutoConfiguration;
 import de.extio.lmlib.token.TokenizerAutoConfiguration;
 
@@ -35,6 +36,12 @@ public class ClientAutoConfiguration {
 	@ConditionalOnMissingBean
 	ChatCompletionClient chatCompletionClient() {
 		return new ChatCompletionClient();
+	}
+
+	@Bean
+	@ConditionalOnMissingBean
+	ResponsesApiClient responsesApiClient() {
+		return new ResponsesApiClient();
 	}
 
 	@Bean

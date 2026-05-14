@@ -461,10 +461,10 @@ public interface BaseAgent {
 			return;
 		}
 		final var completion = context.getLastCompletion();
-		if ((completion.response() == null || completion.response().isEmpty()) && completion.toolCalls().isEmpty()) {
+		if (completion.response().isEmpty() && completion.toolCalls().isEmpty() && completion.outputItems().isEmpty()) {
 			return;
 		}
-		context.getConversation().addTurn(new Conversation.Turn(TurnType.ASSISTANT, completion.response() == null ? "" : completion.response(), completion.toolCalls(), null));
+		context.getConversation().addTurn(new Conversation.Turn(TurnType.ASSISTANT, completion.response(), completion.toolCalls(), null, null, completion.outputItems()));
 	}
 
 	private void rememberToolCallData(final AgentContext context, final ToolCallData toolCallData) {
