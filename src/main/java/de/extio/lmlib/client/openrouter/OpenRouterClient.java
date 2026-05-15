@@ -53,9 +53,6 @@ public class OpenRouterClient extends ChatCompletionClient {
 		if (modelProfile == null || modelProfile.modelProvider() != ModelProvider.OPENROUTER) {
 			return List.of();
 		}
-		if (modelProfile.modelName() != null && !modelProfile.modelName().isBlank()) {
-			return List.of(modelProfile.modelName());
-		}
 		return this.openRouterModelDiscovery.listModels(modelProfile, new OpenRouterModelQuery(true, null, List.of(), List.of()), forceReload).stream()
 				.map(OpenRouterModelsResponse.OpenRouterModel::getId)
 				.filter(modelName -> modelName != null && !modelName.isBlank())

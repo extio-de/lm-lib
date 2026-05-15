@@ -47,7 +47,7 @@ public class OpenRouterModelDiscovery {
 		}
 		final var cacheKey = this.modelListCacheKey(modelProfile, query);
 		if (forceReload) {
-			this.modelListCache.remove(cacheKey);
+			return this.modelListCache.put(cacheKey, this.loadModels(modelProfile, query));
 		}
 		return this.modelListCache.computeIfAbsent(cacheKey, key -> this.loadModels(modelProfile, query));
 	}

@@ -134,9 +134,6 @@ public class ResponsesApiClient implements Client{
 		if (modelProfile == null || modelProfile.modelProvider() != ModelProvider.OAI_RESPONSES) {
 			return List.of();
 		}
-		if (modelProfile.modelName() != null && !modelProfile.modelName().isBlank()) {
-			return List.of(modelProfile.modelName());
-		}
 		if (modelProfile.url() == null || modelProfile.url().isBlank()) {
 			return List.of();
 		}

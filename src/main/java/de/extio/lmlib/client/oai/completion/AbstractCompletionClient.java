@@ -127,9 +127,6 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 		if (modelProfile == null || (modelProfile.modelProvider() != ModelProvider.OAI_TEXT_COMPLETION && modelProfile.modelProvider() != ModelProvider.OAI_CHAT_COMPLETION)) {
 			return List.of();
 		}
-		if (modelProfile.modelName() != null && !modelProfile.modelName().isBlank()) {
-			return List.of(modelProfile.modelName());
-		}
 		if (modelProfile.url() == null || modelProfile.url().isBlank()) {
 			return List.of();
 		}
@@ -166,6 +163,9 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 	}
 
 	protected String getPrimaryModelName(final ModelProfile modelProfile) {
+		if (modelProfile.modelName() != null && !modelProfile.modelName().isBlank()) {
+			return modelProfile.modelName();
+		}
 		return this.getModelNames(modelProfile, false).stream().findFirst().orElse("");
 	}
 

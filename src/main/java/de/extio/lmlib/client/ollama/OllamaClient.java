@@ -154,9 +154,6 @@ public class OllamaClient implements Client {
 		if (modelProfile == null || modelProfile.modelProvider() != ModelProvider.OLLAMA) {
 			return List.of();
 		}
-		if (modelProfile.modelName() != null && !modelProfile.modelName().isBlank()) {
-			return List.of(modelProfile.modelName());
-		}
 		if (modelProfile.url() == null || modelProfile.url().isBlank()) {
 			return List.of();
 		}
@@ -432,6 +429,9 @@ public class OllamaClient implements Client {
 	}
 	
 	private String getPrimaryModelName(final ModelProfile modelProfile) {
+		if (modelProfile.modelName() != null && !modelProfile.modelName().isBlank()) {
+			return modelProfile.modelName();
+		}
 		return this.getModelNames(modelProfile, false).stream().findFirst().orElse("");
 	}
 	
