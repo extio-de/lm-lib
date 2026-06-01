@@ -870,6 +870,7 @@ final var blogPostAgent = new Agent(
 | `postProcess(context)` | Runs after completion. | no-op |
 | `merge(contexts)` | Merges split contexts after branching. | `null` |
 | `chooseNextAgent(context)` | Selects the next agent or ends the flow. Required. | none |
+| `retryOnParsingError(context)` | When `true`, triggers an outer retry loop that resets both parse attempts and tool call rounds after a parsing failure, allowing the agent to request a fresh completion from scratch. The conversation can be modified before retrying. | `false` |
 
 ### Agent Tool Calling
 
