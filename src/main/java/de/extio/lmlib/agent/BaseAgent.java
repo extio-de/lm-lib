@@ -134,7 +134,7 @@ public interface BaseAgent {
 			context.setError(AgentErrorType.GENERAL, ex);
 			return List.of(context);
 		}
-		final boolean skipCompletion = context.isSkipNextCompletion();
+		final AgentSkipCompletion skipCompletion = context.isSkipNextCompletion();
 
 		splits.addAll(this.applyTemplate(context));
 		final var tasks = new ArrayList<CompletableFuture<?>>(splits.size());
@@ -142,9 +142,10 @@ public interface BaseAgent {
 			tasks.add(CompletableFuture.runAsync(() -> {
 				try {
 					split.context().clearError();
-					final boolean skipCompletionInSplit = skipCompletion || this.agentType(split.context()) == AgentType.PROCESSING_ONLY;
-					if (skipCompletionInSplit) {
-						split.context().setSkipNextCompletion(false);
+					final boolean skipCompletionInSplitEntirely = skipCompletion == AgentSkipCompletion.SKIP || this.agentType(split.context()) == AgentType.PROCESSING_ONLY;
+					final boolean skipCompletionInSplitSetupConversation = skipCompletion == AgentSkipCompletion.SETUP_CONVERSATION_ONLY;
+					if (skipCompletionInSplitEntirely || skipCompletionInSplitSetupConversation) {
+						split.context().setSkipNextCompletion(AgentSkipCompletion.NO_SKIP);
 						split.context().getGraph().add("○");
 					}
 					else {
@@ -153,133 +154,135 @@ public interface BaseAgent {
 					}
 					split.context().getGraph().add(this.name());
 					
-					if (!skipCompletionInSplit) {
+					if (!skipCompletionInSplitEntirely) {
 						final var completionClient = Objects.requireNonNull(client);
 						final boolean skipCache = split.context().isSkipCache() || split.context().isAlwaysSkipCache();
 						split.context().setSkipCache(false);
 						final var conversation = this.setupConversation(split);
 						final var requestedModelProfile = this.modelProfile(split.context());
-						final var supportsToolCalling = requestedModelProfile != null ? completionClient.supportsToolCalling(requestedModelProfile) : completionClient.supportsToolCalling(this.modelCategory(split.context()));
-						var toolCallData = supportsToolCalling ? this.toolCallData(split.context()) : null;
-						this.rememberToolCallData(split.context(), toolCallData);
-						
-						boolean retryOuterLoop;
-						boolean parseable = false;
-						Exception parseException = null;
-						int parseAttempts = 0;
-						int toolCallRounds = 0;
-						do {
-							retryOuterLoop = false;
-							while (parseAttempts < 2) {
-								LOGGER.debug("Conversation: {}", conversation);	
-								
-								final var modelProfile = this.modelProfile(split.context());
-								final var responseHandler = this.responseHandler(split.context());
-								long requestStart = 0;
-								Completion completion = null;
-								if (split.context().isStreaming()) {
-									if (responseHandler instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
-										streamedResponseHandler.beforeStream(split.context());
-									}
-									final Consumer<Chunk> chunkConsumer = chunk -> {
+						if (!skipCompletionInSplitSetupConversation) {
+							final var supportsToolCalling = requestedModelProfile != null ? completionClient.supportsToolCalling(requestedModelProfile) : completionClient.supportsToolCalling(this.modelCategory(split.context()));
+							var toolCallData = supportsToolCalling ? this.toolCallData(split.context()) : null;
+							this.rememberToolCallData(split.context(), toolCallData);
+							
+							boolean retryOuterLoop;
+							boolean parseable = false;
+							Exception parseException = null;
+							int parseAttempts = 0;
+							int toolCallRounds = 0;
+							do {
+								retryOuterLoop = false;
+								while (parseAttempts < 2) {
+									LOGGER.debug("Conversation: {}", conversation);	
+									
+									final var modelProfile = this.modelProfile(split.context());
+									final var responseHandler = this.responseHandler(split.context());
+									long requestStart = 0;
+									Completion completion = null;
+									if (split.context().isStreaming()) {
 										if (responseHandler instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
-											if (streamedResponseHandler.handleChunk(chunk, split.context()) && split.context().getAgentContextUpdateConsumer() != null) {
-												split.context().getAgentContextUpdateConsumer().accept(split.context());
-											}
+											streamedResponseHandler.beforeStream(split.context());
 										}
-									};
-									if (modelProfile != null) {
-										requestStart = System.currentTimeMillis();
-											completion = completionClient.streamConversation(modelProfile, conversation, chunkConsumer, toolCallData, skipCache);
+										final Consumer<Chunk> chunkConsumer = chunk -> {
+											if (responseHandler instanceof final StreamedAgentResponseHandler streamedResponseHandler) {
+												if (streamedResponseHandler.handleChunk(chunk, split.context()) && split.context().getAgentContextUpdateConsumer() != null) {
+													split.context().getAgentContextUpdateConsumer().accept(split.context());
+												}
+											}
+										};
+										if (modelProfile != null) {
+											requestStart = System.currentTimeMillis();
+												completion = completionClient.streamConversation(modelProfile, conversation, chunkConsumer, toolCallData, skipCache);
+										}
+										else {
+											requestStart = System.currentTimeMillis();
+												completion = completionClient.streamConversation(this.modelCategory(split.context()), conversation, chunkConsumer, toolCallData, skipCache);
+										}
 									}
 									else {
-										requestStart = System.currentTimeMillis();
-											completion = completionClient.streamConversation(this.modelCategory(split.context()), conversation, chunkConsumer, toolCallData, skipCache);
+										if (modelProfile != null) {
+											requestStart = System.currentTimeMillis();
+												completion = completionClient.conversation(modelProfile, conversation, toolCallData, skipCache);
+										}
+										else {
+											requestStart = System.currentTimeMillis();
+												completion = completionClient.conversation(this.modelCategory(split.context()), conversation, toolCallData, skipCache);
+										}
 									}
-								}
-								else {
-									if (modelProfile != null) {
-										requestStart = System.currentTimeMillis();
-											completion = completionClient.conversation(modelProfile, conversation, toolCallData, skipCache);
+									final var durationMs = System.currentTimeMillis() - requestStart;
+									split.context().getGraph().add("(" + durationMs + " ms)");
+									split.context().setLastCompletion(completion);
+									split.context().getRequestStatistic().add(completion);
+									if (completion.finishReason() != null) {
+										switch (completion.finishReason()) {
+											case TOKEN_LIMIT_REACHED:
+												split.context().getGraph().add("⏹");
+												break;
+											case CONTENT_FILTERED:
+												split.context().getGraph().add("⛔");
+												break;
+											case TOOL_CALLS:
+												split.context().getGraph().add("🔧");
+												break;
+											case ERROR:
+												split.context().getGraph().add("❌");
+												continue;
+											default:
+												break;
+										}
 									}
-									else {
-										requestStart = System.currentTimeMillis();
-											completion = completionClient.conversation(this.modelCategory(split.context()), conversation, toolCallData, skipCache);
-									}
-								}
-								final var durationMs = System.currentTimeMillis() - requestStart;
-								split.context().getGraph().add("(" + durationMs + " ms)");
-								split.context().setLastCompletion(completion);
-								split.context().getRequestStatistic().add(completion);
-								if (completion.finishReason() != null) {
-									switch (completion.finishReason()) {
-										case TOKEN_LIMIT_REACHED:
-											split.context().getGraph().add("⏹");
+									
+									if (!completion.toolCalls().isEmpty() && responseHandler instanceof final ToolCallingAgentResponseHandler toolCallingAgentResponseHandler) {
+										if (toolCallRounds >= MAX_TOOL_CALL_ROUNDS) {
+											parseException = new IllegalStateException("Too many tool call rounds");
 											break;
-										case CONTENT_FILTERED:
-											split.context().getGraph().add("⛔");
-											break;
-										case TOOL_CALLS:
-											split.context().getGraph().add("🔧");
-											break;
-										case ERROR:
-											split.context().getGraph().add("❌");
+										}
+										final var toolCallResults = new ToolCallingAgentResponseHandler.ToolCallResults();
+										if (toolCallingAgentResponseHandler.handleToolCalls(completion, split.context(), toolCallResults)) {
+											toolCallRounds++;
+											this.appendToolCallResults(conversation, completion, toolCallResults.results());
+											if (toolCallData != null && toolCallData.hasTools()) {
+												toolCallData = ToolCallData.auto(toolCallData.tools());
+											}
 											continue;
-										default:
-											break;
+										}
 									}
-								}
-								
-								if (!completion.toolCalls().isEmpty() && responseHandler instanceof final ToolCallingAgentResponseHandler toolCallingAgentResponseHandler) {
-									if (toolCallRounds >= MAX_TOOL_CALL_ROUNDS) {
-										parseException = new IllegalStateException("Too many tool call rounds");
+									
+									try {
+										if (!responseHandler.handle(completion, split.context())) {
+											split.context().getGraph().add("⚠");
+											LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response());
+											split.context().setSkipCache(true);
+											parseAttempts++;
+											continue;
+										}
+										
+										parseable = true;
 										break;
 									}
-									final var toolCallResults = new ToolCallingAgentResponseHandler.ToolCallResults();
-									if (toolCallingAgentResponseHandler.handleToolCalls(completion, split.context(), toolCallResults)) {
-										toolCallRounds++;
-										this.appendToolCallResults(conversation, completion, toolCallResults.results());
-										if (toolCallData != null && toolCallData.hasTools()) {
-											toolCallData = ToolCallData.auto(toolCallData.tools());
-										}
-										continue;
-									}
-								}
-								
-								try {
-									if (!responseHandler.handle(completion, split.context())) {
+									catch (final Exception e) {
+										parseException = e;
 										split.context().getGraph().add("⚠");
-										LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response());
+										LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response(), e);
 										split.context().setSkipCache(true);
 										parseAttempts++;
 										continue;
 									}
-									
-									parseable = true;
-									break;
 								}
-								catch (final Exception e) {
-									parseException = e;
-									split.context().getGraph().add("⚠");
-									LOGGER.warn("{} Cannot parse response: {}", this.name(), completion.response(), e);
-									split.context().setSkipCache(true);
-									parseAttempts++;
-									continue;
+								if (!parseable) {
+									if (this.retryOnParsingError(split.context())) {
+										parseAttempts = 0;
+										toolCallRounds = 0;
+										retryOuterLoop = true;
+										continue;
+									}
+									LOGGER.warn("{} Response is still not parseable after last attempt", this.name());
+									split.context().getGraph().add("☢");
+									split.context().setError(AgentErrorType.PARSING, parseException);
+									return;
 								}
-							}
-							if (!parseable) {
-								if (this.retryOnParsingError(split.context())) {
-									parseAttempts = 0;
-									toolCallRounds = 0;
-									retryOuterLoop = true;
-									continue;
-								}
-								LOGGER.warn("{} Response is still not parseable after last attempt", this.name());
-								split.context().getGraph().add("☢");
-								split.context().setError(AgentErrorType.PARSING, parseException);
-								return;
-							}
-						} while (retryOuterLoop);
+							} while (retryOuterLoop);
+						}
 					}
 					
 					this.postProcess(split.context());
@@ -465,8 +468,8 @@ public interface BaseAgent {
 		return conversation;
 	}
 	
-	private void appendLastCompletionToConversation(final AgentContext context, final boolean skipCompletion) {
-		if (skipCompletion || context.getConversation() == null || context.getLastCompletion() == null) {
+	private void appendLastCompletionToConversation(final AgentContext context, final AgentSkipCompletion skipCompletion) {
+		if (context.getConversation() == null || context.getLastCompletion() == null || (skipCompletion != null && skipCompletion != AgentSkipCompletion.NO_SKIP)) {
 			return;
 		}
 		final var currentAgent = context.getAgents().get(context.getCurrentAgentName());
@@ -496,7 +499,7 @@ public interface BaseAgent {
 		context.setValue("_toolCallData", null);
 	}
 	
-	private void nextAgent(final AgentContext context, final boolean skipCompletion) {
+	private void nextAgent(final AgentContext context, final AgentSkipCompletion skipCompletion) {
 		context.setNextAgent(this.chooseNextAgent(context));
 		
 		if (context.getNextAgent() != null) {

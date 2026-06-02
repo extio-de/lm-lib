@@ -27,7 +27,7 @@ public final class AgentContext {
 
 	private volatile Exception errorException;
 	
-	private volatile boolean skipNextCompletion;
+	private volatile AgentSkipCompletion skipNextCompletion;
 
 	private volatile boolean skipCache;
 
@@ -235,11 +235,11 @@ public final class AgentContext {
 		this.errorException = null;
 	}
 	
-	public boolean isSkipNextCompletion() {
+	public AgentSkipCompletion isSkipNextCompletion() {
 		return this.skipNextCompletion;
 	}
 	
-	public void setSkipNextCompletion(final boolean skipNextCompletion) {
+	public void setSkipNextCompletion(final AgentSkipCompletion skipNextCompletion) {
 		this.skipNextCompletion = skipNextCompletion;
 	}
 

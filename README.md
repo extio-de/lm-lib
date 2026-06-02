@@ -1069,7 +1069,13 @@ If `context.setStreaming(true)` is enabled and the handler implements `StreamedA
 
 ### Skipping LLM Calls
 
-Set `context.setSkipNextCompletion(true)` to turn the next step into a processing-only pass. The flag resets automatically after that step.
+Use `context.setSkipNextCompletion(...)` to control LLM call behavior for the next step. The flag resets automatically after that step.
+
+| Value | Behavior |
+|-------|----------|
+| `AgentSkipCompletion.NO_SKIP` | Executes the LLM call normally (default) |
+| `AgentSkipCompletion.SETUP_CONVERSATION_ONLY` | Sets up the conversation but skips the LLM call |
+| `AgentSkipCompletion.SKIP` | Skips the entire turn, including conversation setup |
 
 ### Cache Bypass Controls
 
