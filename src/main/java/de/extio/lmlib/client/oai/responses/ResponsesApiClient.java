@@ -9,9 +9,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.List;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -27,13 +27,6 @@ import org.springframework.web.client.RestClientResponseException;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-import tools.jackson.core.JacksonException;
-import tools.jackson.core.json.JsonReadFeature;
-import tools.jackson.databind.DeserializationFeature;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
-
 import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
@@ -41,45 +34,51 @@ import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.CompletionStatistics;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
-import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.ToolCall;
+import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.ToolDefinition;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
 import de.extio.lmlib.profile.ModelProfileService;
 import de.extio.lmlib.token.TokenizerResolver;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.json.JsonReadFeature;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
-public class ResponsesApiClient implements Client{
-
+public class ResponsesApiClient implements Client {
+	
 	private static final Logger LOGGER = LoggerFactory.getLogger(ResponsesApiClient.class);
-
+	
 	private static final String ASSISTANT_PHASE_COMMENTARY = "commentary";
-
+	
 	private static final String ASSISTANT_PHASE_FINAL_ANSWER = "final_answer";
-
+	
 	private static final int TOKEN_MARGIN = 15;
-
+	
 	private static final OpenAiResponsesApiDialect DEFAULT_DIALECT = new OpenAiResponsesApiDialect() {
 	};
-
+	
 	@Autowired
 	@Qualifier("lmLibRestClientBuilder")
 	private RestClient.Builder restClientBuilder;
-
+	
 	@Autowired
 	private TokenizerResolver tokenizerResolver;
-
+	
 	@Autowired
 	private ModelProfileService modelProfileService;
-
+	
 	@Autowired(required = false)
 	private OpenAiResponsesApiDialect openAiResponsesApiDialect;
-
+	
 	private final Map<String, List<String>> resolvedModelNames = new ConcurrentHashMap<>();
-
+	
 	private final ObjectMapper objectMapper;
-
+	
 	public ResponsesApiClient() {
 		this.objectMapper = JsonMapper.builder()
 				.configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false)
@@ -103,24 +102,24 @@ public class ResponsesApiClient implements Client{
 				.enable(JsonReadFeature.ALLOW_UNQUOTED_PROPERTY_NAMES)
 				.build();
 	}
-
+	
 	@Override
 	public Completion conversation(final ModelCategory modelCategory, final Conversation conversation, final ToolCallData toolCallData, final boolean skipCache) {
 		return this.streamConversation(modelCategory, conversation, null, toolCallData, skipCache);
 	}
-
+	
 	@Override
 	public Completion conversation(final ModelProfile modelProfile, final Conversation conversation, final ToolCallData toolCallData, final boolean skipCache) {
 		return this.streamConversation(modelProfile, conversation, null, toolCallData, skipCache);
 	}
-
+	
 	@Override
 	public Completion streamConversation(final ModelCategory modelCategory, final Conversation conversation, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData, final boolean skipCache) {
 		final var resolvedModelCategory = modelCategory == null ? ModelCategory.MEDIUM : modelCategory;
 		final var modelProfile = this.modelProfileService.getModelProfile(resolvedModelCategory.getModelProfile(), resolvedModelCategory);
 		return this.streamConversation(modelProfile, conversation, chunkConsumer, toolCallData, skipCache);
 	}
-
+	
 	@Override
 	public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData, final boolean skipCache) {
 		if (modelProfile == null || modelProfile.modelProvider() != ModelProvider.OAI_RESPONSES) {
@@ -128,7 +127,7 @@ public class ResponsesApiClient implements Client{
 		}
 		return this.requestCompletion(conversation, modelProfile, chunkConsumer, toolCallData);
 	}
-
+	
 	@Override
 	public List<String> getModelNames(final ModelProfile modelProfile, final boolean forceReload) {
 		if (modelProfile == null || modelProfile.modelProvider() != ModelProvider.OAI_RESPONSES) {
@@ -137,7 +136,7 @@ public class ResponsesApiClient implements Client{
 		if (modelProfile.url() == null || modelProfile.url().isBlank()) {
 			return List.of();
 		}
-
+		
 		final var cacheKey = modelProfile.category() + "|" + modelProfile.url() + "|" + modelProfile.apiKey();
 		if (forceReload) {
 			final var modelNames = this.loadModelNames(modelProfile);
@@ -146,29 +145,29 @@ public class ResponsesApiClient implements Client{
 		}
 		return this.resolvedModelNames.computeIfAbsent(cacheKey, key -> this.loadModelNames(modelProfile));
 	}
-
+	
 	@Override
 	public ModelProvider getModelProvider() {
 		return ModelProvider.OAI_RESPONSES;
 	}
-
+	
 	@Override
 	public boolean supportsToolCalling(final ModelCategory modelCategory) {
 		final var resolvedModelCategory = modelCategory == null ? ModelCategory.MEDIUM : modelCategory;
 		final var modelProfile = this.modelProfileService.getModelProfile(resolvedModelCategory.getModelProfile(), resolvedModelCategory);
 		return this.supportsToolCalling(modelProfile);
 	}
-
+	
 	@Override
 	public boolean supportsToolCalling(final ModelProfile modelProfile) {
 		return modelProfile != null && modelProfile.modelProvider() == ModelProvider.OAI_RESPONSES;
 	}
-
+	
 	private Completion requestCompletion(final Conversation conversation, final ModelProfile modelProfile, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData) {
 		final var inputTextBuilder = new StringBuilder();
 		final var inputItems = this.createInputItems(conversation, modelProfile, inputTextBuilder);
 		final var request = this.createResponseRequest(inputItems, modelProfile, chunkConsumer != null, toolCallData);
-
+		
 		final String requestBody;
 		try {
 			requestBody = this.objectMapper.writeValueAsString(request);
@@ -176,7 +175,7 @@ public class ResponsesApiClient implements Client{
 		catch (final JacksonException e) {
 			throw new IllegalStateException("Cannot serialize request body", e);
 		}
-
+		
 		LOGGER.debug("Requesting response at {}", modelProfile.url());
 		final var start = LocalDateTime.now();
 		var requestSpec = this.restClientBuilder.baseUrl(modelProfile.url()).build()
@@ -186,7 +185,7 @@ public class ResponsesApiClient implements Client{
 		if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
 			requestSpec = requestSpec.header("Authorization", "Bearer " + modelProfile.apiKey());
 		}
-
+		
 		return requestSpec.body(requestBody).exchange((clientRequest, clientResponse) -> {
 			if (clientResponse.getStatusCode().isError()) {
 				final var errorBody = new String(clientResponse.getBody().readAllBytes(), StandardCharsets.UTF_8);
@@ -194,14 +193,14 @@ public class ResponsesApiClient implements Client{
 				LOGGER.warn("Error response from server: {} {}", clientResponse.getStatusCode(), errorMessage);
 				throw new IllegalStateException("Error response from server: " + clientResponse.getStatusCode() + " " + errorMessage);
 			}
-
+			
 			if (chunkConsumer == null) {
 				return this.parseCompletion(clientResponse.getBody(), modelProfile, start, inputTextBuilder.toString());
 			}
 			return this.parseStreamingCompletion(clientResponse.getBody(), modelProfile, start, inputTextBuilder.toString(), chunkConsumer);
 		});
 	}
-
+	
 	private Map<String, Object> createResponseRequest(final List<Map<String, Object>> inputItems, final ModelProfile modelProfile, final boolean streaming, final ToolCallData toolCallData) {
 		final var dialect = this.responsesDialect();
 		final var store = dialect.store(modelProfile);
@@ -279,12 +278,12 @@ public class ResponsesApiClient implements Client{
 		}
 		return request;
 	}
-
+	
 	private List<Map<String, Object>> createInputItems(final Conversation conversation, final ModelProfile modelProfile, final StringBuilder inputTextBuilder) {
 		final var inputItems = new ArrayList<Map<String, Object>>();
 		var tokens = 0;
 		final var maxLength = Math.max(0, modelProfile.maxContextLength() - modelProfile.maxTokens() - TOKEN_MARGIN);
-
+		
 		for (final Turn turn : conversation.getConversation()) {
 			switch (turn.type()) {
 				case SYSTEM -> {
@@ -355,10 +354,10 @@ public class ResponsesApiClient implements Client{
 				}
 			}
 		}
-
+		
 		return inputItems;
 	}
-
+	
 	private boolean addInputMessageItem(final String role, final String text, final String phase, final List<Map<String, Object>> inputItems, final StringBuilder inputTextBuilder, final ModelProfile modelProfile, final int maxLength, final int currentTokens) {
 		var normalizedText = text == null ? "" : text;
 		if (maxLength > 0) {
@@ -371,10 +370,19 @@ public class ResponsesApiClient implements Client{
 		}
 		final Map<String, Object> item;
 		if ("assistant".equals(role)) {
-			item = this.createAssistantMessageInputItem(normalizedText, phase);
+			final var messageItem = new LinkedHashMap<String, Object>();
+			messageItem.put("type", "message");
+			messageItem.put("role", "assistant");
+			messageItem.put("status", "completed");
+			messageItem.put("content", List.of(Map.of("type", "output_text", "text", normalizedText)));
+			if (phase != null && !phase.isBlank()) {
+				messageItem.put("phase", phase);
+			}
+			item = messageItem;
 		}
 		else {
 			final var easyInputMessage = new LinkedHashMap<String, Object>();
+			easyInputMessage.put("type", "message");
 			easyInputMessage.put("role", role);
 			easyInputMessage.put("content", normalizedText);
 			item = easyInputMessage;
@@ -383,19 +391,7 @@ public class ResponsesApiClient implements Client{
 		this.appendInputText(inputTextBuilder, normalizedText);
 		return this.countTokens(inputTextBuilder.toString(), modelProfile) > maxLength && maxLength > 0;
 	}
-
-	private Map<String, Object> createAssistantMessageInputItem(final String normalizedText, final String phase) {
-		final var messageItem = new LinkedHashMap<String, Object>();
-		messageItem.put("type", "message");
-		messageItem.put("role", "assistant");
-		messageItem.put("status", "completed");
-		messageItem.put("content", List.of(Map.of("type", "output_text", "text", normalizedText)));
-		if (phase != null && !phase.isBlank()) {
-			messageItem.put("phase", phase);
-		}
-		return Map.copyOf(messageItem);
-	}
-
+	
 	private boolean addAssistantOutputItems(final List<Map<String, Object>> outputItems, final List<Map<String, Object>> inputItems, final StringBuilder inputTextBuilder, final ModelProfile modelProfile, final int maxLength) {
 		final var containsFunctionCalls = outputItems.stream().anyMatch(outputItem -> "function_call".equals(outputItem.get("type")));
 		for (final var outputItem : outputItems) {
@@ -410,7 +406,7 @@ public class ResponsesApiClient implements Client{
 		}
 		return false;
 	}
-
+	
 	private String trimToTokenBudget(final String text, final int remainingTokens, final ModelProfile modelProfile) {
 		if (text == null || text.isEmpty()) {
 			return "";
@@ -419,14 +415,14 @@ public class ResponsesApiClient implements Client{
 		if (textTokens <= remainingTokens) {
 			return text;
 		}
-		var tokenized = this.tokenizerResolver.tokenize(text, modelProfile);
+		final var tokenized = this.tokenizerResolver.tokenize(text, modelProfile);
 		if (remainingTokens <= 0 || tokenized.isEmpty()) {
 			return "";
 		}
 		final var endIndex = Math.max(1, Math.min(tokenized.size(), remainingTokens));
 		return this.tokenizerResolver.detokenize(tokenized.subList(0, endIndex), modelProfile);
 	}
-
+	
 	private List<Map<String, Object>> createTools(final List<ToolDefinition> toolDefinitions) {
 		return toolDefinitions.stream().map(toolDefinition -> {
 			final var tool = new LinkedHashMap<String, Object>();
@@ -440,7 +436,7 @@ public class ResponsesApiClient implements Client{
 			return Map.copyOf(tool);
 		}).toList();
 	}
-
+	
 	private Object createToolChoice(final ToolCallData toolCallData) {
 		if (toolCallData == null) {
 			return null;
@@ -456,7 +452,7 @@ public class ResponsesApiClient implements Client{
 		}
 		return null;
 	}
-
+	
 	private Completion parseCompletion(final InputStream body, final ModelProfile modelProfile, final LocalDateTime start, final String prompt) throws IOException {
 		final var response = this.objectMapper.readTree(body);
 		final var output = response.path("output");
@@ -468,13 +464,13 @@ public class ResponsesApiClient implements Client{
 		final var statistics = this.createCompletionStatistics(modelProfile, start, response.path("usage"), prompt, responseText, reasoningText);
 		return new Completion(responseText, reasoningText, finishReason, statistics, toolCalls, outputItems);
 	}
-
+	
 	private Completion parseStreamingCompletion(final InputStream body, final ModelProfile modelProfile, final LocalDateTime start, final String prompt, final Consumer<Chunk> chunkConsumer) throws IOException {
 		var response = this.objectMapper.createObjectNode();
 		final var responseText = new StringBuilder();
 		final var reasoningText = new StringBuilder();
 		final var toolCalls = new ArrayList<StreamingToolCall>();
-
+		
 		try (BufferedReader reader = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8))) {
 			String line;
 			while ((line = reader.readLine()) != null) {
@@ -493,7 +489,7 @@ public class ResponsesApiClient implements Client{
 				if ("[DONE]".equals(line)) {
 					break;
 				}
-
+				
 				final JsonNode event;
 				try {
 					event = this.objectMapper.readTree(line);
@@ -502,7 +498,7 @@ public class ResponsesApiClient implements Client{
 					LOGGER.warn("Streamed chunk is not parseable: {}", line, e);
 					continue;
 				}
-
+				
 				final var eventType = this.text(event, "type");
 				switch (eventType) {
 					case "response.output_text.delta" -> {
@@ -536,11 +532,11 @@ public class ResponsesApiClient implements Client{
 				}
 			}
 		}
-
+		
 		if (!response.path("output").isArray()) {
 			response.putArray("output");
 		}
-
+		
 		final var completedText = responseText.isEmpty() ? this.extractAssistantMessageText(response.path("output")) : responseText.toString();
 		final var completedReasoning = reasoningText.isEmpty() ? this.extractReasoningSummaryText(response.path("output")) : reasoningText.toString();
 		final var completedToolCalls = this.extractToolCalls(response.path("output"));
@@ -553,7 +549,7 @@ public class ResponsesApiClient implements Client{
 		final var statistics = this.createCompletionStatistics(modelProfile, start, response.path("usage"), prompt, completedText, completedReasoning);
 		return new Completion(completedText, completedReasoning, finishReason, statistics, finalToolCalls, outputItems);
 	}
-
+	
 	private void mergeFunctionCallItem(final List<StreamingToolCall> toolCalls, final JsonNode item, final int outputIndex) {
 		if (!"function_call".equals(this.text(item, "type"))) {
 			return;
@@ -573,7 +569,7 @@ public class ResponsesApiClient implements Client{
 		}
 		toolCall.type = "function";
 	}
-
+	
 	private void mergeFunctionCallArguments(final List<StreamingToolCall> toolCalls, final int outputIndex, final String delta) {
 		if (delta == null || delta.isEmpty()) {
 			return;
@@ -581,14 +577,14 @@ public class ResponsesApiClient implements Client{
 		final var toolCall = this.ensureFunctionCall(toolCalls, outputIndex);
 		toolCall.arguments = (toolCall.arguments == null ? "" : toolCall.arguments) + delta;
 	}
-
+	
 	private void setFunctionCallArguments(final List<StreamingToolCall> toolCalls, final int outputIndex, final String arguments) {
 		if (arguments == null || arguments.isEmpty()) {
 			return;
 		}
 		this.ensureFunctionCall(toolCalls, outputIndex).arguments = arguments;
 	}
-
+	
 	private StreamingToolCall ensureFunctionCall(final List<StreamingToolCall> toolCalls, final int outputIndex) {
 		final var index = outputIndex < 0 ? toolCalls.size() : outputIndex;
 		while (toolCalls.size() <= index) {
@@ -596,7 +592,7 @@ public class ResponsesApiClient implements Client{
 		}
 		return toolCalls.get(index);
 	}
-
+	
 	private List<ToolCall> extractToolCalls(final JsonNode output) {
 		if (!output.isArray()) {
 			return List.of();
@@ -615,14 +611,14 @@ public class ResponsesApiClient implements Client{
 		}
 		return List.copyOf(toolCalls);
 	}
-
+	
 	private List<ToolCall> toToolCalls(final List<StreamingToolCall> streamingToolCalls) {
 		return streamingToolCalls.stream()
 				.filter(toolCall -> toolCall.callId != null && !toolCall.callId.isBlank())
 				.map(toolCall -> new ToolCall(toolCall.callId, toolCall.type == null ? "function" : toolCall.type, toolCall.name, toolCall.arguments))
 				.toList();
 	}
-
+	
 	private List<Map<String, Object>> extractOutputItems(final JsonNode output) {
 		if (!output.isArray()) {
 			return List.of();
@@ -636,7 +632,7 @@ public class ResponsesApiClient implements Client{
 		}
 		return List.copyOf(outputItems);
 	}
-
+	
 	private String extractAssistantMessageText(final JsonNode output) {
 		if (!output.isArray()) {
 			return "";
@@ -655,7 +651,7 @@ public class ResponsesApiClient implements Client{
 		}
 		return response.toString();
 	}
-
+	
 	private String extractReasoningSummaryText(final JsonNode output) {
 		if (!output.isArray()) {
 			return "";
@@ -684,7 +680,7 @@ public class ResponsesApiClient implements Client{
 		}
 		return reasoning.toString();
 	}
-
+	
 	private String extractReasoningDelta(final String eventType, final JsonNode event) {
 		if (eventType == null || !eventType.contains("reasoning")) {
 			return "";
@@ -695,7 +691,7 @@ public class ResponsesApiClient implements Client{
 		}
 		return this.text(event, "text");
 	}
-
+	
 	private CompletionFinishReason determineFinishReason(final JsonNode response, final List<ToolCall> toolCalls) {
 		if (!toolCalls.isEmpty()) {
 			return CompletionFinishReason.TOOL_CALLS;
@@ -722,7 +718,7 @@ public class ResponsesApiClient implements Client{
 		var cachedInTokens = 0;
 		var outTokens = 0;
 		var reasoningOutTokens = 0;
-
+		
 		if (usage != null && !usage.isMissingNode()) {
 			final var inputTokens = this.integerValue(usage.path("input_tokens"), 0);
 			cachedInTokens = this.integerValue(usage.path("input_tokens_details").path("cached_tokens"), 0);
@@ -741,7 +737,7 @@ public class ResponsesApiClient implements Client{
 		if (outTokens <= 0 && response != null && !response.isBlank()) {
 			outTokens = this.countTokens(response, modelProfile);
 		}
-
+		
 		final var cost = this.getUsageCost(usage)
 				.max(this.calculateTokenCost(modelProfile, inTokens, cachedInTokens, outTokens, reasoningOutTokens));
 		return new CompletionStatistics(
@@ -754,7 +750,7 @@ public class ResponsesApiClient implements Client{
 				cost,
 				false);
 	}
-
+	
 	private BigDecimal getUsageCost(final JsonNode usage) {
 		if (usage == null || usage.isMissingNode()) {
 			return BigDecimal.ZERO;
@@ -773,7 +769,7 @@ public class ResponsesApiClient implements Client{
 		cost = cost.add(this.decimalValue(usage.path("cost_details").path("upstream_inference_output_cost")));
 		return cost;
 	}
-
+	
 	private BigDecimal calculateTokenCost(final ModelProfile modelProfile, final int inTokens, final int cachedInTokens, final int outTokens, final int reasoningOutTokens) {
 		var cost = BigDecimal.ZERO;
 		cost = cost.add(new BigDecimal(inTokens).multiply(modelProfile.costPerInToken()));
@@ -782,7 +778,7 @@ public class ResponsesApiClient implements Client{
 		cost = cost.add(new BigDecimal(reasoningOutTokens).multiply(modelProfile.costPerReasoningOutToken()));
 		return cost;
 	}
-
+	
 	private List<String> loadModelNames(final ModelProfile modelProfile) {
 		try {
 			var requestSpec = this.restClientBuilder.baseUrl(modelProfile.url()).build()
@@ -818,14 +814,14 @@ public class ResponsesApiClient implements Client{
 			return List.of();
 		}
 	}
-
+	
 	private String getPrimaryModelName(final ModelProfile modelProfile) {
 		if (modelProfile.modelName() != null && !modelProfile.modelName().isBlank()) {
 			return modelProfile.modelName();
 		}
 		return this.getModelNames(modelProfile, false).stream().findFirst().orElse("");
 	}
-
+	
 	private String getErrorMessage(final String errorBody) {
 		if (errorBody == null || errorBody.isBlank()) {
 			return "";
@@ -840,7 +836,7 @@ public class ResponsesApiClient implements Client{
 			return errorBody;
 		}
 	}
-
+	
 	private String getEventErrorMessage(final JsonNode event) {
 		final var message = this.text(event.path("error"), "message");
 		if (!message.isEmpty()) {
@@ -852,11 +848,11 @@ public class ResponsesApiClient implements Client{
 		}
 		return event.toString();
 	}
-
+	
 	private OpenAiResponsesApiDialect responsesDialect() {
 		return this.openAiResponsesApiDialect == null ? DEFAULT_DIALECT : this.openAiResponsesApiDialect;
 	}
-
+	
 	private Map<String, Object> createReasoningRequest(final OpenAiResponsesApiDialect.ResponsesReasoning reasoning) {
 		if (reasoning == null) {
 			return null;
@@ -873,7 +869,7 @@ public class ResponsesApiClient implements Client{
 		}
 		return request.isEmpty() ? null : request;
 	}
-
+	
 	private List<String> createIncludeList(final ModelProfile modelProfile, final boolean store) {
 		final var include = new LinkedHashSet<>(this.responsesDialect().include(modelProfile));
 		if (!store && this.responsesDialect().includeEncryptedReasoningContent(modelProfile)) {
@@ -881,7 +877,7 @@ public class ResponsesApiClient implements Client{
 		}
 		return List.copyOf(include);
 	}
-
+	
 	private Map<String, Object> createStreamOptionsRequest(final OpenAiResponsesApiDialect.ResponsesStreamOptions streamOptions) {
 		if (streamOptions == null) {
 			return null;
@@ -892,7 +888,7 @@ public class ResponsesApiClient implements Client{
 		}
 		return request.isEmpty() ? null : request;
 	}
-
+	
 	private Map<String, Object> createTextRequest(final OpenAiResponsesApiDialect.ResponsesText text) {
 		if (text == null) {
 			return null;
@@ -903,7 +899,7 @@ public class ResponsesApiClient implements Client{
 		}
 		return request.isEmpty() ? null : request;
 	}
-
+	
 	private List<Map<String, Object>> createFallbackOutputItems(final String assistantText, final List<ToolCall> toolCalls) {
 		final var outputItems = new ArrayList<Map<String, Object>>();
 		if (assistantText != null && !assistantText.isBlank()) {
@@ -926,7 +922,7 @@ public class ResponsesApiClient implements Client{
 		}
 		return List.copyOf(outputItems);
 	}
-
+	
 	private void appendInputText(final StringBuilder inputTextBuilder, final String text) {
 		if (text == null || text.isBlank()) {
 			return;
@@ -936,7 +932,7 @@ public class ResponsesApiClient implements Client{
 		}
 		inputTextBuilder.append(text);
 	}
-
+	
 	private void appendInputItemText(final StringBuilder inputTextBuilder, final Map<String, Object> inputItem) {
 		if (inputItem == null || inputItem.isEmpty()) {
 			return;
@@ -948,14 +944,14 @@ public class ResponsesApiClient implements Client{
 			this.appendInputText(inputTextBuilder, inputItem.toString());
 		}
 	}
-
+	
 	private String resolveAssistantPhase(final String phase, final List<ToolCall> toolCalls) {
 		if (phase != null && !phase.isBlank()) {
 			return phase;
 		}
 		return toolCalls != null && !toolCalls.isEmpty() ? ASSISTANT_PHASE_COMMENTARY : ASSISTANT_PHASE_FINAL_ANSWER;
 	}
-
+	
 	private Map<String, Object> normalizeAssistantOutputItemPhase(final Map<String, Object> outputItem, final boolean containsFunctionCalls) {
 		if (outputItem == null || outputItem.isEmpty()) {
 			return Map.of();
@@ -967,25 +963,25 @@ public class ResponsesApiClient implements Client{
 		normalizedOutputItem.put("phase", containsFunctionCalls ? ASSISTANT_PHASE_COMMENTARY : ASSISTANT_PHASE_FINAL_ANSWER);
 		return Map.copyOf(normalizedOutputItem);
 	}
-
+	
 	private int countTokens(final String text, final ModelProfile modelProfile) {
 		return text == null || text.isBlank() ? 0 : this.tokenizerResolver.count(text, modelProfile);
 	}
-
+	
 	private String text(final JsonNode node, final String field) {
 		if (node == null || node.isMissingNode() || node.isNull()) {
 			return "";
 		}
 		return this.nodeText(node.path(field));
 	}
-
+	
 	private int integerValue(final JsonNode node, final int defaultValue) {
 		if (node == null || node.isMissingNode() || node.isNull()) {
 			return defaultValue;
 		}
 		return node.canConvertToInt() ? node.intValue() : defaultValue;
 	}
-
+	
 	private BigDecimal decimalValue(final JsonNode node) {
 		if (node == null || node.isMissingNode() || node.isNull()) {
 			return BigDecimal.ZERO;
@@ -997,7 +993,7 @@ public class ResponsesApiClient implements Client{
 			return BigDecimal.ZERO;
 		}
 	}
-
+	
 	private String nodeText(final JsonNode node) {
 		if (node == null || node.isMissingNode() || node.isNull()) {
 			return "";
@@ -1016,16 +1012,16 @@ public class ResponsesApiClient implements Client{
 				return "";
 		}
 	}
-
+	
 	private static final class StreamingToolCall {
-
+		
 		private String callId;
-
+		
 		private String type;
-
+		
 		private String name;
-
+		
 		private String arguments;
 	}
-
+	
 }
