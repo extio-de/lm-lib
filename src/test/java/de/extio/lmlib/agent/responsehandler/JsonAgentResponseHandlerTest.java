@@ -290,7 +290,7 @@ public class JsonAgentResponseHandlerTest {
 		// Verify error message was added to conversation
 		final List<Conversation.Turn> turns = context.getConversation().getConversation();
 		final Conversation.Turn lastTurn = turns.get(turns.size() - 1);
-		assertTrue(lastTurn.text().contains("valid JSON syntax"));
+		assertTrue(lastTurn.text().contains("The previous response could not be fully processed or validated."));
 	}
 	
 	@Test
