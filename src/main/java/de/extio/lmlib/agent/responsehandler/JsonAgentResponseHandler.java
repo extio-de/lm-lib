@@ -107,7 +107,7 @@ public class JsonAgentResponseHandler implements StreamedAgentResponseHandler {
 			}
 			catch (final Exception e2) {
 				LOGGER.warn("Cannot parse json response even after sanitization: {}", completion.response());
-				addJsonResponseErrorPrompt(context);
+				addJsonResponseErrorPrompt(context, completion.response());
 				return false;
 			}
 		}
@@ -153,9 +153,15 @@ public class JsonAgentResponseHandler implements StreamedAgentResponseHandler {
 		}
 	}
 	
-	private void addJsonResponseErrorPrompt(final AgentContext context) {
-		final var turn = context.getConversation().getConversation().getLast();
-		context.getConversation().replaceTurn(new Conversation.Turn(turn.type(), turn.text() + "\n\nThe previous response could not be fully processed or validated. Please make sure to format the response in valid JSON syntax with properly escaped characters."));
+	private void addJsonResponseErrorPrompt(final AgentContext context, final String jsonResponse) {
+		// final var turn = context.getConversation().getConversation().getLast();
+		// context.getConversation().replaceTurn(new Conversation.Turn(turn.type(), turn.text() + "\n\nThe previous response could not be fully processed or validated. Please make sure to format the response in valid JSON structure with properly escaped characters."));
+		context.getConversation().addTurn(new Conversation.Turn(
+			Conversation.TurnType.ASSISTANT,
+			jsonResponse != null ? jsonResponse : ""));
+		context.getConversation().addTurn(new Conversation.Turn(
+				Conversation.TurnType.USER,
+				"The previous response could not be fully processed or validated. Please make sure to format the response in valid JSON structure with properly escaped characters."));
 	}
 	
 	private String sanitizeJson(final String json) {

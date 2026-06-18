@@ -27,7 +27,7 @@ public class CsvAgentResponseHandler implements StreamedAgentResponseHandler {
 	
 	private final String fieldSeparatorQuoted;
 	
-	private final String errorPromptSuffix;
+	private final String errorPrompt;
 
 	private final String reasoningKey;
 
@@ -52,9 +52,9 @@ public class CsvAgentResponseHandler implements StreamedAgentResponseHandler {
 		this.reasoningKey = this.keyPrefix + "_reasoning";
 		this.afterChunkUpdate = afterChunkUpdate;
 		
-		this.errorPromptSuffix = "\n\nThe previous response could not be fully processed or validated. " +
+		this.errorPrompt = "\n\nThe previous response could not be fully processed or validated. " +
 				"Please format the response as CSV with '" + fieldSeparator + "' as field separator.\n" +
-				"Expected columns: " + String.join(", ", headings) + " \nOne row per line.";
+				"Expected columns: " + String.join(this.fieldSeparator, headings) + " \nOne row per line.";
 	}
 	
 	@Override
@@ -69,7 +69,7 @@ public class CsvAgentResponseHandler implements StreamedAgentResponseHandler {
 			final boolean success = this.parseCsv(resp, context);
 			if (!success) {
 				LOGGER.warn("No valid CSV data parsed from response");
-				this.addCsvResponseErrorPrompt(context);
+				this.addCsvResponseErrorPrompt(context, resp);
 				return false;
 			}
 			
@@ -77,7 +77,7 @@ public class CsvAgentResponseHandler implements StreamedAgentResponseHandler {
 		}
 		catch (final Exception ex) {
 			LOGGER.warn("Failed to parse CSV response", ex);
-			this.addCsvResponseErrorPrompt(context);
+			this.addCsvResponseErrorPrompt(context, resp);
 			return false;
 		}
 	}
@@ -185,11 +185,17 @@ public class CsvAgentResponseHandler implements StreamedAgentResponseHandler {
 		return true;
 	}
 	
-	private void addCsvResponseErrorPrompt(final AgentContext context) {
-		final var turn = context.getConversation().getConversation().getLast();
-		context.getConversation().replaceTurn(new Conversation.Turn(
-				turn.type(),
-				turn.text() + this.errorPromptSuffix));
+	private void addCsvResponseErrorPrompt(final AgentContext context, final String csvResponse) {
+		// final var turn = context.getConversation().getConversation().getLast();
+		// context.getConversation().replaceTurn(new Conversation.Turn(
+		// 		turn.type(),
+		// 		turn.text() + this.errorPromptSuffix));
+		context.getConversation().addTurn(new Conversation.Turn(
+				Conversation.TurnType.ASSISTANT,
+				csvResponse != null ? csvResponse : ""));
+		context.getConversation().addTurn(new Conversation.Turn(
+				Conversation.TurnType.USER,
+				this.errorPrompt));
 	}
 	
 	private String stripQuotes(final String value) {

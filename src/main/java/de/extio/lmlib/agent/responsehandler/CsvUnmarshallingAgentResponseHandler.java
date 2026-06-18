@@ -39,7 +39,7 @@ public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandle
 	
 	private final String listSeparatorQuoted;
 	
-	private final String errorPromptSuffix;
+	private final String errorPrompt;
 	
 	public CsvUnmarshallingAgentResponseHandler(final Class<?> targetClass, final String contextKey) {
 		this(targetClass, contextKey, ";", ",");
@@ -70,7 +70,7 @@ public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandle
 		final String listInfo = (listSeparator != null && !listSeparator.isEmpty())
 				? " and '" + listSeparator + "' for list items"
 				: "";
-		this.errorPromptSuffix = "\n\nThe previous response could not be fully processed or validated. " +
+		this.errorPrompt = "\n\nThe previous response could not be fully processed or validated. " +
 				"Please format the response as CSV with '" + fieldSeparator + "' as field separator" +
 				listInfo + ". One object per line.";
 	}
@@ -97,7 +97,7 @@ public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandle
 			final List<Object> parsedObjects = this.parseCsv(resp);
 			if (parsedObjects.isEmpty()) {
 				LOGGER.warn("No valid CSV data parsed from response");
-				this.addCsvResponseErrorPrompt(context);
+				this.addCsvResponseErrorPrompt(context, resp);
 				return false;
 			}
 			
@@ -107,7 +107,7 @@ public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandle
 		}
 		catch (final Exception ex) {
 			LOGGER.warn("Failed to parse CSV response", ex);
-			this.addCsvResponseErrorPrompt(context);
+			this.addCsvResponseErrorPrompt(context, resp);
 			return false;
 		}
 	}
@@ -253,11 +253,17 @@ public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandle
 		throw new IllegalArgumentException("Unsupported field type: " + fieldType.getName());
 	}
 	
-	private void addCsvResponseErrorPrompt(final AgentContext context) {
-		final var turn = context.getConversation().getConversation().getLast();
-		context.getConversation().replaceTurn(new Conversation.Turn(
-				turn.type(),
-				turn.text() + this.errorPromptSuffix));
+	private void addCsvResponseErrorPrompt(final AgentContext context, final String csvResponse) {
+		// final var turn = context.getConversation().getConversation().getLast();
+		// context.getConversation().replaceTurn(new Conversation.Turn(
+		// 		turn.type(),
+		// 		turn.text() + this.errorPromptSuffix));
+		context.getConversation().addTurn(new Conversation.Turn(
+			Conversation.TurnType.ASSISTANT,
+			csvResponse != null ? csvResponse : ""));
+		context.getConversation().addTurn(new Conversation.Turn(
+				Conversation.TurnType.USER,
+				this.errorPrompt));
 	}
 	
 	private String stripQuotes(final String value) {
