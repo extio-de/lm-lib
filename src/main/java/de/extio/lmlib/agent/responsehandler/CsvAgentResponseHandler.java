@@ -3,8 +3,8 @@ package de.extio.lmlib.agent.responsehandler;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.regex.Pattern;
 import java.util.function.BiConsumer;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,7 +62,7 @@ public class CsvAgentResponseHandler implements StreamedAgentResponseHandler {
 		final String resp = completion.response();
 		if (resp == null || resp.isBlank()) {
 			LOGGER.warn("Empty completion response for CSV parsing");
-			return false;
+			return true;
 		}
 		
 		try {

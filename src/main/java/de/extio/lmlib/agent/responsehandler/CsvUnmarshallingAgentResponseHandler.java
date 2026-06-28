@@ -90,7 +90,7 @@ public class CsvUnmarshallingAgentResponseHandler implements AgentResponseHandle
 		final String resp = completion.response();
 		if (resp == null || resp.isBlank()) {
 			LOGGER.warn("Empty completion response for CSV parsing");
-			return false;
+			return true;
 		}
 		
 		try {

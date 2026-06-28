@@ -235,7 +235,9 @@ public class CsvAgentResponseHandlerTest {
 		final Completion completion = new Completion("", null, null, null);
 		final boolean result = handler.handle(completion, context);
 		
-		assertFalse(result);
+		assertTrue(result);
+		assertTrue(context.getStringValues("empty_a") == null || context.getStringValues("empty_a").isEmpty());
+		assertTrue(context.getStringValues("empty_b") == null || context.getStringValues("empty_b").isEmpty());
 	}
 	
 	@Test
@@ -247,7 +249,9 @@ public class CsvAgentResponseHandlerTest {
 		final Completion completion = new Completion(null, null, null, null);
 		final boolean result = handler.handle(completion, context);
 		
-		assertFalse(result);
+		assertTrue(result);
+		assertTrue(context.getStringValues("null_a") == null || context.getStringValues("null_a").isEmpty());
+		assertTrue(context.getStringValues("null_b") == null || context.getStringValues("null_b").isEmpty());
 	}
 	
 	@Test
