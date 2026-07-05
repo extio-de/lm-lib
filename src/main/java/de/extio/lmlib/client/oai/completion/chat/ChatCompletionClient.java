@@ -14,19 +14,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
 
-import tools.jackson.core.JacksonException;
-
 import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
+import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.ToolCall;
 import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.ToolDefinition;
-import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.oai.completion.AbstractCompletionClient;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
+import tools.jackson.core.JacksonException;
 
 public class ChatCompletionClient extends AbstractCompletionClient {
 	
@@ -69,9 +68,14 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		final LocalDateTime start = LocalDateTime.now();
 		final var restClient = this.restClientBuilder.baseUrl(modelProfile.url()).build();
 		
+		final var path = switch (modelProfile.url()) {
+			case final String url when url.endsWith("v1") -> "/chat/completions";
+			case final String url when url.endsWith("v1/") -> "/chat/completions";
+			default -> "/v1/chat/completions";
+		};
 		var requestSpec = restClient
 				.method(HttpMethod.POST)
-				.uri("/v1/chat/completions")
+				.uri(path)
 				.header("Content-Type", "application/json");
 		if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
 			requestSpec = requestSpec.header("Authorization", "Bearer " + modelProfile.apiKey());

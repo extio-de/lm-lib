@@ -31,7 +31,12 @@ final class LlamaServerTokenizer implements Tokenizer {
 	public List<Long> tokenize(final String txt, final ModelProfile modelProfile) {
 		LOGGER.debug("Requesting tokenizing");
 		final var request = new TokenizeRequest(txt);
-		final var restClient = this.restClientBuilder.baseUrl(modelProfile.url()).build();
+		final var baseUrl = switch (modelProfile.url()) {
+			case final String url when url.endsWith("/v1") -> modelProfile.url().substring(0, modelProfile.url().length() - 3);
+			case final String url when url.endsWith("/v1/") -> modelProfile.url().substring(0, modelProfile.url().length() - 4);
+			default -> modelProfile.url();
+		}; 
+		final var restClient = this.restClientBuilder.baseUrl(baseUrl).build();
 		final var response = restClient
 				.method(HttpMethod.POST)
 				.uri("/tokenize")
@@ -60,7 +65,12 @@ final class LlamaServerTokenizer implements Tokenizer {
 	public String detokenize(final List<Long> tokens, final ModelProfile modelProfile) {
 		LOGGER.debug("Requesting detokenizing");
 		final var request = new DetokenizeRequest(tokens);
-		final var restClient = this.restClientBuilder.baseUrl(modelProfile.url()).build();
+		final var baseUrl = switch (modelProfile.url()) {
+			case final String url when url.endsWith("/v1") -> modelProfile.url().substring(0, modelProfile.url().length() - 3);
+			case final String url when url.endsWith("/v1/") -> modelProfile.url().substring(0, modelProfile.url().length() - 4);
+			default -> modelProfile.url();
+		}; 
+		final var restClient = this.restClientBuilder.baseUrl(baseUrl).build();
 		final var response = restClient
 				.method(HttpMethod.POST)
 				.uri("/detokenize")
