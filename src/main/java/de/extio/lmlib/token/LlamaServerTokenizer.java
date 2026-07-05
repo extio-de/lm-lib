@@ -1,6 +1,5 @@
 package de.extio.lmlib.token;
 
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -41,11 +40,14 @@ final class LlamaServerTokenizer implements Tokenizer {
 				.onStatus(status -> {
 					if (status.getStatusCode().isError()) {
 						LOGGER.error("Tokenization request failed with status code {} {}: {}", status.getStatusCode(), status.getStatusText(), new String(status.getBody().readAllBytes(), StandardCharsets.UTF_8));
-						throw new RuntimeException("Tokenization request failed with status code " + status.getStatusCode() + " " + status.getStatusText());
+						throw new RuntimeException("Tokenization request failed with status code " + status.getStatusCode() + " " + status.getStatusText() + ". Your LLM provider may not support the /tokenize endpoint");
 					}
 					return false;
 				})
 				.body(TokenizeResponse.class);
+		if (response == null || response.tokens() == null) {
+			throw new RuntimeException("Tokenization request failed: response is null. Your LLM provider may not support the /tokenize endpoint");
+		}
 		return response.tokens();
 	}
 
@@ -67,11 +69,14 @@ final class LlamaServerTokenizer implements Tokenizer {
 				.onStatus(status -> {
 					if (status.getStatusCode().isError()) {
 						LOGGER.error("Detokenization request failed with status code {} {}: {}", status.getStatusCode(), status.getStatusText(), new String(status.getBody().readAllBytes(), StandardCharsets.UTF_8));
-						throw new RuntimeException("Detokenization request failed with status code " + status.getStatusCode() + " " + status.getStatusText());
+						throw new RuntimeException("Detokenization request failed with status code " + status.getStatusCode() + " " + status.getStatusText() + ". Your LLM provider may not support the /detokenize endpoint");
 					}
 					return false;
 				})				
 				.body(DetokenizeResponse.class);
+		if (response == null || response.content() == null) {
+			throw new RuntimeException("Detokenization request failed: response is null. Your LLM provider may not support the /detokenize endpoint");
+		}
 		return response.content();
 	}
 	
