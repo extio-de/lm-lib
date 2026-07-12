@@ -338,7 +338,7 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		final int maxLength = modelProfile.maxContextLength() - modelProfile.maxTokens() - 15; // 15 is a margin for EOT and other special tokens
 		if (tokens.addAndGet(textTokens) > maxLength) {
 			var tokenized = this.tokenizerResolver.tokenize(prompt, modelProfile);
-			LOGGER.warn("Prompt too long: {} tokens / {} max. Prompt will be cut!", tokenized.size(), maxLength);
+			LOGGER.warn("Prompt too long: {} tokens / {} max. Prompt will be cut!", tokens.get(), maxLength);
 			tokenized = tokenized.subList(0, tokenized.size() - (tokens.get() - maxLength));
 			prompt = this.tokenizerResolver.detokenize(tokenized, modelProfile);
 			trimmed = true;
