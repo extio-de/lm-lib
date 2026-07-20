@@ -90,6 +90,7 @@ public final class AgentContext {
 		this.skipCache = other.skipCache;
 		this.alwaysSkipCache = other.alwaysSkipCache;
 		this.streaming = other.streaming;
+		this.currentAgentName = other.currentAgentName;
 		synchronized (other.graph) {
 			this.graph.addAll(other.graph);
 		}
