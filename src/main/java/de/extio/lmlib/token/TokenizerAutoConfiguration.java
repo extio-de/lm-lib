@@ -9,6 +9,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.client.RestClient;
 
+import de.extio.lmlib.client.ProxyAuthorizationSupport;
+
 @AutoConfiguration
 @ConditionalOnProperty(prefix = "lmlib.tokenizer", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class TokenizerAutoConfiguration {
@@ -16,8 +18,10 @@ public class TokenizerAutoConfiguration {
 	@Bean
 	@ConditionalOnBean(name = "lmLibRestClientBuilder")
 	@ConditionalOnMissingBean(LlamaServerTokenizer.class)
-	Tokenizer llamaServerTokenizer(@Qualifier("lmLibRestClientBuilder") final RestClient.Builder restClientBuilder) {
-		return new LlamaServerTokenizer(restClientBuilder);
+	Tokenizer llamaServerTokenizer(
+			@Qualifier("lmLibRestClientBuilder") final RestClient.Builder restClientBuilder,
+			final ProxyAuthorizationSupport proxyAuthorizationSupport) {
+		return new LlamaServerTokenizer(restClientBuilder, proxyAuthorizationSupport);
 	}
 	
 	@Bean

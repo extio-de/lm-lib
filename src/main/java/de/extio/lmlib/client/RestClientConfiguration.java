@@ -49,6 +49,7 @@ public class RestClientConfiguration {
 			@Value("${lmlib.client.proxy.port:0}") final int proxyPort,
 			@Value("${lmlib.client.proxy.user:}") final String proxyUser,
 			@Value("${lmlib.client.proxy.password:}") final String proxyPassword,
+			@Value("${lmlib.client.proxy.auth-mode:http-client}") final String proxyAuthMode,
 			@Value("${lmlib.client.tls.verification.disabled:false}") final boolean tlsVerificationDisabled,
 			@Value("${lmlib.client.retry.max-attempts:5}") final int maxAttempts,
 			@Value("${lmlib.client.retry.backoff-interval-min:125}") final long backoffIntervalMin,
@@ -60,7 +61,7 @@ public class RestClientConfiguration {
 		if (proxyEnabled && proxyHost != null && !proxyHost.isBlank()) {
 			httpClientBuilder.proxy(ProxySelector.of(new InetSocketAddress(proxyHost, proxyPort)));
 			
-			if (proxyUser != null && !proxyUser.isBlank()) {
+			if (proxyUser != null && !proxyUser.isBlank() && ProxyAuthorizationSupport.MODE_HTTP_CLIENT.equalsIgnoreCase(proxyAuthMode)) {
 				httpClientBuilder.authenticator(new Authenticator() {
 					
 					@Override
@@ -104,6 +105,15 @@ public class RestClientConfiguration {
 				.defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
 				.defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
 				.requestInterceptor(createRetryInterceptor(maxAttempts, backoffIntervalMin, backoffIntervalMax));
+	}
+
+	@Bean
+	ProxyAuthorizationSupport proxyAuthorizationSupport(
+			@Value("${lmlib.client.proxy.auth-mode:http-client}") final String proxyAuthMode,
+			@Value("${lmlib.client.proxy.user:}") final String proxyUser,
+			@Value("${lmlib.client.proxy.password:}") final String proxyPassword) {
+		LOGGER.debug("Proxy auth mode: {}", proxyAuthMode);
+		return new ProxyAuthorizationSupport(proxyAuthMode, proxyUser, proxyPassword);
 	}
 	
 	private ClientHttpRequestInterceptor createRetryInterceptor(final int maxAttempts, final long backoffIntervalMin, final long backoffIntervalMax) {

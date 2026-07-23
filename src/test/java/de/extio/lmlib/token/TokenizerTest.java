@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.client.RestClient;
 
+import de.extio.lmlib.client.ProxyAuthorizationSupport;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfileService;
 
@@ -71,7 +72,7 @@ public class TokenizerTest {
 	@Disabled("Requires llama.cpp model profile")
 	@Test
 	void llamaServer() throws Exception {
-		final var tokenizer = new LlamaServerTokenizer(this.restClientBuilder);
+		final var tokenizer = new LlamaServerTokenizer(this.restClientBuilder, new ProxyAuthorizationSupport(ProxyAuthorizationSupport.MODE_HTTP_CLIENT, "", ""));
 		final var profile = this.modelProfileService.getModelProfile(ModelCategory.MEDIUM.getModelProfile());
 		
 		assertEquals(21, tokenizer.count(TEXT, profile));

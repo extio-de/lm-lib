@@ -19,6 +19,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
+import de.extio.lmlib.client.ProxyAuthorizationSupport;
 import de.extio.lmlib.client.oai.OpenAiProviderDialect;
 import de.extio.lmlib.profile.ModelProfile;
 import de.extio.lmlib.profile.ModelProfile.ModelProvider;
@@ -32,6 +33,9 @@ public class OpenRouterModelDiscovery {
 	@Autowired
 	@Qualifier("lmLibRestClientBuilder")
 	private RestClient.Builder restClientBuilder;
+
+	@Autowired
+	private ProxyAuthorizationSupport proxyAuthorizationSupport;
 
 	private final Map<String, List<OpenRouterModelsResponse.OpenRouterModel>> modelListCache = new ConcurrentHashMap<>();
 
@@ -109,6 +113,7 @@ public class OpenRouterModelDiscovery {
 			if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
 				requestSpec = requestSpec.header("Authorization", "Bearer " + modelProfile.apiKey());
 			}
+			requestSpec = this.proxyAuthorizationSupport.apply(requestSpec);
 			final var response = requestSpec.retrieve().body(OpenRouterModelsResponse.class);
 			return response == null || response.getData() == null ? List.of() : List.copyOf(response.getData());
 		}
@@ -135,6 +140,7 @@ public class OpenRouterModelDiscovery {
 			if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
 				requestSpec = requestSpec.header("Authorization", "Bearer " + modelProfile.apiKey());
 			}
+			requestSpec = this.proxyAuthorizationSupport.apply(requestSpec);
 			final var response = requestSpec.retrieve().body(OpenRouterModelEndpointsResponse.class);
 			return response == null || response.getData() == null ? new OpenRouterModelEndpointsResponse.OpenRouterModelEndpoints() : response.getData();
 		}

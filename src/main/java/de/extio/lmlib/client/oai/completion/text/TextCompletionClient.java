@@ -83,6 +83,7 @@ public class TextCompletionClient extends AbstractCompletionClient {
 		if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
 			requestSpec = requestSpec.header("Authorization", "Bearer " + modelProfile.apiKey());
 		}
+		requestSpec = this.proxyAuthorizationSupport.apply(requestSpec);
 		final var response = requestSpec
 				.body(requestBody)
 				.exchange((clientRequest, clientResponse) -> {

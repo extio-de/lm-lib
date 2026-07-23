@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
 import org.springframework.web.client.RestClient;
 
+import de.extio.lmlib.client.ProxyAuthorizationSupport;
 import de.extio.lmlib.profile.ModelProfile;
 
 final class LlamaServerTokenizer implements Tokenizer {
@@ -17,9 +18,12 @@ final class LlamaServerTokenizer implements Tokenizer {
 	private static final Logger LOGGER = LoggerFactory.getLogger(LlamaServerTokenizer.class);
 	
 	private final RestClient.Builder restClientBuilder;
+
+	private final ProxyAuthorizationSupport proxyAuthorizationSupport;
 	
-	public LlamaServerTokenizer(final RestClient.Builder restClientBuilder) {
+	public LlamaServerTokenizer(final RestClient.Builder restClientBuilder, final ProxyAuthorizationSupport proxyAuthorizationSupport) {
 		this.restClientBuilder = restClientBuilder;
+		this.proxyAuthorizationSupport = proxyAuthorizationSupport;
 	}
 	
 	@Override
@@ -37,10 +41,12 @@ final class LlamaServerTokenizer implements Tokenizer {
 			default -> modelProfile.url();
 		}; 
 		final var restClient = this.restClientBuilder.baseUrl(baseUrl).build();
-		final var response = restClient
+		var requestSpec = restClient
 				.method(HttpMethod.POST)
 				.uri("/tokenize")
-				.body(request)
+				.body(request);
+		requestSpec = this.proxyAuthorizationSupport.apply(requestSpec);
+		final var response = requestSpec
 				.retrieve()
 				.onStatus(status -> {
 					if (status.getStatusCode().isError()) {
@@ -71,10 +77,12 @@ final class LlamaServerTokenizer implements Tokenizer {
 			default -> modelProfile.url();
 		}; 
 		final var restClient = this.restClientBuilder.baseUrl(baseUrl).build();
-		final var response = restClient
+		var requestSpec = restClient
 				.method(HttpMethod.POST)
 				.uri("/detokenize")
-				.body(request)
+				.body(request);
+		requestSpec = this.proxyAuthorizationSupport.apply(requestSpec);
+		final var response = requestSpec
 				.retrieve()
 				.onStatus(status -> {
 					if (status.getStatusCode().isError()) {

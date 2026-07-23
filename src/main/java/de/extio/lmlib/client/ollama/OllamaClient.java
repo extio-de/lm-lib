@@ -36,6 +36,7 @@ import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.CompletionStatistics;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
+import de.extio.lmlib.client.ProxyAuthorizationSupport;
 import de.extio.lmlib.client.ToolCall;
 import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.ToolDefinition;
@@ -80,6 +81,9 @@ public class OllamaClient implements Client {
 
 	@Autowired(required = false)
 	private OllamaDialect ollamaDialect;
+
+	@Autowired
+	private ProxyAuthorizationSupport proxyAuthorizationSupport;
 	
 	@Override
 	public Completion conversation(final ModelCategory modelCategory, final Conversation conversation, final ToolCallData toolCallData, final boolean skipCache) {
@@ -124,6 +128,7 @@ public class OllamaClient implements Client {
 		if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
 			requestSpec = requestSpec.header("Authorization", "Bearer " + modelProfile.apiKey());
 		}
+		requestSpec = this.proxyAuthorizationSupport.apply(requestSpec);
 		
 		final var response = requestSpec
 				.body(requestBody)
@@ -443,6 +448,7 @@ public class OllamaClient implements Client {
 			if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
 				requestSpec = requestSpec.header("Authorization", "Bearer " + modelProfile.apiKey());
 			}
+			requestSpec = this.proxyAuthorizationSupport.apply(requestSpec);
 			final var response = requestSpec.retrieve().body(OllamaTagsResponse.class);
 			return response == null || response.getModels() == null ? List.of()
 					: response.getModels().stream()
@@ -482,6 +488,7 @@ public class OllamaClient implements Client {
 			if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
 				requestSpec = requestSpec.header("Authorization", "Bearer " + modelProfile.apiKey());
 			}
+			requestSpec = this.proxyAuthorizationSupport.apply(requestSpec);
 			final var requestBody = this.objectMapper.writeValueAsString(request);
 			final var response = requestSpec.body(requestBody).retrieve().body(OllamaShowResponse.class);
 			return response == null ? new OllamaShowResponse() : response;
