@@ -88,6 +88,7 @@ If you disable a module that another module depends on, you must provide the mis
 | `lmlib.client.proxy.port` | Integer | `0` | Proxy port. |
 | `lmlib.client.proxy.user` | String | | Proxy username. |
 | `lmlib.client.proxy.password` | String | | Proxy password. |
+| `lmlib.client.proxy.auth-mode` | String | `http-client` | Proxy authentication mode: `http-client` uses the JDK `HttpClient` authenticator; `header` sends `Proxy-Authorization` on each request from the LLM clients. |
 | `lmlib.client.tls.verification.disabled` | Boolean | `false` | Disables TLS certificate verification. Not recommended in production. |
 | `lmlib.client.retry.max-attempts` | Integer | `5` | Maximum retry attempts for failed HTTP calls. |
 | `lmlib.client.retry.backoff-interval-min` | Long | `125` | Minimum retry backoff in milliseconds. |

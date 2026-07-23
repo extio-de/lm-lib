@@ -33,6 +33,7 @@ import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.Conversation;
+import de.extio.lmlib.client.ProxyAuthorizationSupport;
 import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.oai.Model;
 import de.extio.lmlib.client.oai.ModelsResponse;
@@ -62,6 +63,9 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 
 	@Autowired(required = false)
 	protected OpenAiProviderDialect openAiProviderDialect;
+
+	@Autowired
+	protected ProxyAuthorizationSupport proxyAuthorizationSupport;
 	
 	@Value("${client.collectStatistics:false}")
 	protected boolean collectStatistics;
@@ -185,9 +189,11 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 	private List<String> loadModelNames(final ModelProfile modelProfile) {
 		try {
 			final var restClient = this.restClientBuilder.baseUrl(modelProfile.url()).build();
-			final var response = restClient
+			var requestSpec = restClient
 					.method(HttpMethod.GET)
-					.uri(uriBuilder -> uriBuilder.path("/v1/models").build())
+					.uri(uriBuilder -> uriBuilder.path("/v1/models").build());
+			requestSpec = this.proxyAuthorizationSupport.apply(requestSpec);
+			final var response = requestSpec
 					.retrieve()
 					.body(ModelsResponse.class);
 			return response == null || response.getData() == null ? List.of() : response.getData()

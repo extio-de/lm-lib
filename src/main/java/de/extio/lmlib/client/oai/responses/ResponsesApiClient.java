@@ -34,6 +34,7 @@ import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.CompletionStatistics;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
+import de.extio.lmlib.client.ProxyAuthorizationSupport;
 import de.extio.lmlib.client.ToolCall;
 import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.ToolDefinition;
@@ -74,6 +75,9 @@ public class ResponsesApiClient implements Client {
 	
 	@Autowired(required = false)
 	private OpenAiResponsesApiDialect openAiResponsesApiDialect;
+
+	@Autowired
+	private ProxyAuthorizationSupport proxyAuthorizationSupport;
 	
 	private final Map<String, List<String>> resolvedModelNames = new ConcurrentHashMap<>();
 	
@@ -185,6 +189,7 @@ public class ResponsesApiClient implements Client {
 		if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
 			requestSpec = requestSpec.header("Authorization", "Bearer " + modelProfile.apiKey());
 		}
+		requestSpec = this.proxyAuthorizationSupport.apply(requestSpec);
 		
 		return requestSpec.body(requestBody).exchange((clientRequest, clientResponse) -> {
 			if (clientResponse.getStatusCode().isError()) {
@@ -787,6 +792,7 @@ public class ResponsesApiClient implements Client {
 			if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
 				requestSpec = requestSpec.header("Authorization", "Bearer " + modelProfile.apiKey());
 			}
+			requestSpec = this.proxyAuthorizationSupport.apply(requestSpec);
 			final var response = requestSpec.retrieve().body(String.class);
 			if (response == null || response.isBlank()) {
 				return List.of();
