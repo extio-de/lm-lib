@@ -13,9 +13,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
-
 import de.extio.lmlib.agent.responsehandler.AgentResponseHandler;
 import de.extio.lmlib.agent.responsehandler.StreamedAgentResponseHandler;
 import de.extio.lmlib.agent.responsehandler.TextAgentResponseHandler;
@@ -25,12 +22,14 @@ import de.extio.lmlib.client.Client;
 import de.extio.lmlib.client.ClientService;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
-import de.extio.lmlib.client.ToolCallData;
-import de.extio.lmlib.client.ToolDefinition;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.Conversation.TurnType;
+import de.extio.lmlib.client.ToolCallData;
+import de.extio.lmlib.client.ToolDefinition;
 import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfile;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 public interface BaseAgent {
 	
@@ -38,7 +37,7 @@ public interface BaseAgent {
 	
 	static final ObjectMapper objectMapper = new ObjectMapper();
 
-	int MAX_TOOL_CALL_ROUNDS = 6;
+	int DEFAULT_MAX_TOOL_CALL_ROUNDS = 8;
 	
 	default String name() {
 		throw new UnsupportedOperationException("Name must be implemented in the agent");
@@ -90,6 +89,10 @@ public interface BaseAgent {
 			return clientService.supportsToolCalling(modelProfile);
 		}
 		return clientService.supportsToolCalling(this.modelCategory(context));
+	}
+
+	default int maxToolCallRounds(final AgentContext context) {
+		return DEFAULT_MAX_TOOL_CALL_ROUNDS;
 	}
 	
 	default AgentResponseHandler responseHandler(final AgentContext context) {
@@ -232,11 +235,7 @@ public interface BaseAgent {
 										}
 									}
 									
-									if (!completion.toolCalls().isEmpty() && responseHandler instanceof final ToolCallingAgentResponseHandler toolCallingAgentResponseHandler) {
-										if (toolCallRounds >= MAX_TOOL_CALL_ROUNDS) {
-											parseException = new IllegalStateException("Too many tool call rounds");
-											break;
-										}
+									if (!completion.toolCalls().isEmpty() && toolCallRounds < this.maxToolCallRounds(split.context()) && responseHandler instanceof final ToolCallingAgentResponseHandler toolCallingAgentResponseHandler) {
 										final var toolCallResults = new ToolCallingAgentResponseHandler.ToolCallResults();
 										if (toolCallingAgentResponseHandler.handleToolCalls(completion, split.context(), toolCallResults)) {
 											toolCallRounds++;
@@ -462,8 +461,8 @@ public interface BaseAgent {
 		return conversation;
 	}
 
-	private Conversation createConversation(String system, String user) {
-		var conversation = Conversation.create(system, user);
+	private Conversation createConversation(final String system, final String user) {
+		final var conversation = Conversation.create(system, user);
 		conversation.setMetadata("Agent: " + this.name());
 		return conversation;
 	}

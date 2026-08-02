@@ -865,6 +865,7 @@ final var blogPostAgent = new Agent(
 | `textTemplate()` | Optional user prompt template. | `null` |
 | `toolDefinitions(context)` | Optional tool definitions for tool-capable chat models. | `null` |
 | `toolCallData(context)` | Optional tool request configuration. Defaults to `ToolCallData.auto(toolDefinitions)`. | `null` |
+| `maxToolCallRounds` | Optional configuration of maximum tool call rounds (relevant if the model does not support multi tool calls) | 6 |
 | `supportsToolCalling(context, clientService)` | Reports whether the resolved client can handle tool calls. | derived from model/provider |
 | `responseHandler(context)` | Parses the model response. | `new TextAgentResponseHandler("response")` |
 | `preProcess(context)` | Runs before completion. | no-op |
@@ -884,7 +885,7 @@ Agents can declare tool definitions directly. For simple in-agent tool execution
   - Return `true` to append the tool results to the conversation and let the model continue with another turn.
   - Return `false` to stop the tool-call loop. The framework then passes the last completion to the delegate handler for normal response processing.
 
-The tool-call loop is capped at six rounds. If the model returns no tool calls, `ToolCallHandler` is not invoked and the completion goes directly to the delegate.
+The tool-call loop is capped at six rounds by default, this value can be overridden by maxToolCallRounds(). If the model returns no tool calls, `ToolCallHandler` is not invoked and the completion goes directly to the delegate.
 
 #### Single tool call per turn (sequential)
 
