@@ -54,6 +54,8 @@ public class RestClientConfiguration {
 			@Value("${lmlib.client.retry.max-attempts:5}") final int maxAttempts,
 			@Value("${lmlib.client.retry.backoff-interval-min:125}") final long backoffIntervalMin,
 			@Value("${lmlib.client.retry.backoff-interval-max:2500}") final long backoffIntervalMax) {
+		LOGGER.info("lmLib REST client configuration: proxyEnabled={}, proxyHost={}, proxyPort={}, proxyUser={}, proxyAuthMode={}, proxyPasswordSet={}, tlsVerificationDisabled={}, connectTimeout={} ms, readTimeout={} ms, retryMaxAttempts={}, retryBackoffIntervalMin={} ms, retryBackoffIntervalMax={} ms",
+				proxyEnabled, proxyHost, proxyPort, proxyUser, proxyAuthMode, proxyPassword != null && !proxyPassword.isBlank(), tlsVerificationDisabled, CONNECT_TIMEOUT, TIMEOUT, maxAttempts, backoffIntervalMin, backoffIntervalMax);
 		
 		final HttpClient.Builder httpClientBuilder = HttpClient.newBuilder()
 				.connectTimeout(Duration.ofMillis(CONNECT_TIMEOUT));
@@ -112,7 +114,7 @@ public class RestClientConfiguration {
 			@Value("${lmlib.client.proxy.auth-mode:http-client}") final String proxyAuthMode,
 			@Value("${lmlib.client.proxy.user:}") final String proxyUser,
 			@Value("${lmlib.client.proxy.password:}") final String proxyPassword) {
-		LOGGER.debug("Proxy auth mode: {}", proxyAuthMode);
+		LOGGER.info("Proxy auth: {} {}", proxyAuthMode, proxyUser);
 		return new ProxyAuthorizationSupport(proxyAuthMode, proxyUser, proxyPassword);
 	}
 	
