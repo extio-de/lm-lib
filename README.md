@@ -786,7 +786,7 @@ public class BlogPostAgent implements BaseAgent {
 
     @Override
     public AgentType agentType(final AgentContext ctx) {
-        return AgentType.START_CONVERSATION_WITH_SYSTEM_PROMPT;
+        return AgentType.START_CONVERSATION;
     }
 
     @Override
@@ -839,7 +839,7 @@ public class BlogPostAgent implements BaseAgent {
 ```java
 final var blogPostAgent = new Agent(
     "BlogPostAgent",
-    AgentType.START_CONVERSATION_WITH_SYSTEM_PROMPT,
+    AgentType.START_CONVERSATION,
     ModelCategory.MEDIUM,
     null,
     "You are a concise technical blog writer.",
@@ -955,10 +955,8 @@ If you do not want the current agent to resolve tool calls itself, the conversat
 
 | Type | Behavior | Typical Use |
 |------|----------|-------------|
-| `START_CONVERSATION` | Starts a fresh conversation without forcing a system prompt. | New thread |
-| `START_CONVERSATION_WITH_SYSTEM_PROMPT` | Starts a fresh conversation with `systemPrompt()`. | Controlled resets |
-| `CONVERSATION` | Continues an existing conversation. | Iterative refinement |
-| `CONVERSATION_WITH_SYSTEM_PROMPT` | Continues with a dedicated system turn at index 0. | Persistent system role |
+| `START_CONVERSATION` | Starts a fresh conversation with `systemPrompt()` as a dedicated system turn (when present). | New thread |
+| `CONVERSATION` | Continues an existing conversation, keeping the system turn at index 0. | Iterative refinement, persistent system role |
 | `COMPLETION` | Stateless single-shot completion. | Transformations and one-off generation |
 | `PROCESSING_ONLY` | Skips LLM calls entirely. | Pure context manipulation |
 

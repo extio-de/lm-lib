@@ -413,42 +413,11 @@ public interface BaseAgent {
 	
 	private Conversation setupConversation(final Split split) {
 		var conversation = split.context().getConversation();
-		if (conversation == null || conversation.getConversation().isEmpty()) {
-			conversation = this.createConversation(this.systemPrompt(), split.text());
-			split.context().setConversation(conversation);
-		}
-		else if (this.agentType(split.context()) == AgentType.START_CONVERSATION) {
-			final var system = this.systemPrompt();
-			if (system == null || system.isEmpty()) {
-				conversation = this.createConversation(null, split.text());
-			}
-			else {
-				conversation = this.createConversation(null, system + "\n" + split.text());
-			}
-			split.context().setConversation(conversation);
-		}
-		else if (this.agentType(split.context()) == AgentType.START_CONVERSATION_WITH_SYSTEM_PROMPT) {
+		if (conversation == null || conversation.getConversation().isEmpty() || this.agentType(split.context()) == AgentType.START_CONVERSATION) {
 			conversation = this.createConversation(this.systemPrompt(), split.text());
 			split.context().setConversation(conversation);
 		}
 		else {
-			if (conversation.getConversation().get(0).type() == TurnType.SYSTEM && this.agentType(split.context()) != AgentType.CONVERSATION_WITH_SYSTEM_PROMPT) {
-				final String mergedSysAndUser;
-				if (conversation.getConversation().size() > 1) {
-					mergedSysAndUser = conversation.getConversation().get(0).text() + "\n" + conversation.getConversation().get(1).text();
-				} else {
-					mergedSysAndUser = conversation.getConversation().get(0).text();
-				}
-				
-				final var newConversation = this.createConversation(null, mergedSysAndUser);
-				for (int n = 2; n < conversation.getConversation().size(); n++) {
-					newConversation.addTurn(conversation.getConversation().get(n));
-				}
-				
-				split.context().setConversation(newConversation);
-				conversation = newConversation;
-			}
-
 			if (conversation.getConversation().getLast().type() != TurnType.USER) {
 				conversation.addTurn(new Conversation.Turn(TurnType.USER, split.text()));
 			}
@@ -530,13 +499,13 @@ public interface BaseAgent {
 					this.clearRememberedToolCallData(context);
 				}
 				
-				case final BaseAgent a when a.agentType(context) == AgentType.START_CONVERSATION || a.agentType(context) == AgentType.START_CONVERSATION_WITH_SYSTEM_PROMPT -> {
+				case final BaseAgent a when a.agentType(context) == AgentType.START_CONVERSATION -> {
 					context.getGraph().add("🗨");
 					context.setConversation(null);
 					this.clearRememberedToolCallData(context);
 				}
 				
-				case final BaseAgent a when a.agentType(context) == AgentType.CONVERSATION || a.agentType(context) == AgentType.CONVERSATION_WITH_SYSTEM_PROMPT -> {
+				case final BaseAgent a when a.agentType(context) == AgentType.CONVERSATION -> {
 					if (context.getConversation() == null) {
 						context.getGraph().add("🗨");
 						context.setConversation(null);

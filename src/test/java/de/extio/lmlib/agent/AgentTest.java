@@ -37,7 +37,7 @@ import de.extio.lmlib.profile.ModelCategory;
 import de.extio.lmlib.profile.ModelProfileService;
 
 /**
- * These tests have been verified with Llama 3.1 8B, Gemma2 27B, Gemma3 27B, GPT-OSS 20B, and Qwen3.5 9B models
+ * These tests have been verified with Llama 3.1 8B, Gemma2 27B, Gemma3 27B, GPT-OSS 20B, Qwen3.5 9B, and Qwen 3.6 35B A3B models
  */
 @Disabled("This test requires a running Llama server or a cloud subscription")
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
@@ -163,7 +163,7 @@ public class AgentTest {
 										context.setStringValue("summary_chunk", chunk.content());
 									}
 									if (chunk.reasoningContent() != null) {
-										// System.out.print(chunk.reasoningContent()); // The reasoning can also be accessed if available
+										context.setStringValue("reasoning_chunk", chunk.reasoningContent());
 									}
 									lastStreamedSummary.set(context.getStringValue("summary")); // The current key value can also be accessed (e.g. concatenated, depends on the StreamedAgentResponseHandler implementation)
 								}
@@ -181,7 +181,14 @@ public class AgentTest {
 		
 		final var resultContexts = this.agentExecutor.walk(agents.get("CodeSummarizer"), context, contextUpdate -> {
 			// This is an optional consumer that can be used to receive updates from the agent context
-			System.out.print(contextUpdate.getStringValue("summary_chunk"));
+			final var summaryChunk = contextUpdate.getStringValue("summary_chunk");
+			if (summaryChunk != null) {
+				System.out.print(summaryChunk);
+			}
+			final var reasoningChunk = contextUpdate.getStringValue("reasoning_chunk");
+			if (reasoningChunk != null) {
+				System.out.print(reasoningChunk);
+			}
 		});
 		
 		assertEquals(1, resultContexts.size());
