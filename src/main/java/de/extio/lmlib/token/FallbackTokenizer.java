@@ -10,6 +10,16 @@ final class FallbackTokenizer implements Tokenizer {
 	
 	static final String NAME = "fallback";
 	
+	private static final int WORD_CLASS = 0;
+	private static final int WHITESPACE_CLASS = 1;
+	private static final int PUNCTUATION_CLASS = 2;
+	private static final int NON_ASCII_CLASS = 3;
+	
+	private static final int WORD_BYTES_PER_TOKEN = 7;
+	private static final int DIGIT_BYTES_PER_TOKEN = 3;
+	private static final int WHITESPACE_CHARS_PER_TOKEN = 4;
+	private static final int PUNCTUATION_CHARS_PER_TOKEN = 3;
+	
 	@Override
 	public String getName() {
 		return NAME;
@@ -23,20 +33,33 @@ final class FallbackTokenizer implements Tokenizer {
 		final var tokens = new ArrayList<Long>();
 		var index = 0;
 		while (index < txt.length()) {
-			final var codePoint = txt.codePointAt(index);
-			final var charCount = Character.charCount(codePoint);
-			if (Character.isWhitespace(codePoint)) {
-				final var end = this.consumeWhitespace(txt, index);
-				tokens.addAll(this.encodeChunked(txt.substring(index, end), 6));
+			final var cls = this.classOf(txt.codePointAt(index));
+			if (cls == WHITESPACE_CLASS) {
+				final var whitespaceEnd = this.consumeRun(txt, index, WHITESPACE_CLASS);
+				final var next = whitespaceEnd < txt.length() ? this.classOf(txt.codePointAt(whitespaceEnd)) : NON_ASCII_CLASS;
+				if (next == WORD_CLASS || next == PUNCTUATION_CLASS) {
+					final var wordEnd = this.consumeRun(txt, whitespaceEnd, next);
+					tokens.addAll(this.encodeChunked(txt.substring(index, wordEnd), this.bytesPerToken(txt.substring(whitespaceEnd, wordEnd))));
+					index = wordEnd;
+				} else {
+					tokens.addAll(this.encodeChunkedChars(txt.substring(index, whitespaceEnd), WHITESPACE_CHARS_PER_TOKEN));
+					index = whitespaceEnd;
+				}
+				continue;
+			}
+			if (cls == WORD_CLASS) {
+				final var end = this.consumeRun(txt, index, WORD_CLASS);
+				tokens.addAll(this.encodeChunked(txt.substring(index, end), this.bytesPerToken(txt.substring(index, end))));
 				index = end;
 				continue;
 			}
-			if (Character.isLetterOrDigit(codePoint)) {
-				final var end = this.consumeAlphaNumeric(txt, index);
-				tokens.addAll(this.encodeWordLike(txt.substring(index, end)));
+			if (cls == PUNCTUATION_CLASS) {
+				final var end = this.consumeRun(txt, index, PUNCTUATION_CLASS);
+				tokens.addAll(this.encodeChunkedChars(txt.substring(index, end), PUNCTUATION_CHARS_PER_TOKEN));
 				index = end;
 				continue;
 			}
+			final var charCount = Character.charCount(txt.codePointAt(index));
 			tokens.add(this.encodeToken(txt.substring(index, index + charCount)));
 			index += charCount;
 		}
@@ -57,89 +80,79 @@ final class FallbackTokenizer implements Tokenizer {
 		return builder.toString();
 	}
 	
-	private int consumeWhitespace(final String txt, final int start) {
+	private int classOf(final int codePoint) {
+		if (codePoint >= 0x80) {
+			return Character.isLetterOrDigit(codePoint) ? WORD_CLASS : NON_ASCII_CLASS;
+		}
+		if ((codePoint >= 'a' && codePoint <= 'z') || (codePoint >= 'A' && codePoint <= 'Z') || (codePoint >= '0' && codePoint <= '9')) {
+			return WORD_CLASS;
+		}
+		if (codePoint == ' ' || codePoint == '\t' || codePoint == '\n' || codePoint == '\r' || codePoint == '\f') {
+			return WHITESPACE_CLASS;
+		}
+		return PUNCTUATION_CLASS;
+	}
+	
+	private int consumeRun(final String txt, final int start, final int cls) {
 		var index = start;
-		while (index < txt.length()) {
-			final var codePoint = txt.codePointAt(index);
-			if (!Character.isWhitespace(codePoint)) {
-				break;
-			}
-			index += Character.charCount(codePoint);
+		while (index < txt.length() && this.classOf(txt.codePointAt(index)) == cls) {
+			index += Character.charCount(txt.codePointAt(index));
 		}
 		return index;
 	}
 	
-	private int consumeAlphaNumeric(final String txt, final int start) {
-		var index = start;
-		while (index < txt.length()) {
-			final var codePoint = txt.codePointAt(index);
-			if (!Character.isLetterOrDigit(codePoint)) {
-				break;
-			}
-			index += Character.charCount(codePoint);
-		}
-		return index;
-	}
-	
-	private List<Long> encodeWordLike(final String text) {
-		if (text.isEmpty()) {
-			return List.of();
-		}
-		if (this.isAsciiDigits(text)) {
-			return this.encodeChunked(text, 3);
-		}
-		if (this.isAsciiLetters(text)) {
-			return this.encodeChunked(text, 4);
-		}
-		return this.encodeChunkedByUtf8Bytes(text, 6);
+	private int bytesPerToken(final String text) {
+		return this.isAsciiDigits(text) ? DIGIT_BYTES_PER_TOKEN : WORD_BYTES_PER_TOKEN;
 	}
 	
 	private boolean isAsciiDigits(final String text) {
-		return text.chars().allMatch(ch -> ch >= '0' && ch <= '9');
+		return text.codePoints().allMatch(cp -> cp >= '0' && cp <= '9');
 	}
 	
-	private boolean isAsciiLetters(final String text) {
-		return text.chars().allMatch(ch -> ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z');
-	}
-	
-	private List<Long> encodeChunked(final String text, final int maxCharsPerToken) {
-		final var tokens = new ArrayList<Long>();
-		for (var index = 0; index < text.length();) {
-			var end = index;
-			var charCount = 0;
-			while (end < text.length() && charCount < maxCharsPerToken) {
-				final var codePoint = text.codePointAt(end);
-				end += Character.charCount(codePoint);
-				charCount++;
-			}
-			tokens.add(this.encodeToken(text.substring(index, end)));
-			index = end;
-		}
-		return tokens;
-	}
-	
-	private List<Long> encodeChunkedByUtf8Bytes(final String text, final int maxBytesPerToken) {
+	private List<Long> encodeChunked(final String text, final int maxBytesPerToken) {
 		final var tokens = new ArrayList<Long>();
 		for (var index = 0; index < text.length();) {
 			var end = index;
 			var bytes = 0;
 			while (end < text.length()) {
 				final var codePoint = text.codePointAt(end);
-				final var candidateEnd = end + Character.charCount(codePoint);
-				final var candidateBytes = text.substring(end, candidateEnd).getBytes(StandardCharsets.UTF_8).length;
-				if (bytes > 0 && bytes + candidateBytes > maxBytesPerToken) {
+				final var candidateBytes = this.utf8Length(codePoint);
+				if (bytes + candidateBytes > maxBytesPerToken) {
 					break;
 				}
-				end = candidateEnd;
+				end += Character.charCount(codePoint);
 				bytes += candidateBytes;
-				if (bytes >= maxBytesPerToken) {
-					break;
-				}
+			}
+			if (end == index) {
+				end += Character.charCount(text.codePointAt(index));
 			}
 			tokens.add(this.encodeToken(text.substring(index, end)));
 			index = end;
 		}
 		return tokens;
+	}
+	
+	private List<Long> encodeChunkedChars(final String text, final int maxCharsPerToken) {
+		final var tokens = new ArrayList<Long>();
+		for (var index = 0; index < text.length();) {
+			final var end = Math.min(index + maxCharsPerToken, text.length());
+			tokens.add(this.encodeToken(text.substring(index, end)));
+			index = end;
+		}
+		return tokens;
+	}
+	
+	private int utf8Length(final int codePoint) {
+		if (codePoint < 0x80) {
+			return 1;
+		}
+		if (codePoint < 0x800) {
+			return 2;
+		}
+		if (codePoint < 0x10000) {
+			return 3;
+		}
+		return 4;
 	}
 	
 	private long encodeToken(final String tokenText) {
