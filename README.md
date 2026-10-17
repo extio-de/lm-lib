@@ -141,10 +141,13 @@ As an alternative, the library supports Hugging Face-style /tokenize and /detoke
 These endpoints are provided, for example, by llama.cpp llama-server and vLLM.
 For `llamaServer`, no extra dependency is required because tokenization is delegated to the remote server through the configured model endpoint.
 
+The `anthropic` tokenizer delegates counting to the Anthropic token counting endpoint (`POST /v1/messages/count_tokens`), which must be available below the base URL from the model profile. The endpoint only supports counting, so `tokenize` and `detokenize` operate on a plain codepoint list instead of real model tokens.
+
 Available built-in tokenizer names:
 
 - `jTokkit`
 - `llamaServer`
+- `anthropic`
 - `fallback`
 
 ## Model Profiles

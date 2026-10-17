@@ -1,6 +1,9 @@
 package de.extio.lmlib.token;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
 
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -79,5 +82,40 @@ public class TokenizerTest {
 		final var tokens = tokenizer.tokenize(TEXT, profile);
 		assertEquals("[9906, 420, 374, 264, 1495, 0, 2650, 527, 499, 3815, 30, 578, 9282, 374, 2294, 3432, 0, 7445, 40798, 42299, 12340]", tokens.toString());
 		assertEquals(TEXT, tokenizer.detokenize(tokens, profile));
+	}
+	
+	@Test
+	void anthropicCodepointRoundTrip() {
+		final var tokenizer = new AnthropicTokenizer(this.restClientBuilder, proxyAuthorizationSupport());
+		final var profile = this.modelProfileService.getModelProfile("profile.model.anthropic");
+		
+		final var tokens = tokenizer.tokenize(TEXT, profile);
+		assertEquals(TEXT.codePoints().count(), tokens.size());
+		assertEquals(TEXT, tokenizer.detokenize(tokens, profile));
+		assertEquals(0, tokenizer.count("", profile));
+		assertEquals(0, tokenizer.tokenize("", profile).size());
+		assertEquals("", tokenizer.detokenize(List.of(), profile));
+	}
+	
+	@Test
+	void anthropicCountTokensPath() {
+		assertEquals("/v1/messages/count_tokens", AnthropicTokenizer.countTokensPath("http://127.0.0.1:5001"));
+		assertEquals("/messages/count_tokens", AnthropicTokenizer.countTokensPath("http://127.0.0.1:5001/v1"));
+		assertEquals("/messages/count_tokens", AnthropicTokenizer.countTokensPath("http://127.0.0.1:5001/v1/"));
+		assertEquals("/count_tokens", AnthropicTokenizer.countTokensPath("http://127.0.0.1:5001/v1/messages"));
+		assertEquals("http://127.0.0.1:5001", AnthropicTokenizer.stripCountTokensSuffix("http://127.0.0.1:5001/v1/messages"));
+	}
+	
+	@Disabled("This test requires a running Anthropic server")
+	@Test
+	void anthropic() throws Exception {
+		final var tokenizer = new AnthropicTokenizer(this.restClientBuilder, proxyAuthorizationSupport());
+		final var profile = this.modelProfileService.getModelProfile("profile.model.anthropic");
+		
+		assertTrue(tokenizer.count(TEXT, profile) > 0);
+	}
+	
+	private static ProxyAuthorizationSupport proxyAuthorizationSupport() {
+		return new ProxyAuthorizationSupport(ProxyAuthorizationSupport.MODE_HTTP_CLIENT, "", "");
 	}
 }

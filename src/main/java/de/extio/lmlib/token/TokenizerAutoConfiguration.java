@@ -25,6 +25,15 @@ public class TokenizerAutoConfiguration {
 	}
 	
 	@Bean
+	@ConditionalOnBean(name = "lmLibRestClientBuilder")
+	@ConditionalOnMissingBean(AnthropicTokenizer.class)
+	Tokenizer anthropicTokenizer(
+			@Qualifier("lmLibRestClientBuilder") final RestClient.Builder restClientBuilder,
+			final ProxyAuthorizationSupport proxyAuthorizationSupport) {
+		return new AnthropicTokenizer(restClientBuilder, proxyAuthorizationSupport);
+	}
+	
+	@Bean
 	@ConditionalOnClass(name = "com.knuddels.jtokkit.Encodings")
 	@ConditionalOnMissingBean(JTokkitTokenizer.class)
 	Tokenizer jTokkitTokenizer() {
