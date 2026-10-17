@@ -55,6 +55,15 @@ public class AnthropicClientTest {
 	}
 
 	@Test
+	void listModels() throws Exception {
+		final var modelProfile = this.modelProfile();
+		final var modelNames = this.anthropicClient.getModelNames(modelProfile, true);
+		AnthropicClientTest.LOGGER.info("Models: {}", modelNames);
+		assertFalse(modelNames.isEmpty());
+		assertFalse(modelNames.getFirst().isBlank());
+	}
+
+	@Test
 	void chatCompletion() throws Exception {
 		final var modelProfile = this.modelProfile();
 		final var completion = this.anthropicClient.conversation(

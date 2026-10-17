@@ -1,6 +1,7 @@
 package de.extio.lmlib.client.anthropic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -312,6 +313,78 @@ class AnthropicClientRequestTest {
 		assertEquals("/messages", AnthropicClient.messagesPath("http://127.0.0.1:5001/v1/"));
 		assertEquals("http://127.0.0.1:5001", AnthropicClient.stripMessagesSuffix("http://127.0.0.1:5001/v1/messages"));
 		assertEquals("http://127.0.0.1:5001", AnthropicClient.stripMessagesSuffix("http://127.0.0.1:5001"));
+	}
+
+	@Test
+	void resolvesModelsPathVariants() {
+		assertEquals("/v1/models", AnthropicClient.modelsPath("http://127.0.0.1:5001"));
+		assertEquals("/models", AnthropicClient.modelsPath("http://127.0.0.1:5001/v1"));
+		assertEquals("/models", AnthropicClient.modelsPath("http://127.0.0.1:5001/v1/"));
+	}
+
+	@Test
+	void parsesModelListingResponse() {
+		final var mapper = JsonMapper.builder().build();
+		final var official = mapper.readValue("""
+				{"data": [{"type": "model", "id": "claude-sonnet-4-5", "display_name": "Claude Sonnet 4.5", "created_at": "2025-09-29T00:00:00Z"}], "has_more": false}
+				""", AnthropicModelListResponse.class);
+		assertEquals("claude-sonnet-4-5", official.data().get(0).id());
+		assertEquals("Claude Sonnet 4.5", official.data().get(0).displayName());
+
+		final var openAiShaped = mapper.readValue("""
+				{"object": "list", "data": [{"id": "local-model", "object": "model", "status": {"value": "loaded"}}]}
+				""", AnthropicModelListResponse.class);
+		assertEquals("local-model", openAiShaped.data().get(0).id());
+	}
+
+	@Test
+	void parsesModelCapabilities() {
+		final var mapper = JsonMapper.builder().build();
+		final var response = mapper.readValue("""
+				{"data": [{
+				  "type": "model",
+				  "id": "claude-opus-5-5",
+				  "capabilities": {
+				    "image_input": {"supported": true},
+				    "thinking": {"supported": true, "types": {"adaptive": {"supported": true}, "disabled": {"supported": true}, "enabled": {"supported": false}}}
+				  }
+				}, {
+				  "type": "model",
+				  "id": "claude-haiku-no-thinking",
+				  "capabilities": {"thinking": {"supported": false}}
+				}, {
+				  "type": "model",
+				  "id": "tool-less-model",
+				  "capabilities": {"tool_use": {"supported": false}}
+				}, {
+				  "type": "model",
+				  "id": "no-capabilities-model"
+				}]}
+				""", AnthropicModelListResponse.class);
+		final var models = response.data().stream().collect(java.util.stream.Collectors.toMap(AnthropicModel::id, model -> model));
+
+		final var opus = models.get("claude-opus-5-5");
+		assertTrue(opus.capabilities().imageInput().isSupported());
+		assertTrue(AnthropicClient.supportsToolCalling(opus));
+		// thinking.types.enabled explicitly false -> extended thinking unsupported
+		assertFalse(AnthropicClient.supportsExtendedThinking(opus));
+
+		assertFalse(AnthropicClient.supportsExtendedThinking(models.get("claude-haiku-no-thinking")));
+		assertFalse(AnthropicClient.supportsToolCalling(models.get("tool-less-model")));
+
+		// missing capabilities skip the checks
+		assertTrue(AnthropicClient.supportsToolCalling(models.get("no-capabilities-model")));
+		assertTrue(AnthropicClient.supportsExtendedThinking(models.get("no-capabilities-model")));
+		assertTrue(AnthropicClient.supportsToolCalling((AnthropicModel) null));
+		assertTrue(AnthropicClient.supportsExtendedThinking(null));
+	}
+
+	@Test
+	void modelDiscoveryNeverFails() {
+		final var client = new TestAnthropicClient();
+		// no rest client configured - discovery must degrade to an empty listing
+		assertEquals(List.of(), client.getModelNames(this.createProfile(2048), true));
+		assertTrue(client.supportsToolCalling(this.createProfile(2048)));
 	}
 
 	@SuppressWarnings("unchecked")

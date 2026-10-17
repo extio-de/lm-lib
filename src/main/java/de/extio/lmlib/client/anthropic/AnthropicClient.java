@@ -9,9 +9,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
@@ -61,6 +63,8 @@ public class AnthropicClient implements Client {
 	private static final Logger LOGGER = LoggerFactory.getLogger(AnthropicClient.class);
 
 	private static final String MESSAGES_PATH = "/v1/messages";
+
+	private final Map<String, Map<String, AnthropicModel>> resolvedModels = new ConcurrentHashMap<>();
 
 	private static final AnthropicDialect DEFAULT_ANTHROPIC_DIALECT = new AnthropicDialect() {
 	};
@@ -157,8 +161,74 @@ public class AnthropicClient implements Client {
 
 	@Override
 	public List<String> getModelNames(final ModelProfile modelProfile, final boolean forceReload) {
-		// The Anthropic API does not offer a model discovery endpoint.
-		return List.of();
+		return this.resolveModels(modelProfile, forceReload).values().stream()
+				.map(AnthropicModel::id)
+				.filter(id -> id != null && !id.isBlank())
+				.toList();
+	}
+
+	/**
+	 * Loads and caches the model listing (including capabilities) per profile.
+	 * Never fails: an unreachable or non-listing endpoint yields an empty map so
+	 * capability checks are skipped instead of rejecting requests.
+	 */
+	private Map<String, AnthropicModel> resolveModels(final ModelProfile modelProfile, final boolean forceReload) {
+		if (modelProfile == null || modelProfile.modelProvider() != ModelProvider.ANTHROPIC) {
+			return Map.of();
+		}
+		if (modelProfile.url() == null || modelProfile.url().isBlank()) {
+			return Map.of();
+		}
+		final var cacheKey = modelProfile.category() + "|" + modelProfile.url() + "|" + modelProfile.apiKey();
+		if (forceReload) {
+			final var models = this.loadModels(modelProfile);
+			this.resolvedModels.put(cacheKey, models);
+			return models;
+		}
+		return this.resolvedModels.computeIfAbsent(cacheKey, key -> this.loadModels(modelProfile));
+	}
+
+	private Map<String, AnthropicModel> loadModels(final ModelProfile modelProfile) {
+		final var base = stripMessagesSuffix(modelProfile.url());
+		final var path = modelsPath(modelProfile.url());
+		try {
+			var requestSpec = this.restClientBuilder.baseUrl(base).build()
+					.method(HttpMethod.GET)
+					.uri(path)
+					.header("anthropic-version", this.getAnthropicDialect().anthropicVersion(modelProfile));
+			if (modelProfile.apiKey() != null && !modelProfile.apiKey().isBlank()) {
+				requestSpec = requestSpec.header("x-api-key", modelProfile.apiKey());
+			}
+			requestSpec = this.proxyAuthorizationSupport.apply(requestSpec);
+			final var response = requestSpec.exchange((clientRequest, clientResponse) -> {
+				if (clientResponse.getStatusCode().isError()) {
+					LOGGER.warn("Error response from model listing: {} {}", clientResponse.getStatusCode(), new String(clientResponse.getBody().readAllBytes(), StandardCharsets.UTF_8));
+					return null;
+				}
+				return this.objectMapper.readValue(clientResponse.getBody(), AnthropicModelListResponse.class);
+			});
+			if (response == null || response.data() == null) {
+				return Map.of();
+			}
+			final Map<String, AnthropicModel> models = new LinkedHashMap<>();
+			for (final var model : response.data()) {
+				if (model != null && model.id() != null && !model.id().isBlank()) {
+					models.put(model.id(), model);
+				}
+			}
+			return Collections.unmodifiableMap(models);
+		}
+		catch (final RuntimeException e) {
+			LOGGER.warn("Failed to load Anthropic model listing from {}", modelProfile.url(), e);
+			return Map.of();
+		}
+	}
+
+	private AnthropicModel findModel(final ModelProfile modelProfile, final String modelName) {
+		if (modelName == null || modelName.isBlank()) {
+			return null;
+		}
+		return this.resolveModels(modelProfile, false).get(modelName);
 	}
 
 	@Override
@@ -174,7 +244,42 @@ public class AnthropicClient implements Client {
 
 	@Override
 	public boolean supportsToolCalling(final ModelProfile modelProfile) {
-		return modelProfile != null && modelProfile.modelProvider() == ModelProvider.ANTHROPIC;
+		if (modelProfile == null || modelProfile.modelProvider() != ModelProvider.ANTHROPIC) {
+			return false;
+		}
+		return supportsToolCalling(this.findModel(modelProfile, this.getPrimaryModelName(modelProfile)));
+	}
+
+	/**
+	 * Determines tool calling support from model capabilities. Unknown models or
+	 * missing capability information skip the check and are assumed to support
+	 * tool calling.
+	 */
+	static boolean supportsToolCalling(final AnthropicModel model) {
+		if (model == null) {
+			return true;
+		}
+		final var capabilities = model.capabilities();
+		if (capabilities == null) {
+			return true;
+		}
+		return capabilities.isToolCallingSupported();
+	}
+
+	/**
+	 * Determines extended thinking support from model capabilities. Unknown
+	 * models or missing capability information skip the check and are assumed to
+	 * support thinking.
+	 */
+	static boolean supportsExtendedThinking(final AnthropicModel model) {
+		if (model == null) {
+			return true;
+		}
+		final var capabilities = model.capabilities();
+		if (capabilities == null) {
+			return true;
+		}
+		return capabilities.isExtendedThinkingSupported();
 	}
 
 	AnthropicMessageRequest createRequest(final Conversation conversation, final ModelProfile modelProfile, final boolean streaming, final ToolCallData toolCallData) {
@@ -296,6 +401,10 @@ public class AnthropicClient implements Client {
 	AnthropicThinkingConfig createThinkingConfig(final ModelProfile modelProfile) {
 		final var budgetTokens = this.getAnthropicDialect().thinkingBudgetTokens(modelProfile);
 		if (budgetTokens == null) {
+			return null;
+		}
+		if (!supportsExtendedThinking(this.findModel(modelProfile, this.getPrimaryModelName(modelProfile)))) {
+			LOGGER.debug("Model {} does not advertise extended thinking support - thinking will be omitted.", this.getPrimaryModelName(modelProfile));
 			return null;
 		}
 		final var maxTokens = modelProfile.maxTokens();
@@ -662,6 +771,20 @@ public class AnthropicClient implements Client {
 			return "/messages";
 		}
 		return MESSAGES_PATH;
+	}
+
+	/**
+	 * Resolves the models listing path relative to the (suffix-normalized)
+	 * configured base URL.
+	 */
+	static String modelsPath(final String url) {
+		if (url == null) {
+			return "/v1/models";
+		}
+		if (url.endsWith("/v1/") || url.endsWith("/v1")) {
+			return "/models";
+		}
+		return "/v1/models";
 	}
 
 	private AnthropicDialect getAnthropicDialect() {
