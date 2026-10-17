@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
+import de.extio.lmlib.client.anthropic.AnthropicClient;
 import de.extio.lmlib.client.openrouter.OpenRouterClient;
 import de.extio.lmlib.client.openrouter.OpenRouterModelDiscovery;
 import de.extio.lmlib.client.ollama.OllamaClient;
@@ -61,5 +62,11 @@ public class ClientAutoConfiguration {
 	OllamaClient ollamaClient() {
 		return new OllamaClient();
 	}
-	
+
+	@Bean
+	@ConditionalOnMissingBean
+	AnthropicClient anthropicClient() {
+		return new AnthropicClient();
+	}
+
 }

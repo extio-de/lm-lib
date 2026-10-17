@@ -13,13 +13,13 @@ lm-lib is published under the Apache License 2.0.
 
 lm-lib is designed for applications that need more than single prompt-response calls. Its center of gravity is the agent framework: structured multi-step flows such as classification, planning, fan-out analysis, synthesis, grading, feedback loops, and other graph-based execution patterns.
 
-It also supports direct completion use cases through a client abstraction layer. The built-in clients currently cover OpenAI-compatible chat completion endpoints, the newer OpenAI-compatible Responses API, legacy text completion endpoints, OpenRouter's OpenAI-compatible routing API, and Ollama's native chat API, and the abstraction remains open for additional provider implementations over time. Applications can also provide their own client implementations by implementing the relevant interfaces.
+It also supports direct completion use cases through a client abstraction layer. The built-in clients currently cover OpenAI-compatible chat completion endpoints, the newer OpenAI-compatible Responses API, legacy text completion endpoints, OpenRouter's OpenAI-compatible routing API, Ollama's native chat API, and Anthropic's Claude Messages API, and the abstraction remains open for additional provider implementations over time. Applications can also provide their own client implementations by implementing the relevant interfaces.
 
-The current built-in client set supports OpenAI-compatible chat completions, OpenAI-compatible Responses, OpenRouter chat completions with cached metadata discovery, legacy text completions, and native Ollama chat completions, with model-specific prompt strategies for text completion models.
+The current built-in client set supports OpenAI-compatible chat completions, OpenAI-compatible Responses, OpenRouter chat completions with cached metadata discovery, legacy text completions, native Ollama chat completions, and Anthropic Claude messages, with model-specific prompt strategies for text completion models.
 
 ## Key Capabilities
 
-- OpenAI-compatible chat completions, OpenAI-compatible Responses, legacy text completions, OpenRouter chat completions, plus native Ollama chat completions
+- OpenAI-compatible chat completions, OpenAI-compatible Responses, legacy text completions, OpenRouter chat completions, native Ollama chat completions, plus Anthropic Claude messages
 - Chat-completion tool calling with tool definitions, returned tool calls, and tool-result follow-up rounds
 - Streaming and non-streaming APIs
 - Separate reasoning capture for models that expose reasoning output
@@ -243,7 +243,7 @@ Each profile file is a `.properties` resource on the classpath.
 | `maxContextLength` | Integer | Yes | Maximum total context length. | `16000`, `32768`, `128000` |
 | `temperature` | Double | Yes | Sampling temperature. Must be greater than zero. | `0.2`, `0.4`, `0.7` |
 | `topP` | Double | Yes | Nucleus sampling parameter. Must be greater than zero. | `1.0`, `0.9` |
-| `modelProvider` | Enum | Yes | Completion client type. | `OAI_CHAT_COMPLETION`, `OAI_RESPONSES`, `OAI_TEXT_COMPLETION`, `OPENROUTER`, `OLLAMA` |
+| `modelProvider` | Enum | Yes | Completion client type. | `OAI_CHAT_COMPLETION`, `OAI_RESPONSES`, `OAI_TEXT_COMPLETION`, `OPENROUTER`, `OLLAMA`, `ANTHROPIC` |
 | `modelName` | String | No | Model name or deployment. Can be empty for endpoints where the model should be auto-detected. | `gpt-4`, `Llama-3.3-70B-Instruct`, `` |
 | `url` | String | Yes | Base API URL. | `https://api.openai.com/v1`, `http://localhost:5001` |
 | `apiKey` | String | No | Bearer token or Spring placeholder. Can be empty for local servers. | `sk-...`, `${apikey}`, `` |
@@ -509,6 +509,14 @@ The Ollama provider uses `/api/chat` for completions, `/api/tags` for model disc
 If you need to shape Ollama thinking behavior, you can optionally register an `OllamaDialect` bean. Its `think(...)` hook controls whether lm-lib requests separate thinking output and whether it uses the generic boolean mode or Ollama's string levels such as `low`, `medium`, or `high`.
 
 lm-lib caches `/api/show` model details per resolved model. Thinking and tool definitions are sent only when the model advertises the corresponding capability, and `supportsToolCalling(modelProfile)` probes the same cached capability data.
+
+### Anthropic Provider
+
+`ANTHROPIC` targets the Anthropic Claude Messages API (`POST /v1/messages`), including Anthropic-compatible servers that expose the same endpoint shape.
+
+The client sends system turns as the top-level `system` parameter, uses `x-api-key` and `anthropic-version` headers, and requires a positive `maxTokens` in the profile because the Messages API mandates `max_tokens`. Tool calling uses native `tool_use`/`tool_result` content blocks, and streamed responses are consumed through the standard server-sent event protocol (`message_start`, `content_block_delta`, `message_delta`, `message_stop`). Extended thinking is supported: thinking blocks are captured as reasoning and replayed on follow-up tool rounds. There is no model discovery endpoint, so `getModelNames(...)` returns an empty list and `modelName` must be configured.
+
+To enable extended thinking, register an `AnthropicDialect` bean and return a budget (at least 1024 tokens) from `thinkingBudgetTokens(...)`; the budget is clamped below the profile's `maxTokens`. Omitting the bean or returning `null` keeps thinking disabled.
 
 ### Tool Calling Support
 
