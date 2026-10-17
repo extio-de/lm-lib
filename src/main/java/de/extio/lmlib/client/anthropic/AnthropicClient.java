@@ -21,7 +21,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.RestClient;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -621,7 +620,7 @@ public class AnthropicClient implements Client {
 					}
 					break;
 				case "tool_use":
-					toolCalls.add(new ToolCall(block.id(), "tool_use", block.name(), this.serializeToolInput(block.input())));
+					toolCalls.add(new ToolCall(strip(block.id()), "tool_use", strip(block.name()), this.serializeToolInput(block.input())));
 					break;
 				default:
 					LOGGER.debug("Ignoring unsupported response content block type: {}", block.type());
@@ -789,6 +788,10 @@ public class AnthropicClient implements Client {
 
 	private AnthropicDialect getAnthropicDialect() {
 		return this.anthropicDialect == null ? DEFAULT_ANTHROPIC_DIALECT : this.anthropicDialect;
+	}
+
+	private static String strip(final String text) {
+		return text == null ? null : text.strip();
 	}
 
 	private static final class StreamBlock {

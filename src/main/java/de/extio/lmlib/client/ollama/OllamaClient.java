@@ -352,9 +352,9 @@ public class OllamaClient implements Client {
 				continue;
 			}
 			toolCalls.add(new ToolCall(
-					toolCall.getId() != null && !toolCall.getId().isBlank() ? toolCall.getId() : "ollama-tool-call-" + (i + 1),
-					toolCall.getType() != null && !toolCall.getType().isBlank() ? toolCall.getType() : "function",
-					toolCall.getFunction().getName(),
+					toolCall.getId() != null && !toolCall.getId().isBlank() ? toolCall.getId().strip() : "ollama-tool-call-" + (i + 1),
+					toolCall.getType() != null && !toolCall.getType().isBlank() ? toolCall.getType().strip() : "function",
+					toolCall.getFunction().getName().strip(),
 					this.serializeArguments(toolCall.getFunction().getArguments())));
 		}
 		return List.copyOf(toolCalls);

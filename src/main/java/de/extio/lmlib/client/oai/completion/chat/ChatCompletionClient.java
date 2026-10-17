@@ -295,10 +295,14 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		}
 		return chatToolCalls.stream()
 				.filter(Objects::nonNull)
-				.map(toolCall -> new ToolCall(toolCall.getId(), toolCall.getType(), toolCall.getFunction() != null ? toolCall.getFunction().getName() : null, toolCall.getFunction() != null ? toolCall.getFunction().getArguments() : null))
+				.map(toolCall -> new ToolCall(strip(toolCall.getId()), strip(toolCall.getType()), toolCall.getFunction() != null ? strip(toolCall.getFunction().getName()) : null, toolCall.getFunction() != null ? strip(toolCall.getFunction().getArguments()) : null))
 				.toList();
 	}
 	
+	private static String strip(final String text) {
+		return text == null ? null : text.strip();
+	}
+
 	private List<ChatMessage> createChats(final Conversation conversation, final ModelProfile modelProfile) {
 		final List<ChatMessage> chat = new ArrayList<>();
 		final AtomicInteger tokens = new AtomicInteger();

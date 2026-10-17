@@ -609,9 +609,9 @@ public class ResponsesApiClient implements Client {
 			}
 			final var callId = this.text(item, "call_id");
 			toolCalls.add(new ToolCall(
-					callId.isBlank() ? this.text(item, "id") : callId,
+					callId.isBlank() ? this.text(item, "id") : callId.strip(),
 					"function",
-					this.text(item, "name"),
+					this.text(item, "name").strip(),
 					this.text(item, "arguments")));
 		}
 		return List.copyOf(toolCalls);
