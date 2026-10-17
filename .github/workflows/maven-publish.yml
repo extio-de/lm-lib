@@ -27,10 +27,10 @@ jobs:
       with:
         java-version: '25'
         distribution: 'temurin'
+        # Maven itself is pinned via the Maven Wrapper (.mvn/wrapper), because
         # Maven 3.10 leaves _remote.repositories / maven-metadata files in the
         # staging dir and central-publishing-maven-plugin bundles them, so
         # Central rejects the deployment. Keep pinned until upstream is fixed.
-        maven-version: '3.9.16'
         server-id: central
         server-username: MAVEN_USERNAME
         server-password: MAVEN_PASSWORD
@@ -68,7 +68,7 @@ jobs:
       run: |
         set -euo pipefail
 
-        mvn -B versions:set -DnewVersion="$RELEASE_VERSION" -DgenerateBackupPoms=false
+        ./mvnw -B versions:set -DnewVersion="$RELEASE_VERSION" -DgenerateBackupPoms=false
         perl -0pi -e 's{<version>\d+\.\d+\.\d+</version>}{<version>'"$RELEASE_VERSION"'</version>}g' README.md
     - name: Commit release version
       env:
@@ -93,7 +93,7 @@ jobs:
         git tag "$RELEASE_TAG"
         git push origin "$RELEASE_TAG"
     - name: Publish package
-      run: mvn -B -P release deploy -DskipTests
+      run: ./mvnw -B -P release deploy -DskipTests
       env:
         MAVEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
         MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
