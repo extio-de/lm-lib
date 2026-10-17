@@ -27,6 +27,10 @@ jobs:
       with:
         java-version: '25'
         distribution: 'temurin'
+        # Maven 3.10 leaves _remote.repositories / maven-metadata files in the
+        # staging dir and central-publishing-maven-plugin bundles them, so
+        # Central rejects the deployment. Keep pinned until upstream is fixed.
+        maven-version: '3.9.16'
         server-id: central
         server-username: MAVEN_USERNAME
         server-password: MAVEN_PASSWORD
