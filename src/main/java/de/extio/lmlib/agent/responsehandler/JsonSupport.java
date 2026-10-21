@@ -13,8 +13,6 @@ final class JsonSupport {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(JsonSupport.class);
 	
-	private static final int MAX_EXTRACTION_ATTEMPTS = 16;
-	
 	static final ObjectMapper MAPPER = createPermissiveMapper();
 	
 	private JsonSupport() {
@@ -42,74 +40,129 @@ final class JsonSupport {
 				.build();
 	}
 	
+	/**
+	 * Extracts the first JSON object or array of the response that can be parsed.
+	 * Structure boundaries respect double and single quoted strings as well as line and
+	 * block comments, so delimiters inside them do not corrupt the result. If a candidate
+	 * cannot be parsed, even after sanitization, the whole candidate is skipped: a broken
+	 * structure is never replaced by one of its inner structures, so incomplete responses
+	 * surface as errors instead of silently yielding partial data.
+	 */
 	static JsonNode parseStructure(final String response) {
+		if (response == null) {
+			return null;
+		}
 		final int length = response.length();
-		int attempts = 0;
-		for (int start = 0; start < length && attempts < MAX_EXTRACTION_ATTEMPTS; start++) {
+		final int lastCurly = response.lastIndexOf('}');
+		final int lastSquare = response.lastIndexOf(']');
+		int start = 0;
+		while (start < length) {
 			final char open = response.charAt(start);
 			if (open != '{' && open != '[') {
+				start++;
 				continue;
 			}
-			attempts++;
-			final String candidate = extractSpan(response, start, open, open == '{' ? '}' : ']');
-			if (candidate == null) {
-				continue;
-			}
-			JsonNode node;
-			try {
-				node = MAPPER.readTree(candidate);
-			}
-			catch (final Exception first) {
-				LOGGER.debug("Initial JSON parse failed, attempting to sanitize: {}", first.getMessage());
-				try {
-					node = MAPPER.readTree(sanitizeJson(candidate));
-					LOGGER.debug("Successfully parsed after sanitization");
-				}
-				catch (final Exception second) {
+			int end = findBalancedEnd(response, start, open, open == '{' ? '}' : ']');
+			if (end < 0) {
+				// unterminated structure, fall back to the last matching delimiter so
+				// that the sanitizer can still repair simple defects such as a missing closing quote
+				end = open == '{' ? lastCurly : lastSquare;
+				if (end <= start) {
+					start++;
 					continue;
 				}
 			}
+			final JsonNode node = readTree(response.substring(start, end + 1));
 			if (node != null && (node.isObject() || node.isArray())) {
 				return node;
 			}
+			start = end + 1;
 		}
 		return null;
 	}
 	
-	private static String extractSpan(final String response, final int start, final char open, final char close) {
+	private static JsonNode readTree(final String candidate) {
+		try {
+			return MAPPER.readTree(candidate);
+		}
+		catch (final Exception first) {
+			LOGGER.debug("Initial JSON parse failed, attempting to sanitize: {}", first.getMessage());
+		}
+		try {
+			final JsonNode node = MAPPER.readTree(sanitizeJson(candidate));
+			LOGGER.debug("Successfully parsed after sanitization");
+			return node;
+		}
+		catch (final Exception second) {
+			return null;
+		}
+	}
+	
+	private static int findBalancedEnd(final String response, final int start, final char open, final char close) {
 		int depth = 0;
-		boolean inString = false;
-		boolean escaped = false;
-		for (int i = start; i < response.length(); i++) {
+		int i = start;
+		while (i < response.length()) {
 			final char c = response.charAt(i);
-			if (escaped) {
-				escaped = false;
+			if (c == '"' || c == '\'') {
+				i = skipString(response, i, c);
 				continue;
 			}
-			if (inString) {
-				if (c == '\\') {
-					escaped = true;
+			if (c == '/') {
+				final int afterComment = skipComment(response, i);
+				if (afterComment > i) {
+					i = afterComment;
+					continue;
 				}
-				else if (c == '"') {
-					inString = false;
-				}
-				continue;
 			}
-			if (c == '"') {
-				inString = true;
-			}
-			else if (c == open) {
+			if (c == open) {
 				depth++;
 			}
-			else if (c == close) {
-				depth--;
-				if (depth == 0) {
-					return response.substring(start, i + 1);
-				}
+			else if (c == close && --depth == 0) {
+				return i;
 			}
+			i++;
 		}
-		final int end = response.lastIndexOf(close);
-		return end > start ? response.substring(start, end + 1) : null;
+		return -1;
+	}
+	
+	/**
+	 * Returns the index after the closing quote of the string starting at {@code start},
+	 * or the end of the response when the string is never closed.
+	 */
+	private static int skipString(final String response, final int start, final char quote) {
+		int i = start + 1;
+		while (i < response.length()) {
+			final char c = response.charAt(i);
+			if (c == '\\') {
+				i += 2;
+				continue;
+			}
+			if (c == quote) {
+				return i + 1;
+			}
+			i++;
+		}
+		return response.length();
+	}
+	
+	/**
+	 * Returns the index after a line or block comment starting at {@code start},
+	 * or {@code start} when there is no comment at this position.
+	 */
+	private static int skipComment(final String response, final int start) {
+		if (start + 1 >= response.length()) {
+			return start;
+		}
+		final char next = response.charAt(start + 1);
+		if (next == '/') {
+			final int newline = response.indexOf('\n', start + 2);
+			return newline < 0 ? response.length() : newline;
+		}
+		if (next == '*') {
+			final int end = response.indexOf("*/", start + 2);
+			return end < 0 ? response.length() : end + 2;
+		}
+		return start;
 	}
 	
 	static String sanitizeJson(final String json) {

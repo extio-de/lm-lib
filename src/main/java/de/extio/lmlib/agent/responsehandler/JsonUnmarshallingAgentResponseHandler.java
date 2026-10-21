@@ -1,11 +1,7 @@
 package de.extio.lmlib.agent.responsehandler;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.RecordComponent;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -13,7 +9,11 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import tools.jackson.databind.BeanProperty;
+import tools.jackson.databind.JavaType;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.jsonFormatVisitors.JsonFormatVisitorWrapper;
+import tools.jackson.databind.jsonFormatVisitors.JsonObjectFormatVisitor;
 
 import de.extio.lmlib.agent.AgentContext;
 import de.extio.lmlib.client.Chunk;
@@ -94,12 +94,13 @@ public class JsonUnmarshallingAgentResponseHandler implements StreamedAgentRespo
 			if (jsonNode.isArray()) {
 				final List<Object> objects = new ArrayList<>();
 				for (final JsonNode element : jsonNode) {
-					objects.add(JsonSupport.MAPPER.treeToValue(element, this.targetClass));
-				}
-				if (objects.isEmpty()) {
-					LOGGER.warn("Empty JSON array parsed from response");
-					this.addJsonResponseErrorPrompt(context, resp);
-					return false;
+					final Object object = JsonSupport.MAPPER.treeToValue(element, this.targetClass);
+					if (object == null) {
+						LOGGER.warn("Cannot unmarshal JSON array element into {}: {}", this.targetClass.getName(), element);
+						this.addJsonResponseErrorPrompt(context, resp);
+						return false;
+					}
+					objects.add(object);
 				}
 				context.setValues(this.contextKey, objects);
 				LOGGER.debug("Parsed {} JSON objects into context key '{}'", objects.size(), this.contextKey);
@@ -133,19 +134,45 @@ public class JsonUnmarshallingAgentResponseHandler implements StreamedAgentRespo
 	}
 	
 	private static String buildSchemaDescription(final Class<?> targetClass) {
-		if (targetClass.isRecord()) {
-			return Arrays.stream(targetClass.getRecordComponents())
-					.map(component -> component.getName() + " (" + simpleTypeName(component.getGenericType()) + ")")
-					.collect(Collectors.joining(", "));
+		final var properties = new LinkedHashMap<String, JavaType>();
+		try {
+			JsonSupport.MAPPER.acceptJsonFormatVisitor(targetClass, new JsonFormatVisitorWrapper.Base() {
+				@Override
+				public JsonObjectFormatVisitor expectObjectFormat(final JavaType type) {
+					return new JsonObjectFormatVisitor.Base(getContext()) {
+						@Override
+						public void property(final BeanProperty property) {
+							properties.put(property.getName(), property.getType());
+						}
+						@Override
+						public void optionalProperty(final BeanProperty property) {
+							properties.put(property.getName(), property.getType());
+						}
+					};
+				}
+			});
 		}
-		return Arrays.stream(targetClass.getDeclaredFields())
-				.filter(field -> !field.isSynthetic() && !Modifier.isStatic(field.getModifiers()))
-				.map(field -> field.getName() + " (" + simpleTypeName(field.getGenericType()) + ")")
+		catch (final Exception ex) {
+			LOGGER.debug("Cannot introspect target class {}", targetClass.getName(), ex);
+		}
+		if (properties.isEmpty()) {
+			return targetClass.getSimpleName();
+		}
+		return properties.entrySet().stream()
+				.map(property -> property.getKey() + " (" + simpleTypeName(property.getValue()) + ")")
 				.collect(Collectors.joining(", "));
 	}
 	
-	private static String simpleTypeName(final Type type) {
-		return type.getTypeName().replaceAll("(java\\.lang\\.|java\\.util\\.)", "");
+	private static String simpleTypeName(final JavaType type) {
+		final String rawName = type.getRawClass().getSimpleName();
+		if (type.containedTypeCount() == 0) {
+			return rawName;
+		}
+		final var typeArguments = new ArrayList<String>();
+		for (int i = 0; i < type.containedTypeCount(); i++) {
+			typeArguments.add(simpleTypeName(type.containedType(i)));
+		}
+		return rawName + '<' + String.join(", ", typeArguments) + '>';
 	}
 	
 }

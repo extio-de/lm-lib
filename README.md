@@ -1074,12 +1074,12 @@ Use `new JsonUnmarshallingAgentResponseHandler(MyRecord.class, "results")` when 
 
 Behavior summary:
 
-1. Extracts the first plausible JSON object or array from the response, tolerating prose (including stray braces) around it.
+1. Extracts the first plausible JSON object or array from the response, tolerating prose around it. Delimiters inside quoted strings (single or double) and comments are respected, and a candidate that cannot be parsed is skipped as a whole instead of accepting one of its inner structures, so broken or truncated responses surface as retries instead of partial data.
 2. Parses it with permissive Jackson settings and retries once after sanitization.
-3. A top-level JSON object is unmarshalled into a single typed object (stored via `setValue`), an array into a list of typed objects (stored via `setValues`).
+3. A top-level JSON object is unmarshalled into a single typed object (stored via `setValue`), an array into a list of typed objects (stored via `setValues`). An empty JSON array is accepted and stored as an empty list.
 4. Both storage shapes are readable through `getValue(...)` and `getValues(...)`.
 5. Supports streaming reasoning aggregation into `<key>_reasoning`.
-6. Retries with a correction prompt that lists the expected field names and types if parsing fails.
+6. Retries with a correction prompt that lists the expected JSON property names and types, derived from the Jackson property model of the target class, if parsing fails.
 
 #### CSV Handlers
 

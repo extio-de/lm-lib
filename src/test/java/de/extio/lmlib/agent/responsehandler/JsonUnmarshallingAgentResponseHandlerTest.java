@@ -11,6 +11,9 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import de.extio.lmlib.agent.AgentContext;
 import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Completion;
@@ -206,18 +209,18 @@ public class JsonUnmarshallingAgentResponseHandlerTest {
 	}
 	
 	@Test
-	public void testEmptyArrayReturnsFalse() {
+	public void testEmptyArrayIsAcceptedAndStored() {
 		final JsonUnmarshallingAgentResponseHandler handler = new JsonUnmarshallingAgentResponseHandler(TestObject.class, "test");
 		final AgentContext context = new AgentContext();
 		context.setConversation(Conversation.create("test"));
+		context.setValue("test", new TestObject("old", List.of(), 1));
 		
 		final Completion completion = new Completion("[]", null, null, null);
 		final boolean result = handler.handle(completion, context);
 		
-		assertFalse(result);
-		final List<Conversation.Turn> turns = context.getConversation().getConversation();
-		final Conversation.Turn lastTurn = turns.get(turns.size() - 1);
-		assertTrue(lastTurn.text().contains("The previous response could not be fully processed or validated."));
+		assertTrue(result);
+		assertEquals(List.of(), context.getValues("test", TestObject.class));
+		assertEquals(1, context.getConversation().getConversation().size());
 	}
 	
 	@Test
@@ -330,6 +333,132 @@ public class JsonUnmarshallingAgentResponseHandlerTest {
 		assertEquals(2, callbackReasoning.size());
 		assertEquals("first", callbackReasoning.get(1));
 		assertEquals("{\"field\":\"value\"}", callbackContent.get(1));
+	}
+	
+	@Test
+	public void testBracketedProseBeforeJson() {
+		final JsonUnmarshallingAgentResponseHandler handler = new JsonUnmarshallingAgentResponseHandler(TestObject.class, "test");
+		final AgentContext context = new AgentContext();
+		context.setConversation(Conversation.create("test"));
+		
+		final Completion completion = new Completion("[Note] Here is the JSON: {\"name\": \"item1\", \"tags\": [], \"value\": 42}", null, null, null);
+		final boolean result = handler.handle(completion, context);
+		
+		assertTrue(result);
+		assertEquals("item1", context.getValue("test", TestObject.class).name());
+	}
+	
+	@Test
+	public void testDelimiterInsideSingleQuotedString() {
+		final JsonUnmarshallingAgentResponseHandler handler = new JsonUnmarshallingAgentResponseHandler(TestObject.class, "test");
+		final AgentContext context = new AgentContext();
+		context.setConversation(Conversation.create("test"));
+		
+		final Completion completion = new Completion("{'name': 'a } b', 'tags': ['t1'], 'value': 1}", null, null, null);
+		final boolean result = handler.handle(completion, context);
+		
+		assertTrue(result);
+		final TestObject object = context.getValue("test", TestObject.class);
+		assertEquals("a } b", object.name());
+		assertEquals(List.of("t1"), object.tags());
+		assertEquals(1, object.value());
+	}
+	
+	@Test
+	public void testDelimiterInsideComment() {
+		final JsonUnmarshallingAgentResponseHandler handler = new JsonUnmarshallingAgentResponseHandler(TestObject.class, "test");
+		final AgentContext context = new AgentContext();
+		context.setConversation(Conversation.create("test"));
+		
+		final Completion completion = new Completion("{ /* } */ \"name\": \"item1\", \"tags\": [], \"value\": 1}", null, null, null);
+		final boolean result = handler.handle(completion, context);
+		
+		assertTrue(result);
+		assertEquals("item1", context.getValue("test", TestObject.class).name());
+	}
+	
+	@Test
+	public void testMalformedArrayIsNotPartiallyAccepted() {
+		final JsonUnmarshallingAgentResponseHandler handler = new JsonUnmarshallingAgentResponseHandler(TestObject.class, "test");
+		final AgentContext context = new AgentContext();
+		context.setConversation(Conversation.create("test"));
+		
+		final Completion completion = new Completion("[{\"name\": \"item1\", \"tags\": [], \"value\": 1}, BROKEN]", null, null, null);
+		final boolean result = handler.handle(completion, context);
+		
+		assertFalse(result);
+		assertNull(context.getValue("test", TestObject.class));
+		
+		final List<Conversation.Turn> turns = context.getConversation().getConversation();
+		final Conversation.Turn lastTurn = turns.get(turns.size() - 1);
+		assertTrue(lastTurn.text().contains("The previous response could not be fully processed or validated."));
+	}
+	
+	@Test
+	public void testTruncatedArrayIsRejected() {
+		final JsonUnmarshallingAgentResponseHandler handler = new JsonUnmarshallingAgentResponseHandler(TestObject.class, "test");
+		final AgentContext context = new AgentContext();
+		context.setConversation(Conversation.create("test"));
+		
+		final Completion completion = new Completion("[{\"name\": \"item1\", \"tags\": [], \"value\": 1}", null, null, null);
+		final boolean result = handler.handle(completion, context);
+		
+		assertFalse(result);
+		assertNull(context.getValue("test", TestObject.class));
+	}
+	
+	@Test
+	public void testMissingClosingQuoteIsRepaired() {
+		final JsonUnmarshallingAgentResponseHandler handler = new JsonUnmarshallingAgentResponseHandler(TestObject.class, "test");
+		final AgentContext context = new AgentContext();
+		context.setConversation(Conversation.create("test"));
+		
+		final Completion completion = new Completion("{\"name\": \"unfinished}", null, null, null);
+		final boolean result = handler.handle(completion, context);
+		
+		assertTrue(result);
+		assertEquals("unfinished", context.getValue("test", TestObject.class).name());
+	}
+	
+	@Test
+	public void testManyInvalidProseCandidatesBeforeJson() {
+		final JsonUnmarshallingAgentResponseHandler handler = new JsonUnmarshallingAgentResponseHandler(TestObject.class, "test");
+		final AgentContext context = new AgentContext();
+		context.setConversation(Conversation.create("test"));
+		
+		final String response = "{bad} ".repeat(20) + "{\"name\": \"item1\", \"tags\": [], \"value\": 42}";
+		final Completion completion = new Completion(response, null, null, null);
+		final boolean result = handler.handle(completion, context);
+		
+		assertTrue(result);
+		assertEquals("item1", context.getValue("test", TestObject.class).name());
+	}
+	
+	@Test
+	public void testInvalidResponseWithoutConversationDoesNotThrow() {
+		final JsonUnmarshallingAgentResponseHandler handler = new JsonUnmarshallingAgentResponseHandler(TestObject.class, "test");
+		final AgentContext context = new AgentContext();
+		
+		final Completion completion = new Completion("not json at all", null, null, null);
+		assertFalse(handler.handle(completion, context));
+	}
+	
+	@Test
+	public void testErrorPromptUsesJacksonPropertyNames() {
+		final JsonUnmarshallingAgentResponseHandler handler = new JsonUnmarshallingAgentResponseHandler(RenamedObject.class, "test");
+		final AgentContext context = new AgentContext();
+		context.setConversation(Conversation.create("test"));
+		
+		final boolean result = handler.handle(new Completion("no json here", null, null, null), context);
+		
+		assertFalse(result);
+		final List<Conversation.Turn> turns = context.getConversation().getConversation();
+		final Conversation.Turn lastTurn = turns.get(turns.size() - 1);
+		assertTrue(lastTurn.text().contains("renamed_value (String)"));
+		assertFalse(lastTurn.text().contains("hidden"));
+	}
+	
+	public static record RenamedObject(@JsonProperty("renamed_value") String renamedValue, @JsonIgnore String hidden) {
 	}
 	
 }
