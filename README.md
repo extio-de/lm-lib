@@ -1046,6 +1046,7 @@ M, CodeSummarizer, ↴, M, FeatureIdentifier, →, ⇉ 1/5, M, FeatureAnalyzer, 
 | `TextAgentResponseHandler` | Stores the full response under one key | Supports streaming and reasoning aggregation into `<key>_reasoning` |
 | `AccumulateTextAgentResponseHandler` | Appends each response to a list | Useful for collecting multiple variants |
 | `JsonAgentResponseHandler` | Parses loose JSON and flattens values into context lists | Retries after parse failures |
+| `JsonUnmarshallingAgentResponseHandler` | Parses JSON into typed objects | Stores a single object or a list under one context key |
 | `CsvAgentResponseHandler` | Parses CSV into column-based context keys | Useful for structured tabular extraction |
 | `CsvUnmarshallingAgentResponseHandler` | Parses CSV rows into typed objects | Useful when the target output maps cleanly to record-like structures |
 
@@ -1066,6 +1067,19 @@ Behavior summary:
 2. Parses it with permissive Jackson settings.
 3. Flattens nested data into list-valued context keys.
 4. Retries once if parsing fails.
+
+#### JsonUnmarshallingAgentResponseHandler
+
+Use `new JsonUnmarshallingAgentResponseHandler(MyRecord.class, "results")` when the model should return JSON that maps directly onto a record or POJO.
+
+Behavior summary:
+
+1. Extracts the first plausible JSON object or array from the response, tolerating prose (including stray braces) around it.
+2. Parses it with permissive Jackson settings and retries once after sanitization.
+3. A top-level JSON object is unmarshalled into a single typed object (stored via `setValue`), an array into a list of typed objects (stored via `setValues`).
+4. Both storage shapes are readable through `getValue(...)` and `getValues(...)`.
+5. Supports streaming reasoning aggregation into `<key>_reasoning`.
+6. Retries with a correction prompt that lists the expected field names and types if parsing fails.
 
 #### CSV Handlers
 

@@ -11,11 +11,8 @@ import java.util.function.BiConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import tools.jackson.core.json.JsonReadFeature;
-import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
 
 import de.extio.lmlib.agent.AgentContext;
 import de.extio.lmlib.client.Chunk;
@@ -47,25 +44,7 @@ public class JsonAgentResponseHandler implements StreamedAgentResponseHandler {
 		this.reasoningKey = this.prefixFields + "_reasoning";
 		this.afterChunkUpdate = afterChunkUpdate;
 		
-		this.objectMapper = JsonMapper.builder()
-				.configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false)
-				.configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-				.configure(DeserializationFeature.FAIL_ON_MISSING_EXTERNAL_TYPE_ID_PROPERTY, false)
-				.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-				.configure(DeserializationFeature.FAIL_ON_UNRESOLVED_OBJECT_IDS, false)
-				.enable(JsonReadFeature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER)
-				.enable(JsonReadFeature.ALLOW_JAVA_COMMENTS)
-				.enable(JsonReadFeature.ALLOW_MISSING_VALUES)
-				.enable(JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS)
-				.enable(JsonReadFeature.ALLOW_SINGLE_QUOTES)
-				.enable(JsonReadFeature.ALLOW_TRAILING_COMMA)
-				.enable(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS)
-				.enable(JsonReadFeature.ALLOW_YAML_COMMENTS)
-				.enable(JsonReadFeature.ALLOW_LEADING_DECIMAL_POINT_FOR_NUMBERS)
-				.enable(JsonReadFeature.ALLOW_LEADING_PLUS_SIGN_FOR_NUMBERS)
-				.enable(JsonReadFeature.ALLOW_TRAILING_DECIMAL_POINT_FOR_NUMBERS)
-				.enable(JsonReadFeature.ALLOW_UNQUOTED_PROPERTY_NAMES)
-				.build();
+		this.objectMapper = JsonSupport.MAPPER;
 	}
 
 	@Override
@@ -101,7 +80,7 @@ public class JsonAgentResponseHandler implements StreamedAgentResponseHandler {
 			LOGGER.debug("Initial JSON parse failed, attempting to sanitize: {}", e.getMessage());
 			try {
 				final var response = completion.response().substring(firstCurly, lastCurly + 1);
-				final var sanitized = sanitizeJson(response);
+				final var sanitized = JsonSupport.sanitizeJson(response);
 				jsonNode = this.objectMapper.readTree(sanitized);
 				LOGGER.debug("Successfully parsed after sanitization");
 			}
@@ -162,63 +141,6 @@ public class JsonAgentResponseHandler implements StreamedAgentResponseHandler {
 		context.getConversation().addTurn(new Conversation.Turn(
 				Conversation.TurnType.USER,
 				"The previous response could not be fully processed or validated. Please make sure to format the response in valid JSON structure with properly escaped characters."));
-	}
-	
-	private String sanitizeJson(final String json) {
-		final var result = new StringBuilder(json.length() + 10);
-		boolean inString = false;
-		boolean escaped = false;
-		
-		for (int i = 0; i < json.length(); i++) {
-			final char c = json.charAt(i);
-			
-			if (escaped) {
-				result.append(c);
-				escaped = false;
-				continue;
-			}
-			
-			if (c == '\\' && inString) {
-				escaped = true;
-				result.append(c);
-				continue;
-			}
-			
-			if (c == '"') {
-				boolean unescapedQuote = false;
-				if (inString) {
-					for (int j = i + 1; j < json.length(); j++) {
-						final var nextChar = json.charAt(j);
-						if (Character.isWhitespace(nextChar)) {
-							continue;
-						}
-						if (nextChar == ':' || nextChar == ',' || nextChar == '}' || nextChar == ']') {
-							break;
-						}
-						result.append('\\');
-						unescapedQuote = true;
-						break;
-					}
-				}
-				
-				inString = unescapedQuote || !inString;
-				result.append(c);
-				continue;
-			}
-			
-			if (inString && (c == '}' || c == ']') && (i == 0 || json.charAt(i - 1) != '\\')) {
-				int insertPos = result.length();
-				while (insertPos > 0 && Character.isWhitespace(result.charAt(insertPos - 1))) {
-					insertPos--;
-				}
-				result.insert(insertPos, '"');
-				inString = false;
-			}
-			
-			result.append(c);
-		}
-		
-		return result.toString();
 	}
 	
 }
