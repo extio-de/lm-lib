@@ -89,11 +89,11 @@ public class ClientService {
 		public Completion conversation(final ModelProfile modelProfile, final Conversation conversation_, final ToolCallData toolCallData, final boolean skipCache) {
 			Conversation conversation = conversation_;
 			for (final var interceptor : this.completionInterceptors) {
-				conversation = interceptor.before(modelProfile, conversation);
+				conversation = interceptor.before(modelProfile, conversation, toolCallData);
 			}
 			var completion = this.client.conversation(modelProfile, conversation, toolCallData, skipCache);
 			for (final var interceptor : this.completionInterceptors) {
-				completion = interceptor.after(modelProfile, conversation, completion);
+				completion = interceptor.after(modelProfile, conversation, toolCallData, completion);
 			}
 			return completion;
 		}
@@ -102,11 +102,11 @@ public class ClientService {
 		public Completion streamConversation(final ModelProfile modelProfile, final Conversation conversation_, final Consumer<Chunk> chunkConsumer, final ToolCallData toolCallData, final boolean skipCache) {
 			Conversation conversation = conversation_;
 			for (final var interceptor : this.completionInterceptors) {
-				conversation = interceptor.before(modelProfile, conversation);
+				conversation = interceptor.before(modelProfile, conversation, toolCallData);
 			}
 			var completion = this.client.streamConversation(modelProfile, conversation, chunkConsumer, toolCallData, skipCache);
 			for (final var interceptor : this.completionInterceptors) {
-				completion = interceptor.after(modelProfile, conversation, completion);
+				completion = interceptor.after(modelProfile, conversation, toolCallData, completion);
 			}
 			return completion;
 		}

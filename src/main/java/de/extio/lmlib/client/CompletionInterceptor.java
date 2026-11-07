@@ -4,8 +4,8 @@ import de.extio.lmlib.profile.ModelProfile;
 
 public interface CompletionInterceptor {
 	
-	Conversation before(ModelProfile modelProfile, Conversation conversation);
+	Conversation before(ModelProfile modelProfile, Conversation conversation, ToolCallData toolCallData);
 	
-	Completion after(ModelProfile modelProfile, Conversation conversation, Completion completion);
+	Completion after(ModelProfile modelProfile, Conversation conversation, ToolCallData toolCallData, Completion completion);
 	
 }
