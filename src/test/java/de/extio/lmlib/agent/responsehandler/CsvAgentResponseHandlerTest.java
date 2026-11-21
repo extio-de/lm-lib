@@ -372,4 +372,89 @@ public class CsvAgentResponseHandlerTest {
 		assertEquals("first", callbackReasoning.get(1));
 		assertEquals("1;2", callbackContent.get(1));
 	}
+
+	@Test
+	public void testJoinExcessColumnsEnabled() {
+		final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("a", "b", "c"), "join_", ";", null, true);
+		final AgentContext context = new AgentContext();
+		context.setConversation(Conversation.create("test"));
+
+		final String csvResponse = """
+				1;2;3
+				4;5;6;7
+				8;9; 10 ; 11 ;12
+				""";
+
+		final Completion completion = new Completion(csvResponse, null, null, null);
+		final boolean result = handler.handle(completion, context);
+
+		assertTrue(result);
+
+		assertEquals(List.of("1", "4", "8"), context.getStringValues("join_a"));
+		assertEquals(List.of("2", "5", "9"), context.getStringValues("join_b"));
+		assertEquals(List.of("3", "6;7", "10;11;12"), context.getStringValues("join_c"));
+	}
+
+	@Test
+	public void testJoinExcessColumnsDisabled() {
+		final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("a", "b", "c"), "nojoin_");
+		final AgentContext context = new AgentContext();
+		context.setConversation(Conversation.create("test"));
+
+		final String csvResponse = """
+				1;2;3
+				4;5;6;7
+				8;9;10
+				""";
+
+		final Completion completion = new Completion(csvResponse, null, null, null);
+		final boolean result = handler.handle(completion, context);
+
+		assertTrue(result);
+
+		// Rows with excess columns are skipped when the option is disabled
+		assertEquals(List.of("1", "8"), context.getStringValues("nojoin_a"));
+		assertEquals(List.of("2", "9"), context.getStringValues("nojoin_b"));
+		assertEquals(List.of("3", "10"), context.getStringValues("nojoin_c"));
+	}
+
+	@Test
+	public void testJoinExcessColumnsInsufficientColumnsStillSkipped() {
+		final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("a", "b", "c"), "insufficient_", ";", null, true);
+		final AgentContext context = new AgentContext();
+		context.setConversation(Conversation.create("test"));
+
+		final String csvResponse = """
+				1;2;3
+				4;5
+				""";
+
+		final Completion completion = new Completion(csvResponse, null, null, null);
+		final boolean result = handler.handle(completion, context);
+
+		assertTrue(result);
+
+		assertEquals(List.of("1"), context.getStringValues("insufficient_a"));
+		assertEquals(List.of("2"), context.getStringValues("insufficient_b"));
+		assertEquals(List.of("3"), context.getStringValues("insufficient_c"));
+	}
+
+	@Test
+	public void testJoinExcessColumnsSingleHeading() {
+		final CsvAgentResponseHandler handler = new CsvAgentResponseHandler(List.of("text"), "single_head_", ";", null, true);
+		final AgentContext context = new AgentContext();
+		context.setConversation(Conversation.create("test"));
+
+		final String csvResponse = """
+				hello;world
+				one;two;three
+				""";
+
+		final Completion completion = new Completion(csvResponse, null, null, null);
+		final boolean result = handler.handle(completion, context);
+
+		assertTrue(result);
+
+		assertEquals(List.of("hello;world", "one;two;three"), context.getStringValues("single_head_text"));
+	}
 }

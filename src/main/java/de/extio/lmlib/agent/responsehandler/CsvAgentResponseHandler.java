@@ -32,6 +32,8 @@ public class CsvAgentResponseHandler implements StreamedAgentResponseHandler {
 	private final String reasoningKey;
 
 	private final BiConsumer<AgentContext, Chunk> afterChunkUpdate;
+
+	private final boolean joinExcessColumns;
 	
 	public CsvAgentResponseHandler(final List<String> headings, final String keyPrefix) {
 		this(headings, keyPrefix, ";");
@@ -42,6 +44,23 @@ public class CsvAgentResponseHandler implements StreamedAgentResponseHandler {
 	}
 
 	public CsvAgentResponseHandler(final List<String> headings, final String keyPrefix, final String fieldSeparator, final BiConsumer<AgentContext, Chunk> afterChunkUpdate) {
+		this(headings, keyPrefix, fieldSeparator, afterChunkUpdate, false);
+	}
+
+	/**
+	 * @param headings
+	 *            the CSV column headings; defines the expected column order and the context keys the values are stored in
+	 * @param keyPrefix
+	 *            prefix prepended to each heading to build the context key (may be null or empty)
+	 * @param fieldSeparator
+	 *            the separator between CSV fields, e.g. ";" or ","
+	 * @param afterChunkUpdate
+	 *            optional callback invoked for every streamed chunk, may be null
+	 * @param joinExcessColumns
+	 *            if true, lines with more columns than headings are not skipped; instead the excess
+	 *            columns are joined into the last column value using the field separator
+	 */
+	public CsvAgentResponseHandler(final List<String> headings, final String keyPrefix, final String fieldSeparator, final BiConsumer<AgentContext, Chunk> afterChunkUpdate, final boolean joinExcessColumns) {
 		if (headings == null || headings.isEmpty()) {
 			throw new IllegalArgumentException("Headings list cannot be null or empty");
 		}
@@ -51,6 +70,7 @@ public class CsvAgentResponseHandler implements StreamedAgentResponseHandler {
 		this.fieldSeparatorQuoted = Pattern.quote(fieldSeparator);
 		this.reasoningKey = this.keyPrefix + "_reasoning";
 		this.afterChunkUpdate = afterChunkUpdate;
+		this.joinExcessColumns = joinExcessColumns;
 		
 		this.errorPrompt = "\n\nThe previous response could not be fully processed or validated. " +
 				"Please format the response as CSV with '" + fieldSeparator + "' as field separator.\n" +
@@ -153,7 +173,12 @@ public class CsvAgentResponseHandler implements StreamedAgentResponseHandler {
 			}
 			
 			try {
-				final String[] parts = line.split(this.fieldSeparatorQuoted, -1);
+				String[] parts = line.split(this.fieldSeparatorQuoted, -1);
+				if (this.joinExcessColumns && parts.length > this.headings.size()) {
+					LOGGER.debug("Joining {} excess columns into last column of line '{}'",
+							parts.length - this.headings.size(), line);
+					parts = this.joinExcessColumns(parts);
+				}
 				if (parts.length != this.headings.size()) {
 					LOGGER.debug("Column count mismatch: expected {}, got {} for line '{}'",
 							this.headings.size(), parts.length, line);
@@ -196,6 +221,20 @@ public class CsvAgentResponseHandler implements StreamedAgentResponseHandler {
 		context.getConversation().addTurn(new Conversation.Turn(
 				Conversation.TurnType.USER,
 				this.errorPrompt));
+	}
+	
+	private String[] joinExcessColumns(final String[] parts) {
+		final int last = this.headings.size() - 1;
+		final String[] joined = new String[this.headings.size()];
+		System.arraycopy(parts, 0, joined, 0, last);
+		
+		final StringBuilder lastValue = new StringBuilder(parts[last].trim());
+		for (int i = last + 1; i < parts.length; i++) {
+			lastValue.append(this.fieldSeparator).append(parts[i].trim());
+		}
+		joined[last] = lastValue.toString();
+		
+		return joined;
 	}
 	
 	private String stripQuotes(final String value) {
