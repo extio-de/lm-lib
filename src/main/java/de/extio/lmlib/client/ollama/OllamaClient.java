@@ -37,6 +37,7 @@ import de.extio.lmlib.client.CompletionStatistics;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.ProxyAuthorizationSupport;
+import de.extio.lmlib.client.StreamingTiming;
 import de.extio.lmlib.client.ToolCall;
 import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.ToolDefinition;
@@ -119,6 +120,8 @@ public class OllamaClient implements Client {
 		
 		LOGGER.debug("Requesting Ollama chat at {}", modelProfile.url());
 		final var start = LocalDateTime.now();
+		final var timing = StreamingTiming.create();
+		final var streamConsumer = timing.wrap(chunkConsumer);
 		final var restClient = this.restClientBuilder.baseUrl(modelProfile.url()).build();
 		
 		var requestSpec = restClient
@@ -142,7 +145,7 @@ public class OllamaClient implements Client {
 						this.throwIfEmbeddedError(ollamaResponse);
 						return ollamaResponse;
 					}
-					return this.readStream(clientResponse.getBody(), chunkConsumer);
+					return this.readStream(clientResponse.getBody(), streamConsumer);
 				});
 		
 		this.throwIfEmbeddedError(response);
@@ -150,7 +153,7 @@ public class OllamaClient implements Client {
 		final var reasoning = response.getMessage() != null ? response.getMessage().getThinking() : null;
 		final var toolCalls = this.toToolCalls(response.getMessage() != null ? response.getMessage().getToolCalls() : List.of());
 		final var finishReason = this.mapFinishReason(response.getDoneReason(), toolCalls);
-		final var statistics = this.createCompletionStatistics(modelProfile, start, response, conversation, content, reasoning);
+		final var statistics = this.createCompletionStatistics(modelProfile, start, response, conversation, content, reasoning, chunkConsumer != null, timing.getFirstToken());
 		return new Completion(content, reasoning, finishReason, statistics, toolCalls);
 	}
 	
@@ -386,7 +389,7 @@ public class OllamaClient implements Client {
 		};
 	}
 	
-	private CompletionStatistics createCompletionStatistics(final ModelProfile modelProfile, final LocalDateTime start, final OllamaChatResponse response, final Conversation conversation, final String content, final String reasoning) {
+	private CompletionStatistics createCompletionStatistics(final ModelProfile modelProfile, final LocalDateTime start, final OllamaChatResponse response, final Conversation conversation, final String content, final String reasoning, final boolean streaming, final LocalDateTime firstToken) {
 		int inTokens = 0;
 		int outTokens = 0;
 		int reasoningOutTokens = 0;
@@ -406,14 +409,32 @@ public class OllamaClient implements Client {
 		if (outTokens <= 0 && content != null && !content.isBlank()) {
 			outTokens = this.tokenizerResolver.count(content, modelProfile);
 		}
+		final var end = LocalDateTime.now();
 		final var duration = response.getTotalDuration() != null && response.getTotalDuration() > 0
 				? Duration.ofNanos(response.getTotalDuration())
-				: Duration.between(start, LocalDateTime.now());
+				: Duration.between(start, end);
 		var cost = BigDecimal.ZERO;
 		cost = cost.add(BigDecimal.valueOf(inTokens).multiply(modelProfile.costPerInToken()));
 		cost = cost.add(BigDecimal.valueOf(outTokens).multiply(modelProfile.costPerOutToken()));
 		cost = cost.add(BigDecimal.valueOf(reasoningOutTokens).multiply(modelProfile.costPerReasoningOutToken()));
-		return new CompletionStatistics(1, duration, inTokens, 0, outTokens, reasoningOutTokens, cost, false);
+		final var totalOutTokens = (long) outTokens + reasoningOutTokens;
+		int prefillTps = 0;
+		int outTps = 0;
+		if (streaming && firstToken != null) {
+			prefillTps = CompletionStatistics.tokensPerSecond(inTokens, Duration.between(start, firstToken));
+			outTps = CompletionStatistics.tokensPerSecond(totalOutTokens, Duration.between(firstToken, end));
+		}
+		else if (!streaming) {
+			// Ollama reports the phase durations in nanoseconds
+			if (response.getPromptEvalDuration() != null && response.getPromptEvalDuration() > 0) {
+				prefillTps = CompletionStatistics.tokensPerSecond(inTokens, Duration.ofNanos(response.getPromptEvalDuration()));
+			}
+			if (response.getEvalDuration() != null && response.getEvalDuration() > 0) {
+				outTps = CompletionStatistics.tokensPerSecond(totalOutTokens, Duration.ofNanos(response.getEvalDuration()));
+			}
+		}
+		final var requestTps = CompletionStatistics.tokensPerSecond(totalOutTokens, duration);
+		return new CompletionStatistics(1, duration, inTokens, 0, outTokens, reasoningOutTokens, prefillTps, outTps, requestTps, cost, false);
 	}
 	
 	private String createPromptForCounting(final Conversation conversation) {

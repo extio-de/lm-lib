@@ -41,7 +41,7 @@ class AgentErrorHandlingTest {
 	@Test
 	void parsingErrorsKeepTheirTypeWithoutAnExceptionWhenTheHandlerReturnsFalse() {
 		final Client client = mock(Client.class);
-		when(client.conversation(any(ModelCategory.class), any(), isNull(), anyBoolean())).thenReturn(new Completion("not json", null, null, new CompletionStatistics(1, Duration.ofMillis(1), 1, 0, 1, 0, BigDecimal.ZERO, false)));
+		when(client.conversation(any(ModelCategory.class), any(), isNull(), anyBoolean())).thenReturn(new Completion("not json", null, null, new CompletionStatistics(1, Duration.ofMillis(1), 1, 0, 1, 0, 0, 0, 1000, BigDecimal.ZERO, false)));
 		
 		final AgentResponseHandler responseHandler = (completion, context) -> false;
 		final var agent = new Agent("ParseAgent",
@@ -118,11 +118,11 @@ class AgentErrorHandlingTest {
 						"",
 						null,
 						CompletionFinishReason.TOOL_CALLS,
-						new CompletionStatistics(1, Duration.ofMillis(1), 1, 0, 1, 0, BigDecimal.ZERO, false),
+						new CompletionStatistics(1, Duration.ofMillis(1), 1, 0, 1, 0, 0, 0, 1000, BigDecimal.ZERO, false),
 						List.of(new ToolCall("call_1", "function", "get_weather", "{\"location\":\"Berlin, Germany\"}")));
 			}
 			secondRequestToolCallData.set(toolCallData);
-			return new Completion("Berlin is rainy and 21C", null, CompletionFinishReason.DONE, new CompletionStatistics(1, Duration.ofMillis(1), 1, 0, 1, 0, BigDecimal.ZERO, false));
+			return new Completion("Berlin is rainy and 21C", null, CompletionFinishReason.DONE, new CompletionStatistics(1, Duration.ofMillis(1), 1, 0, 1, 0, 0, 0, 1000, BigDecimal.ZERO, false));
 		}).when(client).conversation(any(ModelCategory.class), any(), any(ToolCallData.class), anyBoolean());
 
 		final BaseAgent toolCaller = new BaseAgent() {

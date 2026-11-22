@@ -18,6 +18,7 @@ import de.extio.lmlib.client.Chunk;
 import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
+import de.extio.lmlib.client.StreamingTiming;
 import de.extio.lmlib.client.ToolCall;
 import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.ToolDefinition;
@@ -66,6 +67,8 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		
 		LOGGER.debug("Requesting chat completion at {}", modelProfile.url());
 		final LocalDateTime start = LocalDateTime.now();
+		final var timing = StreamingTiming.create();
+		final var streamConsumer = timing.wrap(chunkConsumer);
 		final var restClient = this.restClientBuilder.baseUrl(modelProfile.url()).build();
 		
 		final var path = switch (modelProfile.url()) {
@@ -152,7 +155,7 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 												reasoningStringBuilder.append(reasoning);
 											}
 											if (content != null || reasoning != null) {
-												chunkConsumer.accept(new Chunk(content, reasoning));
+												streamConsumer.accept(new Chunk(content, reasoning));
 											}
 											if (streamResponse.getChoices().getFirst().getMessage().getToolCalls() != null && !streamResponse.getChoices().getFirst().getMessage().getToolCalls().isEmpty()) {
 												this.mergeToolCalls(toolCalls, streamResponse.getChoices().getFirst().getMessage().getToolCalls());
@@ -179,7 +182,7 @@ public class ChatCompletionClient extends AbstractCompletionClient {
 		final var reasoning = response.getChoices().getFirst().getMessage().getReasoningContent();
 		final var toolCalls = this.toToolCalls(response.getChoices().getFirst().getMessage().getToolCalls());
 		final var finishReason = this.mapFinishReason(choice.getFinishReason());
-		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), response.getTimings(), null, content, reasoning);
+		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), response.getTimings(), null, content, reasoning, chunkConsumer != null, timing.getFirstToken());
 		return new Completion(content, reasoning, finishReason, statistics, toolCalls);
 	}
 

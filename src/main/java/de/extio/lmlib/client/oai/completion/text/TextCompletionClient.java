@@ -19,6 +19,7 @@ import de.extio.lmlib.client.Completion;
 import de.extio.lmlib.client.CompletionFinishReason;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
+import de.extio.lmlib.client.StreamingTiming;
 import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.oai.completion.AbstractCompletionClient;
 import de.extio.lmlib.profile.ModelCategory;
@@ -70,6 +71,8 @@ public class TextCompletionClient extends AbstractCompletionClient {
 		
 		LOGGER.debug("Requesting completion at {}", modelProfile.url());
 		final LocalDateTime start = LocalDateTime.now();
+		final var timing = StreamingTiming.create();
+		final var streamConsumer = timing.wrap(chunkConsumer);
 		final var restClient = this.restClientBuilder.baseUrl(modelProfile.url()).build();
 		final var path = switch (modelProfile.url()) {
 			case final String url when url.endsWith("v1") -> "/completions";
@@ -148,7 +151,7 @@ public class TextCompletionClient extends AbstractCompletionClient {
 										}
 										if (streamResponse.getChoices().getFirst().getText() != null && !streamResponse.getChoices().getFirst().getText().isEmpty()) {
 											contentStringBuilder.append(streamResponse.getChoices().getFirst().getText());
-											chunkConsumer.accept(new Chunk(streamResponse.getChoices().getFirst().getText(), null));
+											streamConsumer.accept(new Chunk(streamResponse.getChoices().getFirst().getText(), null));
 										}
 									}
 								}
@@ -195,7 +198,7 @@ public class TextCompletionClient extends AbstractCompletionClient {
 			}
 		}
 		
-		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), response.getTimings(), prompt, content, reasoning);
+		final var statistics = createCompletionStatistics(modelProfile, start, response.getUsage(), response.getTimings(), prompt, content, reasoning, chunkConsumer != null, timing.getFirstToken());
 		return new Completion(content, reasoning, finishReason, statistics);
 	}
 

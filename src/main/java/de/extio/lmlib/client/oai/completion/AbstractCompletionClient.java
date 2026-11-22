@@ -234,7 +234,7 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 		}
 	}
 	
-	protected de.extio.lmlib.client.CompletionStatistics createCompletionStatistics(final ModelProfile modelProfile, final LocalDateTime start, final Usage usage, final Timings timings, final String prompt, final String response, final String reasoning) {
+	protected de.extio.lmlib.client.CompletionStatistics createCompletionStatistics(final ModelProfile modelProfile, final LocalDateTime start, final Usage usage, final Timings timings, final String prompt, final String response, final String reasoning, final boolean streaming, final LocalDateTime firstToken) {
 		int inTokens = 0;
 		int cachedInTokens = 0;
 		int outTokens = 0;
@@ -273,17 +273,35 @@ public abstract class AbstractCompletionClient implements Client, DisposableBean
 			outTokens = this.tokenizerResolver.count(response, modelProfile);
 		}
 		
+		final var end = LocalDateTime.now();
+		final var duration = Duration.between(start, end);
 		var cost = this.getUsageCost(usage);
 		if (cost.compareTo(BigDecimal.ZERO) <= 0) {
 			cost = this.calculateTokenCost(modelProfile, inTokens, cachedInTokens, outTokens, reasoningOutTokens);
 		}
+		final var totalInTokens = (long) inTokens + cachedInTokens;
+		final var totalOutTokens = (long) outTokens + reasoningOutTokens;
+		final var requestTps = de.extio.lmlib.client.CompletionStatistics.tokensPerSecond(totalOutTokens, duration);
+		int prefillTps = 0;
+		int outTps = 0;
+		if (streaming && firstToken != null) {
+			prefillTps = de.extio.lmlib.client.CompletionStatistics.tokensPerSecond(totalInTokens, Duration.between(start, firstToken));
+			outTps = de.extio.lmlib.client.CompletionStatistics.tokensPerSecond(totalOutTokens, Duration.between(firstToken, end));
+		}
+		else if (!streaming && timings != null) {
+			prefillTps = (int) Math.max(0L, Math.round(timings.getPromptPerSecond()));
+			outTps = (int) Math.max(0L, Math.round(timings.getPredictedPerSecond()));
+		}
 		final var statistics = new de.extio.lmlib.client.CompletionStatistics(
 				1,
-				Duration.between(start, LocalDateTime.now()),
+				duration,
 				inTokens,
 				cachedInTokens,
 				outTokens,
 				reasoningOutTokens,
+				prefillTps,
+				outTps,
+				requestTps,
 				cost,
 				false);
 		LOGGER.debug("{}", statistics);

@@ -92,7 +92,7 @@ public class CachedClient implements Client {
 		
 		final var cachedCompletion = skipCache ? null : this.cacheRepository.get(key);
 		if (cachedCompletion != null) {
-			return new Completion(cachedCompletion.response(), cachedCompletion.reasoning(), cachedCompletion.finishReason(), new CompletionStatistics(0, Duration.ZERO, cachedCompletion.inTokens(), cachedCompletion.cachedInTokens(), cachedCompletion.outTokens(), cachedCompletion.reasoningOutTokens(), BigDecimal.ZERO, true), cachedCompletion.toolCalls(), cachedCompletion.outputItems());
+			return new Completion(cachedCompletion.response(), cachedCompletion.reasoning(), cachedCompletion.finishReason(), new CompletionStatistics(0, Duration.ZERO, cachedCompletion.inTokens(), cachedCompletion.cachedInTokens(), cachedCompletion.outTokens(), cachedCompletion.reasoningOutTokens(), 0, 0, 0, BigDecimal.ZERO, true), cachedCompletion.toolCalls(), cachedCompletion.outputItems());
 		}
 		
 		final var completion = supplier.get();

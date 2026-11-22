@@ -191,7 +191,7 @@ class AnthropicClientRequestTest {
 				""";
 		final var response = JsonMapper.builder().build().readValue(json, AnthropicMessageResponse.class);
 
-		final var completion = client.mapResponse(response, this.createProfile(2048), LocalDateTime.now(), Conversation.create("hi"));
+		final var completion = client.mapResponse(response, this.createProfile(2048), LocalDateTime.now(), Conversation.create("hi"), false, null);
 
 		assertEquals("Hello world", completion.response());
 		assertEquals("reasoning text", completion.reasoning());
@@ -211,6 +211,9 @@ class AnthropicClientRequestTest {
 		// output_tokens minus tokenizer-estimated reasoning (fixed count of 3)
 		assertEquals(39, completion.statistics().outTokens());
 		assertEquals(3, completion.statistics().reasoningOutTokens());
+		// the Anthropic API does not report a throughput and no token was streamed
+		assertEquals(0, completion.statistics().prefillTps());
+		assertEquals(0, completion.statistics().outTps());
 	}
 
 	@Test
@@ -280,7 +283,7 @@ class AnthropicClientRequestTest {
 		assertEquals("hmm yes", response.content().get(0).thinking());
 		assertEquals("hello stream", response.content().get(1).text());
 
-		final var completion = client.mapResponse(response, this.createProfile(2048), LocalDateTime.now(), Conversation.create("hi"));
+		final var completion = client.mapResponse(response, this.createProfile(2048), LocalDateTime.now(), Conversation.create("hi"), true, null);
 		assertEquals("hello stream", completion.response());
 		assertEquals("hmm yes", completion.reasoning());
 		assertEquals(CompletionFinishReason.DONE, completion.finishReason());

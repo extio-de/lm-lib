@@ -35,6 +35,7 @@ import de.extio.lmlib.client.CompletionStatistics;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.ProxyAuthorizationSupport;
+import de.extio.lmlib.client.StreamingTiming;
 import de.extio.lmlib.client.ToolCall;
 import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.ToolDefinition;
@@ -466,11 +467,13 @@ public class ResponsesApiClient implements Client {
 		final var toolCalls = this.extractToolCalls(output);
 		final var outputItems = this.extractOutputItems(output);
 		final var finishReason = this.determineFinishReason(response, toolCalls);
-		final var statistics = this.createCompletionStatistics(modelProfile, start, response.path("usage"), prompt, responseText, reasoningText);
+		final var statistics = this.createCompletionStatistics(modelProfile, start, response.path("usage"), prompt, responseText, reasoningText, false, null);
 		return new Completion(responseText, reasoningText, finishReason, statistics, toolCalls, outputItems);
 	}
 	
 	private Completion parseStreamingCompletion(final InputStream body, final ModelProfile modelProfile, final LocalDateTime start, final String prompt, final Consumer<Chunk> chunkConsumer) throws IOException {
+		final var timing = StreamingTiming.create();
+		final var streamConsumer = timing.wrap(chunkConsumer);
 		var response = this.objectMapper.createObjectNode();
 		final var responseText = new StringBuilder();
 		final var reasoningText = new StringBuilder();
@@ -510,14 +513,14 @@ public class ResponsesApiClient implements Client {
 						final var delta = this.text(event, "delta");
 						if (!delta.isEmpty()) {
 							responseText.append(delta);
-							chunkConsumer.accept(new Chunk(delta, null));
+							streamConsumer.accept(new Chunk(delta, null));
 						}
 					}
 					case "response.reasoning_text.delta" -> {
 						final var delta = this.extractReasoningDelta(eventType, event);
 						if (!delta.isEmpty()) {
 							reasoningText.append(delta);
-							chunkConsumer.accept(new Chunk(null, delta));
+							streamConsumer.accept(new Chunk(null, delta));
 						}
 					}
 					case "response.output_item.added" -> this.mergeFunctionCallItem(toolCalls, event.path("item"), this.integerValue(event.path("output_index"), -1));
@@ -551,7 +554,7 @@ public class ResponsesApiClient implements Client {
 			outputItems = this.createFallbackOutputItems(completedText, finalToolCalls);
 		}
 		final var finishReason = this.determineFinishReason(response, finalToolCalls);
-		final var statistics = this.createCompletionStatistics(modelProfile, start, response.path("usage"), prompt, completedText, completedReasoning);
+		final var statistics = this.createCompletionStatistics(modelProfile, start, response.path("usage"), prompt, completedText, completedReasoning, true, timing.getFirstToken());
 		return new Completion(completedText, completedReasoning, finishReason, statistics, finalToolCalls, outputItems);
 	}
 	
@@ -718,7 +721,7 @@ public class ResponsesApiClient implements Client {
 		};
 	}
 	
-	private CompletionStatistics createCompletionStatistics(final ModelProfile modelProfile, final LocalDateTime start, final JsonNode usage, final String prompt, final String response, final String reasoning) {
+	private CompletionStatistics createCompletionStatistics(final ModelProfile modelProfile, final LocalDateTime start, final JsonNode usage, final String prompt, final String response, final String reasoning, final boolean streaming, final LocalDateTime firstToken) {
 		var inTokens = 0;
 		var cachedInTokens = 0;
 		var outTokens = 0;
@@ -745,13 +748,24 @@ public class ResponsesApiClient implements Client {
 		
 		final var cost = this.getUsageCost(usage)
 				.max(this.calculateTokenCost(modelProfile, inTokens, cachedInTokens, outTokens, reasoningOutTokens));
+		final var end = LocalDateTime.now();
+		final var totalOutTokens = (long) outTokens + reasoningOutTokens;
+		int prefillTps = 0;
+		int outTps = 0;
+		if (streaming && firstToken != null) {
+			prefillTps = CompletionStatistics.tokensPerSecond((long) inTokens + cachedInTokens, Duration.between(start, firstToken));
+			outTps = CompletionStatistics.tokensPerSecond(totalOutTokens, Duration.between(firstToken, end));
+		}
 		return new CompletionStatistics(
 				1,
-				Duration.between(start, LocalDateTime.now()),
+				Duration.between(start, end),
 				inTokens,
 				cachedInTokens,
 				outTokens,
 				reasoningOutTokens,
+				prefillTps,
+				outTps,
+				CompletionStatistics.tokensPerSecond(totalOutTokens, Duration.between(start, end)),
 				cost,
 				false);
 	}

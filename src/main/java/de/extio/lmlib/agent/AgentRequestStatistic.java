@@ -1,13 +1,13 @@
 package de.extio.lmlib.agent;
 
 import java.math.BigDecimal;
-import java.text.DecimalFormat;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import de.extio.lmlib.client.Completion;
+import de.extio.lmlib.client.CompletionStatistics;
 
 public final class AgentRequestStatistic {
 	
@@ -36,6 +36,19 @@ public final class AgentRequestStatistic {
 	private final AtomicLong outTokens = new AtomicLong();
 	
 	private final AtomicLong reasoningOutTokens = new AtomicLong();
+	
+	/** Accumulated tokens and phase durations to average the reported throughputs over. */
+	private final AtomicLong prefillTpsTokens = new AtomicLong();
+	
+	private final AtomicLong prefillTpsMillis = new AtomicLong();
+	
+	private final AtomicLong outTpsTokens = new AtomicLong();
+	
+	private final AtomicLong outTpsMillis = new AtomicLong();
+	
+	private final AtomicLong requestTpsTokens = new AtomicLong();
+	
+	private final AtomicLong requestTpsMillis = new AtomicLong();
 	
 	private volatile Instant start;
 	
@@ -78,14 +91,27 @@ public final class AgentRequestStatistic {
 		return Duration.between(this.start, Instant.now());
 	}
 	
-	public String getTps() {
-		final var duration = this.start == null ? this.getRequestDuration() : this.getEffectiveDuration();
-		return new DecimalFormat("#.##").format((double) (this.inTokens.get() + this.outTokens.get() + this.reasoningOutTokens.get()) / (double) duration.toMillis() * 1000.0);
+	/**
+	 * Returns the averaged input tokens per second spent on prefill. The phase durations are
+	 * reconstructed from the reported throughputs, so faster and slower requests are weighted by
+	 * their tokens instead of their count.
+	 */
+	public int getPrefillTps() {
+		return CompletionStatistics.tokensPerSecond(this.prefillTpsTokens.get(), Duration.ofMillis(this.prefillTpsMillis.get()));
 	}
 	
-	public String getOutTps() {
-		final var duration = this.start == null ? this.getRequestDuration() : this.getEffectiveDuration();
-		return new DecimalFormat("#.##").format((double) (this.outTokens.get() + this.reasoningOutTokens.get()) / (double) duration.toMillis() * 1000.0);
+	/**
+	 * Returns the averaged output and reasoning tokens per second spent on generation.
+	 */
+	public int getOutTps() {
+		return CompletionStatistics.tokensPerSecond(this.outTpsTokens.get(), Duration.ofMillis(this.outTpsMillis.get()));
+	}
+	
+	/**
+	 * Returns the averaged output and reasoning tokens per second over the request durations.
+	 */
+	public int getRequestTps() {
+		return CompletionStatistics.tokensPerSecond(this.requestTpsTokens.get(), Duration.ofMillis(this.requestTpsMillis.get()));
 	}
 	
 	public BigDecimal getCost() {
@@ -102,11 +128,30 @@ public final class AgentRequestStatistic {
 			this.getCachedInTokens().addAndGet(completion.statistics().cachedInTokens());
 			this.getOutTokens().addAndGet(completion.statistics().outTokens());
 			this.getReasoningOutTokens().addAndGet(completion.statistics().reasoningOutTokens());
+			this.addThroughput(completion.statistics());
 		}
 		synchronized (this) {
 			this.requestDuration = this.requestDuration.plus(completion.statistics().duration());
 			this.cost = this.cost.add(completion.statistics().cost());
 		}
+	}
+	
+	/**
+	 * Collects a throughput sample. A missing throughput is not measured and therefore not weighted.
+	 */
+	private void addThroughput(final CompletionStatistics statistics) {
+		addSample(this.prefillTpsTokens, this.prefillTpsMillis, statistics.prefillTps(), statistics.inTokens() + statistics.cachedInTokens());
+		final var outTokens = statistics.outTokens() + statistics.reasoningOutTokens();
+		addSample(this.outTpsTokens, this.outTpsMillis, statistics.outTps(), outTokens);
+		addSample(this.requestTpsTokens, this.requestTpsMillis, statistics.requestTps(), outTokens);
+	}
+	
+	private static void addSample(final AtomicLong tokens, final AtomicLong millis, final int tokensPerSecond, final long tokenCount) {
+		if (tokensPerSecond <= 0 || tokenCount <= 0) {
+			return;
+		}
+		tokens.addAndGet(tokenCount);
+		millis.addAndGet(Math.max(1L, Math.round((double) tokenCount * 1_000.0 / (double) tokensPerSecond)));
 	}
 	
 	public void add(final AgentRequestStatistic other) {
@@ -116,6 +161,12 @@ public final class AgentRequestStatistic {
 		this.getCachedInTokens().addAndGet(other.getCachedInTokens().get());
 		this.getOutTokens().addAndGet(other.getOutTokens().get());
 		this.getReasoningOutTokens().addAndGet(other.getReasoningOutTokens().get());
+		this.prefillTpsTokens.addAndGet(other.prefillTpsTokens.get());
+		this.prefillTpsMillis.addAndGet(other.prefillTpsMillis.get());
+		this.outTpsTokens.addAndGet(other.outTpsTokens.get());
+		this.outTpsMillis.addAndGet(other.outTpsMillis.get());
+		this.requestTpsTokens.addAndGet(other.requestTpsTokens.get());
+		this.requestTpsMillis.addAndGet(other.requestTpsMillis.get());
 		synchronized (this) {
 			if (this.start != null && other.start.isBefore(this.start)) {
 				this.start = other.start;
@@ -142,14 +193,14 @@ public final class AgentRequestStatistic {
 		builder.append(this.reasoningOutTokens);
 		builder.append(", requestDuration=");
 		builder.append(this.requestDuration);
-		builder.append(", getEffectiveDuration()=");
-		if (this.start != null) {
-			builder.append(this.getEffectiveDuration());
-			builder.append(", getTps()=");
-		}
-		builder.append(this.getTps());
-		builder.append(", getOutTps()=");
+		builder.append(", prefillTps=");
+		builder.append(this.getPrefillTps());
+		builder.append(", outTps=");
 		builder.append(this.getOutTps());
+		builder.append(", requestTps=");
+		builder.append(this.getRequestTps());
+		builder.append(", getEffectiveDuration()=");
+		builder.append(this.getEffectiveDuration());
 		builder.append(", getCost()=");
 		builder.append(this.getCost());
 		builder.append("]");

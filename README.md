@@ -1133,7 +1133,7 @@ Errors are isolated to the affected split.
 | Field or Flag | Purpose |
 |---------------|---------|
 | `conversation` | Holds the current conversation history |
-| `requestStatistic` | Aggregates token, cost, and duration statistics |
+| `requestStatistic` | Aggregates token, cost, duration, and throughput statistics |
 | `graph` | Stores the execution trace |
 | `lastCompletion` | Holds the most recent completion |
 | `skipNextCompletion` | Skips the next LLM call |
@@ -1160,7 +1160,7 @@ Sample output from `AgentTest#agenticFlow`:
 ```text
 gemma3-12b-it-q5_k_m
 M, CodeSummarizer, ↴, M, FeatureIdentifier, →, ⇉ 1/5, M, FeatureAnalyzer, 5↣1, →, M, AnswerGenerator
-AgentRequestStatistic [requests=8, cachedPrompts=0, inTokens=27393, outTokens=4861, requestDuration=PT3M30.415881394S, getEffectiveDuration()=PT2M22.102597491S, getTps()=226.98, getOutTps()=34.21, getCost()=0]
+AgentRequestStatistic [requests=8, cachedPrompts=0, inTokens=27393, outTokens=4861, requestDuration=PT3M30.415881394S, prefillTps=812, outTps=41, requestTps=34, getEffectiveDuration()=PT2M22.102597491S, getCost()=0]
 ```
 
 This trace shows a typical pattern: summarize, identify multiple features, fan out into parallel analysis, merge results, and generate a final answer while preserving usage statistics.
@@ -1209,4 +1209,4 @@ Navigate complex workflows with automatic decision-making based on execution out
 
 Qwen3.5-9B-Q8_0
 [M, CodeSummarizer, (19184 ms), ↴, M, FeatureIdentifier, (5273 ms), →, ⇉ 1/5, M, FeatureAnalyzer, (52686 ms), 5↣1, →, M, AnswerGenerator, (20392 ms)]
-AgentRequestStatistic [requests=8, cachedPrompts=0, inTokens=28281, cachedInTokens=13498, outTokens=6677, reasoningOutTokens=0, requestDuration=PT4M11.98566101S, getEffectiveDuration()=PT2M32.67066665S, getTps()=228.98, getOutTps()=43.73, getCost()=0]
+AgentRequestStatistic [requests=8, cachedPrompts=0, inTokens=28281, cachedInTokens=13498, outTokens=6677, reasoningOutTokens=0, requestDuration=PT4M11.98566101S, prefillTps=1043, outTps=43, requestTps=43, getEffectiveDuration()=PT2M32.67066665S, getCost()=0]

@@ -33,6 +33,7 @@ import de.extio.lmlib.client.CompletionStatistics;
 import de.extio.lmlib.client.Conversation;
 import de.extio.lmlib.client.Conversation.Turn;
 import de.extio.lmlib.client.ProxyAuthorizationSupport;
+import de.extio.lmlib.client.StreamingTiming;
 import de.extio.lmlib.client.ToolCall;
 import de.extio.lmlib.client.ToolCallData;
 import de.extio.lmlib.client.ToolDefinition;
@@ -127,6 +128,8 @@ public class AnthropicClient implements Client {
 
 		LOGGER.debug("Requesting Anthropic message at {}", modelProfile.url());
 		final var start = LocalDateTime.now();
+		final var timing = StreamingTiming.create();
+		final var streamConsumer = timing.wrap(chunkConsumer);
 		final var base = stripMessagesSuffix(modelProfile.url());
 		final var path = messagesPath(modelProfile.url());
 
@@ -152,10 +155,10 @@ public class AnthropicClient implements Client {
 					if (chunkConsumer == null) {
 						return this.objectMapper.readValue(clientResponse.getBody(), AnthropicMessageResponse.class);
 					}
-					return this.readStream(clientResponse.getBody(), chunkConsumer);
+					return this.readStream(clientResponse.getBody(), streamConsumer);
 				});
 
-		return this.mapResponse(response, modelProfile, start, conversation);
+		return this.mapResponse(response, modelProfile, start, conversation, chunkConsumer != null, timing.getFirstToken());
 	}
 
 	@Override
@@ -582,7 +585,7 @@ public class AnthropicClient implements Client {
 		return new AnthropicMessageResponse(id, "message", "assistant", model, List.copyOf(content), stopReason, stopSequence, usage);
 	}
 
-	Completion mapResponse(final AnthropicMessageResponse response, final ModelProfile modelProfile, final LocalDateTime start, final Conversation conversation) {
+	Completion mapResponse(final AnthropicMessageResponse response, final ModelProfile modelProfile, final LocalDateTime start, final Conversation conversation, final boolean streaming, final LocalDateTime firstToken) {
 		final var contentBuilder = new StringBuilder();
 		final var reasoningBuilder = new StringBuilder();
 		final List<ToolCall> toolCalls = new ArrayList<>();
@@ -631,7 +634,7 @@ public class AnthropicClient implements Client {
 		final var content = contentBuilder.toString();
 		final var reasoning = reasoningBuilder.toString();
 		return new Completion(content, reasoning, this.mapFinishReason(response.stopReason(), toolCalls),
-				this.createCompletionStatistics(modelProfile, start, response.usage(), conversation, content, reasoning),
+				this.createCompletionStatistics(modelProfile, start, response.usage(), conversation, content, reasoning, streaming, firstToken),
 				List.copyOf(toolCalls), List.copyOf(outputItems));
 	}
 
@@ -650,7 +653,7 @@ public class AnthropicClient implements Client {
 	}
 
 	private CompletionStatistics createCompletionStatistics(final ModelProfile modelProfile, final LocalDateTime start, final AnthropicUsage usage,
-			final Conversation conversation, final String content, final String reasoning) {
+			final Conversation conversation, final String content, final String reasoning, final boolean streaming, final LocalDateTime firstToken) {
 		int inTokens = 0;
 		int cachedInTokens = 0;
 		int outTokens = 0;
@@ -678,7 +681,16 @@ public class AnthropicClient implements Client {
 		cost = cost.add(BigDecimal.valueOf(cachedInTokens).multiply(modelProfile.costPerCachedInToken()));
 		cost = cost.add(BigDecimal.valueOf(outTokens).multiply(modelProfile.costPerOutToken()));
 		cost = cost.add(BigDecimal.valueOf(reasoningOutTokens).multiply(modelProfile.costPerReasoningOutToken()));
-		final var statistics = new CompletionStatistics(1, Duration.between(start, LocalDateTime.now()), inTokens, cachedInTokens, outTokens, reasoningOutTokens, cost, false);
+		final var end = LocalDateTime.now();
+		final var totalOutTokens = (long) outTokens + reasoningOutTokens;
+		int prefillTps = 0;
+		int outTps = 0;
+		if (streaming && firstToken != null) {
+			prefillTps = CompletionStatistics.tokensPerSecond((long) inTokens + cachedInTokens, Duration.between(start, firstToken));
+			outTps = CompletionStatistics.tokensPerSecond(totalOutTokens, Duration.between(firstToken, end));
+		}
+		final var requestTps = CompletionStatistics.tokensPerSecond(totalOutTokens, Duration.between(start, end));
+		final var statistics = new CompletionStatistics(1, Duration.between(start, end), inTokens, cachedInTokens, outTokens, reasoningOutTokens, prefillTps, outTps, requestTps, cost, false);
 		LOGGER.debug("{}", statistics);
 		return statistics;
 	}

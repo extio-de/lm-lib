@@ -24,7 +24,7 @@ public final record Completion(String response, String reasoning, CompletionFini
 		response = response == null ? "" : response;
 		reasoning = reasoning == null ? "" : reasoning;
 		finishReason = finishReason == null ? CompletionFinishReason.DONE : finishReason;
-		statistics = statistics == null ? new CompletionStatistics(0, Duration.ZERO, 0, 0, 0, 0, BigDecimal.ZERO, false) : statistics;
+		statistics = statistics == null ? new CompletionStatistics(0, Duration.ZERO, 0, 0, 0, 0, 0, 0, 0, BigDecimal.ZERO, false) : statistics;
 		toolCalls = toolCalls == null ? List.of() : List.copyOf(toolCalls);
 		outputItems = outputItems == null ? List.of() : outputItems.stream().map(outputItem -> outputItem == null ? Map.<String, Object>of() : Map.copyOf(outputItem)).toList();
 	}
